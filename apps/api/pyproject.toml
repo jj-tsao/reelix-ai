@@ -1,0 +1,21 @@
+[project]
+name = "reelix-agent-api"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "pydantic-settings",
+  "reelix-discovery-agent-api-client"
+]
+
+[tool.uv.sources]
+"reelix-discovery-agent-api-client" = { path = "../../packages/py-sdk" }
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "openapi-python-client>=0.26.0",
+    "pre-commit>=4.3.0",
+    "ruff>=0.12.12",
+]
