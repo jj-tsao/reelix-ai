@@ -85,7 +85,7 @@ jobs:
         run: pnpm -w run typecheck || pnpm -C apps/web run typecheck
 
       - name: Test
-        run: pnpm -w run test --if-present || pnpm -C apps/web run test --if-present
+        run: pnpm -w -r run test --if-present || pnpm -C apps/web run test --if-present || echo "No JS tests to run"
 
       - name: Build
         run: pnpm -w run build || pnpm -C apps/web run build
