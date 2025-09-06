@@ -20,7 +20,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
       - uses: pnpm/action-setup@v4
         with:
           version: 10.15.1
@@ -74,7 +73,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
       - uses: pnpm/action-setup@v4
         with:
           version: 10.15.1
@@ -130,7 +128,7 @@ jobs:
 
       # Uncomment once you add tests
       - name: Tests (pytest)
-        run: uv run pytest -q
+        run: uv run -m pytest -q
         continue-on-error: true
 
   # ---------- Python Worker ----------
@@ -169,5 +167,5 @@ jobs:
 
       # Uncomment once you add tests
       - name: Tests (pytest)
-        run: uv run pytest -q
+        run: uv run -m pytest -q
         continue-on-error: true
