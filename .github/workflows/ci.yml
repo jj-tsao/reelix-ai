@@ -27,13 +27,13 @@ jobs:
       - run: pnpm install
 
       - name: Generate TS SDK (orval)
-        working-directory: packages/ts-sdk
+        working-directory: packages/js/ts-sdk
         run: pnpm run generate
 
       - name: Fail if TS SDK drifted
         run: |
-          git diff --exit-code -- packages/ts-sdk/src/index.ts || \
-          (echo "::error ::TS SDK out of date. Run 'pnpm -C packages/ts-sdk run generate' and commit the changes."; exit 1)
+          git diff --exit-code -- packages/js/ts-sdk/src/index.ts || \
+          (echo "::error ::TS SDK out of date. Run 'pnpm -C packages/js/ts-sdk run generate' and commit the changes."; exit 1)
 
   sdk-py:
     name: Python SDK (openapi-python-client) — generate & check drift
@@ -143,7 +143,7 @@ jobs:
     needs: [sdk-py]
     defaults:
       run:
-        working-directory: apps/worker
+        working-directory: apps/scheduler-worker
     steps:
       - uses: actions/checkout@v4
 
@@ -159,8 +159,8 @@ jobs:
         with:
           path: |
             ~/.cache/uv
-            apps/worker/.venv
-          key: uv-${{ runner.os }}-worker-${{ hashFiles('apps/worker/pyproject.toml') }}
+            apps/scheduler-worker/.venv
+          key: uv-${{ runner.os }}-worker-${{ hashFiles('apps/scheduler-worker/pyproject.toml') }}
           restore-keys: |
             uv-${{ runner.os }}-worker-
 
