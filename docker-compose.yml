@@ -1,0 +1,5 @@
+version: "3.9"
+
+# Minimal placeholder compose. Add services as they’re implemented.
+services: {}
+

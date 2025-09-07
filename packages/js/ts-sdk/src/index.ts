@@ -44,3 +44,4 @@ export const health = async ( options?: RequestInit): Promise<healthResponse> =>
 
   return { data, status: res.status, headers: res.headers } as healthResponse
 }
+

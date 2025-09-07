@@ -4,7 +4,7 @@ const path = require('path');
 // or named projects. Using the single project shape here.
 module.exports = {
   input: {
-    target: path.resolve(__dirname, '../schemas/openapi.yaml'),
+    target: path.resolve(__dirname, '../../schemas/openapi.yaml'),
   },
   output: {
     mode: 'single',
@@ -16,3 +16,4 @@ module.exports = {
 
 // Ensure compatibility when loaded via ESM dynamic import
 module.exports.default = module.exports;
+

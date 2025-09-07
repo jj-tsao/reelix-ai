@@ -9,8 +9,8 @@
   "exports": { ".": { "types": "./src/index.ts", "import": "./src/index.ts" } },
   "sideEffects": false,
   "scripts": {
-    "generate": "orval --input ../schemas/openapi.yaml --output src/index.ts --mode single --client fetch --clean",
-    "dev": "orval --input ../schemas/openapi.yaml --output src/index.ts --mode single --client fetch --clean --watch",
+    "generate": "orval --input ../../schemas/openapi.yaml --output src/index.ts --mode single --client fetch --clean",
+    "dev": "orval --input ../../schemas/openapi.yaml --output src/index.ts --mode single --client fetch --clean --watch",
     "build": "pnpm run generate",
     "typecheck": "tsc --noEmit"
   },
@@ -19,3 +19,4 @@
     "typescript": "^5.6.2"
   }
 }
+
