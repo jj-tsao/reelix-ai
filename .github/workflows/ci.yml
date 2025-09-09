@@ -20,11 +20,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
       - uses: pnpm/action-setup@v4
         # Use pnpm version from package.json "packageManager"
 
       - run: pnpm -v
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
 
       - name: Generate TS SDK (orval)
         working-directory: packages/js/ts-sdk
@@ -72,11 +74,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
       - uses: pnpm/action-setup@v4
         # Use pnpm version from package.json "packageManager"
 
       - run: pnpm -v
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm -w run lint || pnpm -C apps/web run lint
@@ -170,7 +174,6 @@ jobs:
       - name: Ruff (lint)
         run: uv run ruff check .
 
-      # Uncomment once you add tests
       - name: Tests (pytest)
         run: |
           set +e
