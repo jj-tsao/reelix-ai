@@ -116,8 +116,12 @@ create table if not exists public.user_follows (
   created_at  timestamptz default now(),
   unique (user_id, target_type, target_ref)
 );
-create or replace view public.user_follows_active as
+create or replace view public.user_follows_active
+with (security_barrier) as
   select * from public.user_follows where is_deleted = false;
+
+revoke all on public.user_follows_active from public, anon, authenticated;
+grant select on public.user_follows_active to authenticated;
 
 -- Alert rules (keep; no delete policy; disable via is_active=false)
 create table if not exists public.user_alert_rules (
