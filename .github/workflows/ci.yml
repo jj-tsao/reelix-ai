@@ -17,13 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        # Use pnpm version from package.json "packageManager"
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: 'pnpm-lock.yaml'
-      - uses: pnpm/action-setup@v4
-        # Use pnpm version from package.json "packageManager"
 
       - run: pnpm -v
       - run: pnpm install --frozen-lockfile
@@ -71,13 +71,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        # Use pnpm version from package.json "packageManager"
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: 'pnpm-lock.yaml'
-      - uses: pnpm/action-setup@v4
-        # Use pnpm version from package.json "packageManager"
 
       - run: pnpm -v
       - run: pnpm install --frozen-lockfile
