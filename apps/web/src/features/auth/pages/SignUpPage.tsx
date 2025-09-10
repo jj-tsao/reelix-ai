@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { signUpWithPassword } from "../api";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/useToast";
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("");

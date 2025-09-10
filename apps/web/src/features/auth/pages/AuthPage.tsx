@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { updatePassword } from "../api";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/useToast";
 import { Link } from "react-router-dom";
 
 export default function AuthPage() {

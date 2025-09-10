@@ -1,22 +1,5 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
-
-type ToastVariant = "default" | "success" | "destructive";
-
-type Toast = {
-  id: string;
-  title?: string;
-  description?: string;
-  variant?: ToastVariant;
-  // When null, toast is sticky and must be dismissed manually
-  duration?: number | null;
-};
-
-type ToastContextValue = {
-  toast: (t: Omit<Toast, "id">) => string;
-  dismiss: (id: string) => void;
-};
-
-const ToastContext = createContext<ToastContextValue | null>(null);
+import React, { useMemo, useState } from "react";
+import { ToastContext, type ToastContextValue, type Toast } from "./useToast";
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -71,10 +54,4 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       </div>
     </ToastContext.Provider>
   );
-}
-
-export function useToast() {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used within ToastProvider");
-  return ctx;
 }

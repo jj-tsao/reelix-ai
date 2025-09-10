@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { requestPasswordReset } from "../api";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/useToast";
 
 export default function ResetPage() {
   const [email, setEmail] = useState("");

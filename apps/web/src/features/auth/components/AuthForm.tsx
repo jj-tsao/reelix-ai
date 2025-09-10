@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { requestPasswordReset, signInWithPassword, signUpWithPassword } from "../api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/useToast";
 
 type Mode = "signin" | "signup" | "reset";
 

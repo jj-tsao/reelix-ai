@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { signInWithPassword, getCurrentSession, getAppUser } from "../api";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/useToast";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");

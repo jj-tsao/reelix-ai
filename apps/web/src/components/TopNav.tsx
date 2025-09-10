@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/useToast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useProfile } from "@/features/auth/hooks/useProfile";
 import { signOut } from "@/features/auth/api";
