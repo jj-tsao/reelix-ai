@@ -1,14 +1,21 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { signOut } from "@/features/auth/api";
 
 export default function TopNav() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   async function handleSignOut() {
-    await signOut();
+    const res = await signOut();
+    if (!res.ok) {
+      toast({ title: "Sign out failed", description: res.error, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Signed out", description: "See you soon!", variant: "success" });
     navigate("/");
   }
   return (
@@ -32,7 +39,7 @@ export default function TopNav() {
           </>
         ) : (
           <Button size="sm" asChild>
-            <Link to="/auth">Sign in</Link>
+            <Link to="/auth/signin">Sign In</Link>
           </Button>
         )}
       </div>

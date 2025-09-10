@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type { Session, User, AuthChangeEvent } from "@supabase/supabase-js";
 import { getCurrentSession, onAuthStateChange } from "../api";
 
 type AuthState = {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  lastEvent: AuthChangeEvent | null;
 };
 
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({ user: null, session: null, loading: true });
+  const [state, setState] = useState<AuthState>({ user: null, session: null, loading: true, lastEvent: null });
 
   async function refresh() {
     const session = await getCurrentSession();
-    setState({ session, user: session?.user ?? null, loading: false });
+    setState((s) => ({ ...s, session, user: session?.user ?? null, loading: false }));
   }
 
   useEffect(() => {
@@ -21,9 +22,10 @@ export function useAuth() {
     (async () => {
       const session = await getCurrentSession();
       if (!mounted) return;
-      setState({ session, user: session?.user ?? null, loading: false });
+      setState((s) => ({ ...s, session, user: session?.user ?? null, loading: false }));
     })();
-    const unsubscribe = onAuthStateChange(() => {
+    const unsubscribe = onAuthStateChange((event) => {
+      setState((s) => ({ ...s, lastEvent: event }));
       refresh();
     });
     return () => {
@@ -34,4 +36,3 @@ export function useAuth() {
 
   return state;
 }
-

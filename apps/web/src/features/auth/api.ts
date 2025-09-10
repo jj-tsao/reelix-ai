@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
@@ -31,8 +32,21 @@ export async function getCurrentSession() {
   return data.session ?? null;
 }
 
-export function onAuthStateChange(callback: () => void) {
-  const { data } = supabase.auth.onAuthStateChange(() => callback());
+export function onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
+  const { data } = supabase.auth.onAuthStateChange((event, session) => callback(event, session));
   return () => data.subscription.unsubscribe();
 }
 
+export async function requestPasswordReset(email: string, redirectTo?: string): Promise<AuthResult> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: redirectTo ?? (typeof window !== "undefined" ? `${window.location.origin}/auth` : undefined),
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function updatePassword(newPassword: string): Promise<AuthResult> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
