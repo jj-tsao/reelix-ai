@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import type { Tables } from "@/types/supabase";
+import type { Tables, TablesInsert } from "@/types/supabase";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
@@ -81,7 +81,7 @@ export async function getAppUser(userId: string) {
   return data as Pick<Tables<"app_user">, "user_id" | "email" | "display_name"> | null;
 }
 
-export async function upsertAppUser(row: Partial<Tables<"app_user">>) {
+export async function upsertAppUser(row: TablesInsert<"app_user">) {
   const { error } = await supabase
     .from("app_user")
     .upsert(row, { onConflict: "user_id" });
