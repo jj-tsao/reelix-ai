@@ -27,6 +27,7 @@ export default function ResetPage() {
         description:
           "If an account exists, we’ll send you a reset link.",
         variant: "success",
+        duration: null,
       });
     } finally {
       setSubmitting(false);
