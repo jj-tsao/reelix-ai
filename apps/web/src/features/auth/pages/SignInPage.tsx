@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signInWithPassword } from "../api";
+import { signInWithPassword, getCurrentSession, getAppUser } from "../api";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
@@ -20,7 +20,24 @@ export default function SignInPage() {
         toast({ title: "Sign in failed", description: res.error, variant: "destructive" });
         return;
       }
-      toast({ title: "Signed in", description: "Welcome back!", variant: "success" });
+      // Try to resolve a friendly display name for the welcome toast
+      let friendly = "there";
+      try {
+        const session = await getCurrentSession();
+        const user = session?.user;
+        const metaName = (user as any)?.user_metadata?.display_name as string | undefined;
+        let name = metaName;
+        if (!name && user?.id) {
+          const appUser = await getAppUser(user.id);
+          name = appUser?.display_name ?? undefined;
+        }
+        if (!name) {
+          const addr = (user?.email || email || "").trim();
+          if (addr.includes("@")) name = addr.split("@")[0];
+        }
+        if (name && name.length > 0) friendly = name;
+      } catch {}
+      toast({ title: "Signed in", description: `Welcome back, ${friendly}!`, variant: "success" });
       navigate("/");
     } finally {
       setSubmitting(false);

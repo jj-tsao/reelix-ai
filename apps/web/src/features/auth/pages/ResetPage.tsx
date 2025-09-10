@@ -24,9 +24,9 @@ export default function ResetPage() {
       }
       toast({
         title: "Check your email",
-        description: "Follow the link to set a new password.",
+        description:
+          "If an account exists, we’ll send you a reset link.",
         variant: "success",
-        duration: null,
       });
     } finally {
       setSubmitting(false);

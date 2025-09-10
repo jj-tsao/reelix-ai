@@ -1,17 +1,36 @@
 import { supabase } from "@/lib/supabase";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import type { Tables } from "@/types/supabase";
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
-export async function signUpWithPassword(email: string, password: string): Promise<AuthResult> {
-  const { error } = await supabase.auth.signUp({
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+  displayName?: string
+): Promise<AuthResult> {
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}` : undefined,
+      emailRedirectTo:
+        typeof window !== "undefined" ? `${window.location.origin}` : undefined,
+      data: displayName ? { display_name: displayName } : undefined,
     },
   });
   if (error) return { ok: false, error: error.message };
+
+  // Supabase nuance: if the email is already registered, signUp returns
+  // data.user.identities = [] and no email is sent. Treat as an error so
+  // the UI can prompt the user to sign in or reset password.
+  const identitiesLen = (data?.user as any)?.identities?.length ?? 0;
+  if (identitiesLen === 0) {
+    return {
+      ok: false,
+      error: "This email is already registered. Try signing in or resetting your password.",
+    };
+  }
+
   return { ok: true };
 }
 
@@ -49,4 +68,23 @@ export async function updatePassword(newPassword: string): Promise<AuthResult> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// Profiles (app_user)
+export async function getAppUser(userId: string) {
+  const { data, error } = await supabase
+    .from("app_user")
+    .select("user_id, email, display_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) return null;
+  return data as Pick<Tables<"app_user">, "user_id" | "email" | "display_name"> | null;
+}
+
+export async function upsertAppUser(row: Partial<Tables<"app_user">>) {
+  const { error } = await supabase
+    .from("app_user")
+    .upsert(row, { onConflict: "user_id" });
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
 }

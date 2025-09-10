@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -13,6 +14,10 @@ export default function SignUpPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!name.trim()) {
+      toast({ title: "Name is required", description: "Please enter your name.", variant: "destructive" });
+      return;
+    }
     if (password !== confirm) {
       toast({
         title: "Passwords don't match",
@@ -23,7 +28,7 @@ export default function SignUpPage() {
     }
     setSubmitting(true);
     try {
-      const res = await signUpWithPassword(email, password);
+      const res = await signUpWithPassword(email, password, name.trim());
       if (!res.ok) {
         toast({
           title: "Sign up failed",
@@ -32,6 +37,7 @@ export default function SignUpPage() {
         });
         return;
       }
+      try { localStorage.setItem("pendingDisplayName", name.trim()); } catch {}
       toast({
         title: "Check your email",
         description: "Confirm your address to finish sign up.",
@@ -50,6 +56,20 @@ export default function SignUpPage() {
           <h1 className="mb-3 text-xl md:text-2xl font-semibold tracking-tight text-center">
             Create Account
           </h1>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium" htmlFor="name">
+              Name
+            </label>
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full rounded-md border px-3 py-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              placeholder="Your name"
+            />
+          </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium" htmlFor="email">
               Email

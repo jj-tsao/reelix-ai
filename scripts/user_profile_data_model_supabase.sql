@@ -107,21 +107,31 @@ create index if not exists idx_ui_user_tmdb on public.user_interactions(user_id,
 create index if not exists idx_ui_event on public.user_interactions(event_type);
 
 -- Follows (soft-delete via is_deleted)
-create table if not exists public.user_follows (
-  follow_id   bigserial primary key,
-  user_id     uuid not null references public.app_user(user_id) on delete cascade,
-  target_type text not null check (target_type in ('title','person','franchise','keyword')),
-  target_ref  text not null,
-  is_deleted  boolean default false,
-  created_at  timestamptz default now(),
-  unique (user_id, target_type, target_ref)
-);
-create or replace view public.user_follows_active
-with (security_barrier) as
-  select * from public.user_follows where is_deleted = false;
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_display_name text;
+begin
+  v_display_name := nullif(trim((new.raw_user_meta_data->>'display_name')), '');
+  insert into public.app_user (user_id, email, display_name)
+  values (
+    new.id,
+    new.email,
+    coalesce(v_display_name, split_part(new.email, '@', 1))
+  )
+  on conflict (user_id) do nothing;
 
-revoke all on public.user_follows_active from public, anon, authenticated;
-grant select on public.user_follows_active to authenticated;
+  return new;
+end $$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure public.handle_new_user();
+
 
 -- Alert rules (keep; no delete policy; disable via is_active=false)
 create table if not exists public.user_alert_rules (

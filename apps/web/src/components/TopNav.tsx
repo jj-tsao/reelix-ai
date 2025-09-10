@@ -1,11 +1,15 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useProfile } from "@/features/auth/hooks/useProfile";
 import { signOut } from "@/features/auth/api";
 
 export default function TopNav() {
   const { user, loading } = useAuth();
+  const { displayName } = useProfile(user?.id);
+  const metaName = (user as any)?.user_metadata?.display_name as string | undefined;
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -27,16 +31,12 @@ export default function TopNav() {
           className="h-10 w-auto"
         />
       </Link>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 relative">
         {!loading && user ? (
-          <>
-            <span className="hidden text-sm sm:inline text-muted-foreground">
-              {user.email}
-            </span>
-            <Button size="sm" variant="outline" onClick={handleSignOut}>
-              Sign out
-            </Button>
-          </>
+          <UserMenu
+            label={displayName || metaName || user.email || "Account"}
+            onSignOut={handleSignOut}
+          />
         ) : (
           <Button size="sm" asChild>
             <Link to="/auth/signin">Sign In</Link>
@@ -44,5 +44,56 @@ export default function TopNav() {
         )}
       </div>
     </header>
+  );
+}
+
+function UserMenu({ label, onSignOut }: { label: string; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm text-foreground bg-background hover:bg-accent focus-visible:ring-[3px] focus-visible:outline-ring outline-none"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <span className="max-w-[12rem] truncate">{label}</span>
+        <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 opacity-70">
+          <path fill="currentColor" d="M5.5 7.5L10 12l4.5-4.5h-9z" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-44 rounded-md border bg-background shadow-md overflow-hidden z-50"
+        >
+          <button
+            role="menuitem"
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
+            onClick={() => {
+              setOpen(false);
+              onSignOut();
+            }}
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 opacity-80">
+              <path fill="currentColor" d="M3 3v14h2V3H3zm6 3l4 4-4 4-1.4-1.4L9.2 11H5v-2h4.2L7.6 7.4 9 6z" />
+            </svg>
+            <span>Sign out</span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

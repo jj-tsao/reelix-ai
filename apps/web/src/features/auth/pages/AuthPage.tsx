@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { updatePassword } from "../api";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,9 @@ import { useToast } from "@/components/ui/toast";
 import { Link } from "react-router-dom";
 
 export default function AuthPage() {
-  const { lastEvent } = useAuth();
+  const { lastEvent, user } = useAuth();
   const routerLoc = useLocation();
+  const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -28,6 +29,13 @@ export default function AuthPage() {
       lastEvent === "PASSWORD_RECOVERY"
     );
   }, [routerLoc.hash, lastEvent]);
+
+  // If already signed in and not in recovery, send to Home for a cleaner flow
+  useEffect(() => {
+    if (user && !showingRecovery) {
+      navigate("/", { replace: true });
+    }
+  }, [user, showingRecovery, navigate]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">

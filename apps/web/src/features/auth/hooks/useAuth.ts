@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Session, User, AuthChangeEvent } from "@supabase/supabase-js";
-import { getCurrentSession, onAuthStateChange } from "../api";
+import { getAppUser, getCurrentSession, onAuthStateChange, upsertAppUser } from "../api";
 
 type AuthState = {
   user: User | null;
@@ -33,6 +33,32 @@ export function useAuth() {
       unsubscribe();
     };
   }, []);
+
+  // On first authenticated load, if we have a pending display name from sign up,
+  // upsert the app_user profile and clear the pending value.
+  useEffect(() => {
+    (async () => {
+      if (!state.user || state.loading) return;
+      try {
+        const pending = localStorage.getItem("pendingDisplayName");
+        if (!pending) return;
+        const existing = await getAppUser(state.user.id);
+        if (!existing || !existing.display_name) {
+          await upsertAppUser({
+            user_id: state.user.id,
+            email: state.user.email || "",
+            display_name: pending,
+          });
+        }
+        try {
+          localStorage.setItem(`profileDisplayName:${state.user.id}`, pending);
+        } catch {}
+        localStorage.removeItem("pendingDisplayName");
+      } catch {
+        // ignore
+      }
+    })();
+  }, [state.user?.id, state.loading]);
 
   return state;
 }
