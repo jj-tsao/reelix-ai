@@ -11,8 +11,16 @@ export default function AuthPage() {
   const routerLoc = useLocation();
   const navigate = useNavigate();
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const [stickyRecovery, setStickyRecovery] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("recovery_active") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   const showingRecovery = useMemo(() => {
     const winHash = typeof window !== "undefined" ? window.location.hash : "";
@@ -23,12 +31,19 @@ export default function AuthPage() {
     const qParams = new URLSearchParams(
       typeof window !== "undefined" ? window.location.search : ""
     );
-    return (
-      hParams.get("type") === "recovery" ||
-      qParams.get("type") === "recovery" ||
-      lastEvent === "PASSWORD_RECOVERY"
-    );
-  }, [routerLoc.hash, lastEvent]);
+    const hasMarkers =
+      hParams.get("type") === "recovery" || qParams.get("type") === "recovery";
+    return stickyRecovery || hasMarkers || lastEvent === "PASSWORD_RECOVERY";
+  }, [routerLoc.hash, lastEvent, stickyRecovery]);
+
+  // If we ever observe recovery markers or the recovery event, persist it
+  // so it doesn't disappear when Supabase clears the URL hash.
+  useEffect(() => {
+    if (showingRecovery && !stickyRecovery) {
+      setStickyRecovery(true);
+      try { sessionStorage.setItem("recovery_active", "1"); } catch {}
+    }
+  }, [showingRecovery, stickyRecovery]);
 
   // If already signed in and not in recovery, send to Home for a cleaner flow
   useEffect(() => {
@@ -46,6 +61,15 @@ export default function AuthPage() {
             onSubmit={async (e) => {
               e.preventDefault();
               setSubmitting(true);
+              if (newPassword !== confirmPassword) {
+                toast({
+                  title: "Passwords don't match",
+                  description: "Please re-enter your new password.",
+                  variant: "destructive",
+                });
+                setSubmitting(false);
+                return;
+              }
               const res = await updatePassword(newPassword);
               setSubmitting(false);
               if (!res.ok) {
@@ -62,9 +86,13 @@ export default function AuthPage() {
                 variant: "success",
               });
               setNewPassword("");
+              setConfirmPassword("");
               if (typeof window !== "undefined") {
                 history.replaceState(null, "", window.location.pathname);
               }
+              setStickyRecovery(false);
+              try { sessionStorage.removeItem("recovery_active"); } catch {}
+              navigate("/auth/signin", { replace: true });
             }}
           >
             <h1 className="mb-3 text-xl md:text-2xl font-semibold tracking-tight text-center">Reset Password</h1>
@@ -81,6 +109,21 @@ export default function AuthPage() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full rounded-md border px-3 py-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium" htmlFor="confirm-new-password">
+                Confirm New Password
+              </label>
+              <input
+                id="confirm-new-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={6}
                 className="w-full rounded-md border px-3 py-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"

@@ -23,7 +23,7 @@ export async function signUpWithPassword(
   // Supabase nuance: if the email is already registered, signUp returns
   // data.user.identities = [] and no email is sent. Treat as an error so
   // the UI can prompt the user to sign in or reset password.
-  const identitiesLen = (data?.user as any)?.identities?.length ?? 0;
+  const identitiesLen = data?.user?.identities?.length ?? 0;
   if (identitiesLen === 0) {
     return {
       ok: false,

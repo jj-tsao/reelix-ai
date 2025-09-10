@@ -37,7 +37,7 @@ export default function SignUpPage() {
         });
         return;
       }
-      try { localStorage.setItem("pendingDisplayName", name.trim()); } catch {}
+      try { localStorage.setItem("pendingDisplayName", name.trim()); } catch (e) { void e; }
       toast({
         title: "Check your email",
         description: "Confirm your address to finish sign up.",

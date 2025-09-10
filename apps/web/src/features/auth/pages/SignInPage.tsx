@@ -25,8 +25,9 @@ export default function SignInPage() {
       try {
         const session = await getCurrentSession();
         const user = session?.user;
-        const metaName = (user as any)?.user_metadata?.display_name as string | undefined;
-        let name = metaName;
+        const meta = user?.user_metadata as Record<string, unknown> | undefined;
+        const metaName = meta && typeof meta["display_name"] === "string" ? (meta["display_name"] as string) : undefined;
+        let name: string | undefined = metaName;
         if (!name && user?.id) {
           const appUser = await getAppUser(user.id);
           name = appUser?.display_name ?? undefined;
@@ -36,7 +37,9 @@ export default function SignInPage() {
           if (addr.includes("@")) name = addr.split("@")[0];
         }
         if (name && name.length > 0) friendly = name;
-      } catch {}
+      } catch (e) {
+        void e; // no-op
+      }
       toast({ title: "Signed in", description: `Welcome back, ${friendly}!`, variant: "success" });
       navigate("/");
     } finally {

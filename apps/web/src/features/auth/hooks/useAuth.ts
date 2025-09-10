@@ -52,13 +52,15 @@ export function useAuth() {
         }
         try {
           localStorage.setItem(`profileDisplayName:${state.user.id}`, pending);
-        } catch {}
+        } catch (e) {
+          void e; // no-op
+        }
         localStorage.removeItem("pendingDisplayName");
-      } catch {
-        // ignore
+      } catch (e) {
+        void e; // no-op
       }
     })();
-  }, [state.user?.id, state.loading]);
+  }, [state.user?.id, state.user, state.loading]);
 
   return state;
 }

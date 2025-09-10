@@ -9,7 +9,11 @@ import { signOut } from "@/features/auth/api";
 export default function TopNav() {
   const { user, loading } = useAuth();
   const { displayName } = useProfile(user?.id);
-  const metaName = (user as any)?.user_metadata?.display_name as string | undefined;
+  const metaName = (() => {
+    const meta = user?.user_metadata as Record<string, unknown> | undefined;
+    const v = meta && (meta as Record<string, unknown>)["display_name"];
+    return typeof v === "string" ? v : undefined;
+  })();
   const navigate = useNavigate();
   const { toast } = useToast();
 

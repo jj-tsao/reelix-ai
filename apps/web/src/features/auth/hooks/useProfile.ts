@@ -7,7 +7,8 @@ export function useProfile(userId?: string | null) {
     try {
       if (!userId) return null;
       return localStorage.getItem(`profileDisplayName:${userId}`);
-    } catch {
+    } catch (e) {
+      void e; // no-op
       return null;
     }
   })();
@@ -28,7 +29,9 @@ export function useProfile(userId?: string | null) {
       setDisplayName(name);
       try {
         if (name) localStorage.setItem(`profileDisplayName:${userId}`, name);
-      } catch {}
+      } catch (e) {
+        void e; // no-op
+      }
       setLoading(false);
     }
     load();
