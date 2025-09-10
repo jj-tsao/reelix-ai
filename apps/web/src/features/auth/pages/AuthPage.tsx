@@ -41,7 +41,7 @@ export default function AuthPage() {
   useEffect(() => {
     if (showingRecovery && !stickyRecovery) {
       setStickyRecovery(true);
-      try { sessionStorage.setItem("recovery_active", "1"); } catch {}
+      try { sessionStorage.setItem("recovery_active", "1"); } catch (e) { void e; }
     }
   }, [showingRecovery, stickyRecovery]);
 
@@ -91,7 +91,7 @@ export default function AuthPage() {
                 history.replaceState(null, "", window.location.pathname);
               }
               setStickyRecovery(false);
-              try { sessionStorage.removeItem("recovery_active"); } catch {}
+              try { sessionStorage.removeItem("recovery_active"); } catch (e) { void e; }
               navigate("/auth/signin", { replace: true });
             }}
           >
