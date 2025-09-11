@@ -20,9 +20,6 @@ export async function signUpWithPassword(
   });
   if (error) return { ok: false, error: error.message };
 
-  // Supabase nuance: if the email is already registered, signUp returns
-  // data.user.identities = [] and no email is sent. Treat as an error so
-  // the UI can prompt the user to sign in or reset password.
   const identitiesLen = data?.user?.identities?.length ?? 0;
   if (identitiesLen === 0) {
     return {
@@ -87,4 +84,32 @@ export async function upsertAppUser(row: TablesInsert<"app_user">) {
     .upsert(row, { onConflict: "user_id" });
   if (error) return { ok: false as const, error: error.message };
   return { ok: true as const };
+}
+
+export async function sendMagicLink(email: string, displayName?: string): Promise<AuthResult> {
+  const redirect = typeof window !== "undefined" ? `${window.location.origin}/auth` : undefined;
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirect,
+      shouldCreateUser: true,
+      data: displayName ? { display_name: displayName } : undefined,
+    },
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function signInWithOAuth(provider: "google" | "apple"): Promise<AuthResult> {
+  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/auth` : undefined;
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo,
+      // UX: ask account selection when user has multiple Google accounts
+      queryParams: provider === "google" ? { prompt: "select_account" } : undefined,
+    },
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
