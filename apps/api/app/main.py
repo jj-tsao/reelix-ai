@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .routers import all_routers
 
 class Settings(BaseSettings):
     app_name: str = "Reelix Discovery Agent API"
-    # Ignore unrelated env vars (e.g., SUPABASE_URL keys) to prevent validation errors
+    # Ignore unrelated env vars to prevent validation errors
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -17,7 +18,5 @@ def health():
     return {"status": "ok", "service": settings.app_name}
 
 
-# Routers
-from .routers.profile import router as profile_router  # noqa: E402
-
-app.include_router(profile_router)
+for r in all_routers:
+    app.include_router(r)
