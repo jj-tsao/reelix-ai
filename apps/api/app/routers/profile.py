@@ -1,9 +1,8 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..schemas import (
-    InteractionCreate,
     InteractionsPayload,
     PreferencesUpdate,
     SubscriptionsPayload,
