@@ -5,6 +5,7 @@ import AuthPage from "./features/auth/pages/AuthPage";
 import SignInPage from "./features/auth/pages/SignInPage";
 import SignUpPage from "./features/auth/pages/SignUpPage";
 import ResetPage from "./features/auth/pages/ResetPage";
+import TasteOnboardingPage from "./features/taste_onboarding/pages/TasteOnboardingPage";
 
 export default function App() {
   const location = useLocation();
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/auth/signin" element={<SignInPage />} />
         <Route path="/auth/signup" element={<SignUpPage />} />
         <Route path="/auth/reset" element={<ResetPage />} />
+        <Route path="/taste" element={<TasteOnboardingPage />} />
       </Routes>
     </>
   );

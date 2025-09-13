@@ -1,0 +1,12 @@
+[project]
+name = "reelix-core"
+version = "0.1.0"
+description = "Core Python packages for Reelix (retrieval, intent, utils)"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Routers defined in __init__.py
 from .routers import all_routers
 
 class Settings(BaseSettings):
     app_name: str = "Reelix Discovery Agent API"
-    # Ignore unrelated env vars to prevent validation errors
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class SupabaseSettings(BaseSettings):
     supabase_url: str
     supabase_anon_key: str
-    # Ignore unrelated keys like APP_NAME in .env
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -25,10 +24,8 @@ def require_bearer_token(authorization: Optional[str] = Header(None)) -> str:
 
 def get_supabase_client(user_token: str = Depends(require_bearer_token)):
     """Return a Supabase client authorized as the end user.
-
-    We intentionally authenticate PostgREST with the user's JWT so that
-    RLS policies (auth.uid()) are enforced server-side. Never use a service role
-    for these profile routes.
+    Authenticate PostgREST with the user's JWT so that RLS policies (auth.uid()) are enforced server-side. 
+    Never use a service role for these profile routes.
     """
     try:
         # Lazy import to avoid import-time failures during tooling

@@ -20,10 +20,11 @@ def upsert_preferences(
     user_id: str = Depends(get_current_user_id),
 ) -> Dict[str, Any]:
     """Upsert current user's preferences into public.user_preferences.
-
-    RLS ensures only the owner can upsert/select. We explicitly set user_id from the token.
+    RLS ensures only the owner can upsert/select. Set user_id explicitly from the token.
     """
+    # Discard None fields to avoid overwriting existing columnns with nulls
     row = {k: v for k, v in prefs.model_dump(exclude_none=True).items()}
+    # Enforce user id from token (instead of client)
     row["user_id"] = user_id
     try:
         # Upsert on primary key (user_id)
@@ -50,7 +51,6 @@ def upsert_subscriptions(
     user_id: str = Depends(get_current_user_id),
 ) -> List[Dict[str, Any]]:
     """Upsert user's streaming subscriptions into public.user_subscriptions.
-
     Uses composite unique key (user_id, provider_id). Soft-delete is via active=false.
     """
     rows = [
