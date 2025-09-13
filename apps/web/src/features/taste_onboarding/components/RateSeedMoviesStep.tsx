@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SEED_MOVIES } from "../constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, ThumbsUp, ThumbsDown, SkipForward } from "lucide-react";
+import { Heart, ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
 import clsx from "clsx";
 
 type SeedMovie = {
@@ -20,32 +20,39 @@ type Props = {
   onFinish?: (ratings: Record<string, Rating>) => void;
 };
 
-function sampleThree<T>(arr: readonly T[]): T[] {
-  if (!arr || arr.length === 0) return [];
-  const copy = Array.from(arr);
-  for (let i = copy.length - 1; i > 0; i--) {
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return copy.slice(0, 3);
+  return arr;
 }
 
 export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) {
   const [ratings, setRatings] = useState<Record<string, Rating>>({});
 
-  const picksFlat = useMemo(() => {
-    const flat: { genre: string; movie: SeedMovie }[] = [];
+  // Cards displayed and remaining pools per genre to support "skip" swaps
+  const [cards, setCards] = useState<{ genre: string; movie: SeedMovie }[]>([]);
+  const [remainingByGenre, setRemainingByGenre] = useState<Record<string, SeedMovie[]>>({});
+
+  // Initialize cards when genres change
+  useEffect(() => {
+    const nextCards: { genre: string; movie: SeedMovie }[] = [];
+    const nextRemaining: Record<string, SeedMovie[]> = {};
     for (const g of genres) {
-      const pool = (SEED_MOVIES as unknown as Record<string, readonly SeedMovie[]>)[g] ?? [];
-      const sampled = sampleThree(pool);
-      sampled.forEach((m) => flat.push({ genre: g, movie: m }));
+      const all = [
+        ...(((SEED_MOVIES as unknown as Record<string, readonly SeedMovie[]>)[g] ?? []) as readonly SeedMovie[]),
+      ];
+      const pool = shuffleInPlace(all.slice());
+      const sampled = pool.slice(0, 3);
+      const remaining = pool.slice(3);
+      sampled.forEach((m) => nextCards.push({ genre: g, movie: m }));
+      nextRemaining[g] = remaining;
     }
-    // Shuffle across genres so cards appear in a randomized sequence
-    for (let i = flat.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [flat[i], flat[j]] = [flat[j], flat[i]];
-    }
-    return flat;
+    shuffleInPlace(nextCards);
+    setCards(nextCards);
+    setRemainingByGenre(nextRemaining);
+    setRatings({});
   }, [genres]);
 
   function keyFor(genre: string, m: SeedMovie) {
@@ -55,6 +62,43 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
   function setRating(genre: string, m: SeedMovie, r: Rating) {
     const k = keyFor(genre, m);
     setRatings((prev) => ({ ...prev, [k]: r }));
+  }
+
+  function handleSkip(index: number, genre: string, m: SeedMovie) {
+    // Record the skip rating for the current movie
+    setRating(genre, m, "skip");
+
+    // Choose a replacement from the same genre if possible,
+    // otherwise randomly from any genre that still has remaining movies.
+    setRemainingByGenre((old) => {
+      const mutable: Record<string, SeedMovie[]> = Object.fromEntries(
+        Object.entries(old).map(([g, list]) => [g, list.slice()])
+      );
+
+      let chosenGenre = genre;
+      let pool = (mutable[chosenGenre] ?? []);
+
+      if (pool.length === 0) {
+        const nonEmptyGenres = Object.keys(mutable).filter((g) => (mutable[g]?.length ?? 0) > 0);
+        if (nonEmptyGenres.length === 0) {
+          // Nothing left anywhere to swap in; leave the card as-is.
+          return old;
+        }
+        chosenGenre = nonEmptyGenres[Math.floor(Math.random() * nonEmptyGenres.length)];
+        pool = mutable[chosenGenre];
+      }
+
+      const replacementIndex = Math.floor(Math.random() * pool.length);
+      const [replacement] = pool.splice(replacementIndex, 1);
+
+      setCards((prev) => {
+        const next = prev.slice();
+        next[index] = { genre: chosenGenre, movie: replacement };
+        return next;
+      });
+
+      return { ...mutable, [chosenGenre]: pool };
+    });
   }
 
   return (
@@ -67,11 +111,11 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {picksFlat.map(({ genre, movie: m }) => {
+        {cards.map(({ genre, movie: m }, i) => {
           const k = keyFor(genre, m);
           const r = ratings[k];
           return (
-            <Card key={k} className="overflow-hidden">
+            <Card key={i} className="overflow-hidden">
               <CardContent className="p-0">
                 <div className="aspect-[2/3] w-full bg-muted overflow-hidden">
                   {m.poster_url && (
@@ -137,11 +181,11 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                         "justify-center",
                         r === "skip" && "bg-slate-100 text-slate-700 border border-slate-300"
                       )}
-                      onClick={() => setRating(genre, m, "skip")}
+                      onClick={() => handleSkip(i, genre, m)}
                       aria-pressed={r === "skip"}
-                      title="Skip"
+                      title="Skip and show another"
                     >
-                      <SkipForward className="h-4 w-4" />
+                      <RotateCcw className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
