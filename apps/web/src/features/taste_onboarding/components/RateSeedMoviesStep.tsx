@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
 import { SEED_MOVIES } from "../constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
   // Cards displayed and remaining pools per genre to support "skip" swaps
   const [cards, setCards] = useState<{ genre: string; movie: SeedMovie }[]>([]);
   const [remainingByGenre, setRemainingByGenre] = useState<Record<string, SeedMovie[]>>({});
+  const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
+  const animTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize cards when genres change
   useEffect(() => {
@@ -67,38 +69,89 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
   function handleSkip(index: number, genre: string, m: SeedMovie) {
     // Record the skip rating for the current movie
     setRating(genre, m, "skip");
+    setAnimatingIndex(index);
+    // Build exclusion set of keys currently displayed (excluding the card being replaced)
+    const excludeKeys = new Set(
+      cards.filter((_, i) => i !== index).map(({ genre: g, movie }) => keyFor(g, movie))
+    );
 
     // Choose a replacement from the same genre if possible,
-    // otherwise randomly from any genre that still has remaining movies.
+    // otherwise randomly from any genre that still has remaining movies, avoiding duplicates.
     setRemainingByGenre((old) => {
       const mutable: Record<string, SeedMovie[]> = Object.fromEntries(
         Object.entries(old).map(([g, list]) => [g, list.slice()])
       );
 
-      let chosenGenre = genre;
-      let pool = (mutable[chosenGenre] ?? []);
+      const candidateGenres = (() => {
+        const others = Object.keys(mutable).filter((g) => g !== genre && (mutable[g]?.length ?? 0) > 0);
+        shuffleInPlace(others);
+        return [genre, ...others];
+      })();
 
-      if (pool.length === 0) {
-        const nonEmptyGenres = Object.keys(mutable).filter((g) => (mutable[g]?.length ?? 0) > 0);
-        if (nonEmptyGenres.length === 0) {
-          // Nothing left anywhere to swap in; leave the card as-is.
-          return old;
-        }
-        chosenGenre = nonEmptyGenres[Math.floor(Math.random() * nonEmptyGenres.length)];
-        pool = mutable[chosenGenre];
+      let chosenGenre: string | null = null;
+      let replacement: SeedMovie | null = null;
+
+      for (const g of candidateGenres) {
+        const pool = mutable[g] ?? [];
+        const filtered = pool.filter((mv) => !excludeKeys.has(keyFor(g, mv)));
+        if (filtered.length === 0) continue;
+        const pick = filtered[Math.floor(Math.random() * filtered.length)];
+        // Remove from the actual pool
+        const idx = pool.findIndex((mv) => mv.title === pick.title && mv.year === pick.year);
+        if (idx >= 0) pool.splice(idx, 1);
+        chosenGenre = g;
+        replacement = pick;
+        break;
       }
 
-      const replacementIndex = Math.floor(Math.random() * pool.length);
-      const [replacement] = pool.splice(replacementIndex, 1);
+      if (!replacement || !chosenGenre) {
+        // Nothing left anywhere to swap in; leave the card as-is.
+        return old;
+      }
 
       setCards((prev) => {
         const next = prev.slice();
-        next[index] = { genre: chosenGenre, movie: replacement };
+        next[index] = { genre: chosenGenre!, movie: replacement! };
         return next;
       });
 
-      return { ...mutable, [chosenGenre]: pool };
+      // Reset the animating index after the animation window
+      if (animTimer.current) clearTimeout(animTimer.current);
+      animTimer.current = setTimeout(() => setAnimatingIndex(null), 200);
+
+      return { ...mutable };
     });
+  }
+
+  // Simple fade-in on swap of inner content when movie changes
+  function AnimatedSwap({ token, active, children }: PropsWithChildren<{ token: string; active: boolean }>) {
+    const [visible, setVisible] = useState(true);
+    const mountedRef = useRef(false);
+    useEffect(() => {
+      if (!active) return;
+      if (!mountedRef.current) {
+        mountedRef.current = true;
+        return;
+      }
+      setVisible(false);
+      const t = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(t);
+    }, [token, active]);
+
+    if (!active) return <>{children}</>;
+
+    return (
+      <div
+        key={token}
+        style={{
+          transition: "opacity 150ms ease, transform 150ms ease",
+          opacity: visible ? 1 : 0,
+          transform: visible ? "none" : "scale(0.98)",
+        }}
+      >
+        {children}
+      </div>
+    );
   }
 
   return (
@@ -117,6 +170,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
           return (
             <Card key={i} className="overflow-hidden">
               <CardContent className="p-0">
+                <AnimatedSwap token={k} active={i === animatingIndex}>
                 <div className="aspect-[2/3] w-full bg-muted overflow-hidden">
                   {m.poster_url && (
                     <img
@@ -189,6 +243,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                     </Button>
                   </div>
                 </div>
+                </AnimatedSwap>
               </CardContent>
             </Card>
           );
