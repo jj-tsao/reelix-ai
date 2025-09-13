@@ -42,10 +42,11 @@ export default function TasteOnboardingPage() {
       setSelectedGenres(genres);
       setSelectedVibes(vibeTags);
       setStep("rate");
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Something went wrong";
       toast({
         title: "Failed to save",
-        description: e?.message ?? "Something went wrong",
+        description: message,
       });
     } finally {
       setSubmitting(false);

@@ -14,7 +14,8 @@ export async function upsertUserPreferences(row: TablesInsert<"user_preferences"
     user_id: row.user_id as string,
     genres_include: null,
     keywords_include: null,
-    ...(row as any),
+    // Limit spread to fields valid for an insert payload to avoid `any`.
+    ...(row as Partial<TablesInsert<"user_preferences">>),
   };
 
   const { error } = await supabase

@@ -46,7 +46,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
       [flat[i], flat[j]] = [flat[j], flat[i]];
     }
     return flat;
-  }, [JSON.stringify(genres)]);
+  }, [genres]);
 
   function keyFor(genre: string, m: SeedMovie) {
     return `${genre}:${m.title}:${m.year}`;
