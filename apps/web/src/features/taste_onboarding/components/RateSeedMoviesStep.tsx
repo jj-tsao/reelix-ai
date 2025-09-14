@@ -1,4 +1,5 @@
-import { PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { PropsWithChildren } from "react";
 import { SEED_MOVIES } from "../constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
