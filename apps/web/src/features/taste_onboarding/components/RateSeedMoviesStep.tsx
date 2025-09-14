@@ -1,8 +1,8 @@
-import { PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import { PropsWithChildren, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SEED_MOVIES } from "../constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, ThumbsUp, ThumbsDown, RotateCcw } from "lucide-react";
+import { Heart, ThumbsUp, ThumbsDown, Shuffle } from "lucide-react";
 import clsx from "clsx";
 
 type SeedMovie = {
@@ -33,7 +33,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
 
   // Cards displayed and remaining pools per genre to support "skip" swaps
   const [cards, setCards] = useState<{ genre: string; movie: SeedMovie }[]>([]);
-  const [remainingByGenre, setRemainingByGenre] = useState<Record<string, SeedMovie[]>>({});
+  const [, setRemainingByGenre] = useState<Record<string, SeedMovie[]>>({});
   const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
   const animTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -123,30 +123,23 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     });
   }
 
-  // Simple fade-in on swap of inner content when movie changes
+  // Fade-in on swap for the specific active card only
   function AnimatedSwap({ token, active, children }: PropsWithChildren<{ token: string; active: boolean }>) {
     const [visible, setVisible] = useState(true);
-    const mountedRef = useRef(false);
-    useEffect(() => {
+    // Ensure we start at opacity 0 for the new token before paint, then fade in
+    useLayoutEffect(() => {
       if (!active) return;
-      if (!mountedRef.current) {
-        mountedRef.current = true;
-        return;
-      }
       setVisible(false);
       const t = requestAnimationFrame(() => setVisible(true));
       return () => cancelAnimationFrame(t);
     }, [token, active]);
 
-    if (!active) return <>{children}</>;
-
     return (
       <div
-        key={token}
         style={{
-          transition: "opacity 150ms ease, transform 150ms ease",
-          opacity: visible ? 1 : 0,
-          transform: visible ? "none" : "scale(0.98)",
+          transition: "opacity 180ms ease, transform 180ms ease",
+          opacity: active ? (visible ? 1 : 0) : 1,
+          transform: active ? (visible ? "none" : "scale(0.98)") : "none",
         }}
       >
         {children}
@@ -239,7 +232,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                       aria-pressed={r === "skip"}
                       title="Skip and show another"
                     >
-                      <RotateCcw className="h-4 w-4" />
+                      <Shuffle className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
