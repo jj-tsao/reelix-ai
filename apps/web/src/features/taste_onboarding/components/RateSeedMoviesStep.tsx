@@ -178,6 +178,11 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                 <div className="p-3 border-t">
                   <div className="text-sm font-medium leading-tight">{m.title}</div>
                   <div className="text-xs text-muted-foreground">{m.year}</div>
+                  {m.vibes && m.vibes.length > 0 && (
+                    <div className="mt-1 text-[11px] text-muted-foreground/80 leading-snug">
+                      {m.vibes.join(" • ")}
+                    </div>
+                  )}
                   <div className="mt-3 grid grid-cols-4 gap-2">
                     <Button
                       type="button"
