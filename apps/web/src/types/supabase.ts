@@ -253,9 +253,10 @@ export type Database = {
           context_json: Json | null
           event_type: string
           interaction_id: number
+          media_id: number
           media_type: string
           occurred_at: string | null
-          tmdb_id: number
+          source: string
           user_id: string
           weight: number | null
         }
@@ -263,9 +264,10 @@ export type Database = {
           context_json?: Json | null
           event_type: string
           interaction_id?: number
+          media_id: number
           media_type: string
           occurred_at?: string | null
-          tmdb_id: number
+          source?: string
           user_id: string
           weight?: number | null
         }
@@ -273,9 +275,10 @@ export type Database = {
           context_json?: Json | null
           event_type?: string
           interaction_id?: number
+          media_id?: number
           media_type?: string
           occurred_at?: string | null
-          tmdb_id?: number
+          source?: string
           user_id?: string
           weight?: number | null
         }

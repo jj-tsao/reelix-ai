@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { upsertUserInteraction } from "../api";
 import type { PropsWithChildren } from "react";
 import { SEED_MOVIES } from "../constants";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,9 +12,10 @@ type SeedMovie = {
   year: number;
   poster_url: string;
   vibes: string[];
+  media_id?: number | string;
 };
 
-type Rating = "love" | "like" | "not_for_me" | "skip";
+type Rating = "love" | "like" | "dislike" | "dismiss";
 
 type Props = {
   genres: string[];
@@ -65,11 +67,13 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
   function setRating(genre: string, m: SeedMovie, r: Rating) {
     const k = keyFor(genre, m);
     setRatings((prev) => ({ ...prev, [k]: r }));
+    // Debounced upsert per title so rapid changes settle to the latest choice
+    scheduleUpsert(genre, m, r);
   }
 
   function handleSkip(index: number, genre: string, m: SeedMovie) {
     // Record the skip rating for the current movie
-    setRating(genre, m, "skip");
+    setRating(genre, m, "dismiss");
     setAnimatingIndex(index);
     // Build exclusion set of keys currently displayed (excluding the card being replaced)
     const excludeKeys = new Set(
@@ -123,6 +127,31 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
       return { ...mutable };
     });
   }
+
+  // Debounce machinery for per-click writes
+  const upsertTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  function scheduleUpsert(genre: string, m: SeedMovie, r: Rating) {
+    const key = keyFor(genre, m);
+    const t = upsertTimers.current.get(key);
+    if (t) clearTimeout(t);
+    if (!m.media_id) return; // cannot write without an id
+    const timer = setTimeout(() => {
+      upsertUserInteraction({ media_id: m.media_id!, vibes: m.vibes, rating: r }).catch((err) => {
+        // Non-blocking: log only; Continue will still perform a bulk write
+        console.error("upsertUserInteraction failed", err);
+      });
+      upsertTimers.current.delete(key);
+    }, 200);
+    upsertTimers.current.set(key, timer);
+  }
+
+  useEffect(() => {
+    return () => {
+      // Cleanup timers on unmount
+      upsertTimers.current.forEach((t) => clearTimeout(t));
+      upsertTimers.current.clear();
+    };
+  }, []);
 
   // Fade-in on swap for the specific active card only
   function AnimatedSwap({ token, active, children }: PropsWithChildren<{ token: string; active: boolean }>) {
@@ -179,8 +208,13 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                   <div className="text-sm font-medium leading-tight">{m.title}</div>
                   <div className="text-xs text-muted-foreground">{m.year}</div>
                   {m.vibes && m.vibes.length > 0 && (
-                    <div className="mt-1 text-[11px] text-muted-foreground/80 leading-snug">
-                      {m.vibes.join(" • ")}
+                    <div className="mt-1.5 text-xs text-muted-foreground leading-snug whitespace-normal break-words">
+                      {m.vibes.map((v, idx) => (
+                        <span key={`${m.title}-${v}`}>
+                          {v}
+                          {idx < m.vibes.length - 1 ? <span className="mx-1">•</span> : null}
+                        </span>
+                      ))}
                     </div>
                   )}
                   <div className="mt-3 grid grid-cols-4 gap-2">
@@ -218,10 +252,10 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                       size="sm"
                       className={clsx(
                         "justify-center",
-                        r === "not_for_me" && "bg-amber-100 text-amber-800 border border-amber-300"
+                        r === "dislike" && "bg-amber-100 text-amber-800 border border-amber-300"
                       )}
-                      onClick={() => setRating(genre, m, "not_for_me")}
-                      aria-pressed={r === "not_for_me"}
+                      onClick={() => setRating(genre, m, "dislike")}
+                      aria-pressed={r === "dislike"}
                       title="Not for me"
                     >
                       <ThumbsDown className="h-4 w-4" />
@@ -232,10 +266,10 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                       size="sm"
                       className={clsx(
                         "justify-center",
-                        r === "skip" && "bg-slate-100 text-slate-700 border border-slate-300"
+                        r === "dismiss" && "bg-slate-100 text-slate-700 border border-slate-300"
                       )}
                       onClick={() => handleSkip(i, genre, m)}
-                      aria-pressed={r === "skip"}
+                      aria-pressed={r === "dismiss"}
                       title="Skip and show another"
                     >
                       <Shuffle className="h-4 w-4" />
@@ -251,7 +285,15 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
 
       <div className="flex items-center justify-between mt-8">
         <Button variant="outline" onClick={onBack}>Back</Button>
-        <Button onClick={() => onFinish?.(ratings)}>Continue</Button>
+        <Button
+          onClick={() => {
+            // Per-click writes are already scheduled via upsertUserInteraction.
+            // Continue now only advances the flow without batching writes.
+            onFinish?.(ratings);
+          }}
+        >
+          Continue
+        </Button>
       </div>
     </div>
   );

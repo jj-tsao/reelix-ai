@@ -89,22 +89,36 @@ create trigger user_subscriptions_updated_at
 before update on public.user_subscriptions
 for each row execute procedure public.tg_set_updated_at();
 
--- Interactions (immutable log: select/insert only)
+-- Interactions (allow upsert per (user, media, type, source))
 create table if not exists public.user_interactions (
   interaction_id bigserial primary key,
   user_id        uuid not null references public.app_user(user_id) on delete cascade,
   media_type     text not null check (media_type in ('movie','tv')),
-  tmdb_id        bigint not null,
+  media_id        bigint not null,
   event_type     text not null check (event_type in (
-                    'view','finish','like','dislike','save','dismiss',
+                    'view','finish', 'love', 'like','dislike','save','dismiss',
                     'search','click','hover','trailer_view','provider_open')),
   weight         real default 1.0,
   context_json   jsonb default '{}'::jsonb,
+  source         text not null default 'in_product' check (source in ('taste_onboarding','in_product','first_recommendation','feedback','agent','other')),
   occurred_at    timestamptz default now()
 );
 create index if not exists idx_ui_user_time on public.user_interactions(user_id, occurred_at desc);
-create index if not exists idx_ui_user_tmdb on public.user_interactions(user_id, tmdb_id);
+create index if not exists idx_ui_user_media on public.user_interactions(user_id, media_id);
 create index if not exists idx_ui_event on public.user_interactions(event_type);
+create index if not exists user_interactions_source_idx on public.user_interactions (source);
+
+-- Idempotency: ensure one row per (user, media, type, source)
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'user_interactions_user_media_source_uniq'
+  ) then
+    alter table public.user_interactions
+      add constraint user_interactions_user_media_source_uniq
+      unique (user_id, media_id, media_type, source);
+  end if;
+end$$;
 
 -- Follows (soft-delete via is_deleted)
 create or replace function public.handle_new_user()
@@ -248,7 +262,7 @@ begin
     create policy subs_update_own on public.user_subscriptions for update using (public.is_me(user_id)) with check (public.is_me(user_id));
   end if;
 
-  -- user_interactions (immutable: no update/delete)
+  -- user_interactions (insert + update; no delete)
   if not exists (
     select 1 from pg_policies
     where schemaname='public' and tablename='user_interactions' and policyname='interactions_select_own'
@@ -260,6 +274,12 @@ begin
     where schemaname='public' and tablename='user_interactions' and policyname='interactions_insert_own'
   ) then
     create policy interactions_insert_own on public.user_interactions for insert with check (public.is_me(user_id));
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_interactions' and policyname='interactions_update_own'
+  ) then
+    create policy interactions_update_own on public.user_interactions for update using (public.is_me(user_id)) with check (public.is_me(user_id));
   end if;
 
   -- user_follows (soft delete via is_deleted)
