@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Json, TablesInsert } from "@/types/supabase";
+import type { Json, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 // Upsert into public.user_preferences for current user.
 // Requires caller to pass user_id from the current session.
@@ -123,43 +123,7 @@ export function canonicalizeTag(s: string): string {
     .replace(/_{2,}/g, "_");
 }
 
-export async function insertTasteOnboardingInteractions(
-  items: { media_id?: number | string; vibes?: string[]; rating: RatingValue }[]
-) {
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (!user) throw new Error("Not signed in");
-
-  // Build rows using new `media_id` column (formerly `tmdb_id`).
-  // Cast to any for forward-compatibility while generated types catch up.
-  const rows = items
-    .map((it) => {
-      const mediaId = Number(it.media_id);
-      if (!Number.isFinite(mediaId)) return null;
-      const weight = EVENT_WEIGHT[it.rating];
-      const context: Json = {
-        tags: (it.vibes ?? []).map(canonicalizeTag),
-      };
-      const row: TablesInsert<"user_interactions"> = {
-        user_id: user.id,
-        media_id: mediaId,
-        media_type: "movie",
-        event_type: it.rating,
-        weight,
-        context_json: context,
-        occurred_at: new Date().toISOString(),
-        source: INTERACTION_SOURCE,
-      };
-      return row;
-    })
-    .filter((row): row is TablesInsert<"user_interactions"> => Boolean(row));
-
-  if (rows.length === 0) return;
-
-  for (const row of rows) {
-    await upsertInteractionRow(row);
-  }
-}
+// (Removed bulk insert helper used by the old Continue button)
 
 // Upsert a single interaction on each rating click.
 // Note: For true idempotence, ensure a unique constraint exists on (user_id, media_id, media_type) or a matching materialized column for the context-based source.
@@ -191,4 +155,59 @@ export async function upsertUserInteraction(item: {
   };
 
   await upsertInteractionRow(row);
+}
+
+// ---------- Streaming providers (user_subscriptions) ----------
+
+export async function getActiveSubscriptionIds(): Promise<number[]> {
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (!user) throw new Error("Not signed in");
+
+  const { data, error } = await supabase
+    .from("user_subscriptions")
+    .select("provider_id, active")
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .filter((r) => r.active === true)
+    .map((r) => Number(r.provider_id))
+    .filter((n) => Number.isFinite(n));
+}
+
+export async function upsertUserSubscriptions(providerIds: number[]): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (!user) throw new Error("Not signed in");
+
+  const { data: existing, error: existingErr } = await supabase
+    .from("user_subscriptions")
+    .select("provider_id, active")
+    .eq("user_id", user.id);
+  if (existingErr) throw new Error(existingErr.message);
+
+  const now = new Date().toISOString();
+  const selected = new Set(providerIds.map((n) => Number(n)));
+  const rows: Array<TablesInsert<"user_subscriptions"> | TablesUpdate<"user_subscriptions">> = [];
+
+  // Activate or create selected providers
+  for (const pid of selected) {
+    rows.push({ user_id: user.id, provider_id: pid as number, active: true, updated_at: now } as TablesInsert<"user_subscriptions">);
+  }
+
+  // Deactivate previously active providers that are no longer selected
+  for (const r of existing ?? []) {
+    const pid = Number(r.provider_id);
+    if (r.active === true && !selected.has(pid)) {
+      rows.push({ user_id: user.id, provider_id: pid, active: false, updated_at: now } as TablesUpdate<"user_subscriptions">);
+    }
+  }
+
+  if (rows.length === 0) return;
+
+  const { error: upsertErr } = await supabase
+    .from("user_subscriptions")
+    .upsert(rows as any, { onConflict: "user_id, provider_id" });
+  if (upsertErr) throw new Error(upsertErr.message);
 }

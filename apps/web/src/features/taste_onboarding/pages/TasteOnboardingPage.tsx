@@ -1,6 +1,7 @@
 import { useState } from "react";
 import GenresStep from "../components/GenresStep";
 import RateSeedMoviesStep from "../components/RateSeedMoviesStep";
+import ProvidersStep from "../components/ProvidersStep";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { upsertUserPreferences } from "../api";
 import { useToast } from "@/components/ui/useToast";
@@ -9,7 +10,7 @@ export default function TasteOnboardingPage() {
   const { user, loading } = useAuth();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [step, setStep] = useState<"genres" | "rate">("genres");
+  const [step, setStep] = useState<"genres" | "rate" | "providers">("genres");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
 
@@ -66,13 +67,30 @@ export default function TasteOnboardingPage() {
     );
   }
 
+  if (step === "rate") {
+    return (
+      <RateSeedMoviesStep
+        genres={selectedGenres}
+        onBack={() => setStep("genres")}
+        onFinish={(ratings) => {
+          console.log("Collected ratings:", ratings);
+          setStep("providers");
+        }}
+      />
+    );
+  }
+
   return (
-    <RateSeedMoviesStep
-      genres={selectedGenres}
-      onBack={() => setStep("genres")}
-      onFinish={(ratings) => {
-        // TODO: submit ratings to backend in Screen 2 implementation step 2
-        console.log("Collected ratings:", ratings);
+    <ProvidersStep
+      onBack={() => setStep("rate")}
+      onShowAll={() => {
+        toast({ title: "Showing everything", description: "We won't filter by services." });
+        // Next: navigate or finish onboarding
+      }}
+      onContinue={(providers) => {
+        console.log("Selected providers:", providers);
+        toast({ title: "Preferences noted", description: `We'll prioritize ${providers.length} services.` });
+        // Next: navigate or finish onboarding
       }}
     />
   );

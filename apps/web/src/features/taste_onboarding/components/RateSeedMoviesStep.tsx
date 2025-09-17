@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { upsertUserInteraction } from "../api";
 import type { PropsWithChildren } from "react";
-import { SEED_MOVIES } from "../constants";
+import { SEED_MOVIES } from "../data/seed_movies";
+import { useToast } from "@/components/ui/useToast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, ThumbsUp, ThumbsDown, Shuffle } from "lucide-react";
+import { Heart, ThumbsUp, ThumbsDown, Shuffle, CircleSlash, Plus } from "lucide-react";
 import clsx from "clsx";
 
 type SeedMovie = {
@@ -33,32 +34,75 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 
 export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) {
   const [ratings, setRatings] = useState<Record<string, Rating>>({});
+  const { toast } = useToast();
 
   // Cards displayed and remaining pools per genre to support "skip" swaps
   const [cards, setCards] = useState<{ genre: string; movie: SeedMovie }[]>([]);
-  const [, setRemainingByGenre] = useState<Record<string, SeedMovie[]>>({});
+  const [remainingByGenre, setRemainingByGenre] = useState<Record<string, SeedMovie[]>>({});
   const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
   const animTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // Initialize cards when genres change
   useEffect(() => {
     const nextCards: { genre: string; movie: SeedMovie }[] = [];
     const nextRemaining: Record<string, SeedMovie[]> = {};
-    for (const g of genres) {
+
+    // Build shuffled pools per genre
+    const pools = genres.map((g) => {
       const all = [
         ...(((SEED_MOVIES as unknown as Record<string, readonly SeedMovie[]>)[g] ?? []) as readonly SeedMovie[]),
       ];
-      const pool = shuffleInPlace(all.slice());
-      const sampled = pool.slice(0, 3);
-      const remaining = pool.slice(3);
-      sampled.forEach((m) => nextCards.push({ genre: g, movie: m }));
-      nextRemaining[g] = remaining;
+      return { genre: g, pool: shuffleInPlace(all.slice()) };
+    });
+
+    // Desired initial cards
+    const targetTotal = genres.length === 1 ? 6 : 9; // rule: 6 when one genre; otherwise max at 9 overall
+
+    if (pools.length === 1) {
+      const p = pools[0]!;
+      const take = Math.min(targetTotal, p.pool.length);
+      for (let i = 0; i < take; i++) {
+        nextCards.push({ genre: p.genre, movie: p.pool[i]! });
+      }
+      nextRemaining[p.genre] = p.pool.slice(take);
+    } else {
+      const totalAvailable = pools.reduce((acc, p) => acc + p.pool.length, 0);
+      const desired = Math.min(targetTotal, totalAvailable);
+      let added = 0;
+      while (added < desired) {
+        let progressed = false;
+        for (let i = 0; i < pools.length && added < desired; i++) {
+          const p = pools[i]!;
+          if (p.pool.length > 0) {
+            const mv = p.pool.shift()!;
+            nextCards.push({ genre: p.genre, movie: mv });
+            added++;
+            progressed = true;
+          }
+        }
+        if (!progressed) break;
+      }
+      for (const p of pools) {
+        nextRemaining[p.genre] = p.pool;
+      }
     }
+
     shuffleInPlace(nextCards);
     setCards(nextCards);
     setRemainingByGenre(nextRemaining);
     setRatings({});
   }, [genres]);
+
+  // Track responsive breakpoint for how many to load
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   function keyFor(genre: string, m: SeedMovie) {
     return `${genre}:${m.title}:${m.year}`;
@@ -128,16 +172,49 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     });
   }
 
+  // Append more cards from the shared remaining pool, avoiding duplicates
+  function loadMore(requestedCount: number) {
+    const excludeKeys = new Set(cards.map(({ genre, movie }) => keyFor(genre, movie)));
+    const mutable: Record<string, SeedMovie[]> = Object.fromEntries(
+      Object.entries(remainingByGenre).map(([g, list]) => [g, (list ?? []).slice()])
+    );
+    const order = Object.keys(mutable);
+    const picked: { genre: string; movie: SeedMovie }[] = [];
+
+    let progressed = true;
+    while (picked.length < requestedCount && progressed) {
+      progressed = false;
+      for (const g of order) {
+        const pool = mutable[g] ?? [];
+        const idx = pool.findIndex((mv) => !excludeKeys.has(keyFor(g, mv)));
+        if (idx >= 0) {
+          const mv = pool.splice(idx, 1)[0]!;
+          picked.push({ genre: g, movie: mv });
+          excludeKeys.add(keyFor(g, mv));
+          progressed = true;
+          if (picked.length >= requestedCount) break;
+        }
+      }
+    }
+
+    if (picked.length === 0) {
+      toast({ title: "All caught up", description: "No more titles to load right now.", variant: "success" });
+      return;
+    }
+
+    setCards((prev) => [...prev, ...picked]);
+    setRemainingByGenre(mutable);
+  }
+
   // Debounce machinery for per-click writes
   const upsertTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   function scheduleUpsert(genre: string, m: SeedMovie, r: Rating) {
     const key = keyFor(genre, m);
     const t = upsertTimers.current.get(key);
     if (t) clearTimeout(t);
-    if (!m.media_id) return; // cannot write without an id
+    if (!m.media_id) return;
     const timer = setTimeout(() => {
       upsertUserInteraction({ media_id: m.media_id!, vibes: m.vibes, rating: r }).catch((err) => {
-        // Non-blocking: log only; Continue will still perform a bulk write
         console.error("upsertUserInteraction failed", err);
       });
       upsertTimers.current.delete(key);
@@ -147,16 +224,13 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
 
   useEffect(() => {
     return () => {
-      // Cleanup timers on unmount
       upsertTimers.current.forEach((t) => clearTimeout(t));
       upsertTimers.current.clear();
     };
   }, []);
 
-  // Fade-in on swap for the specific active card only
   function AnimatedSwap({ token, active, children }: PropsWithChildren<{ token: string; active: boolean }>) {
     const [visible, setVisible] = useState(true);
-    // Ensure we start at opacity 0 for the new token before paint, then fade in
     useLayoutEffect(() => {
       if (!active) return;
       setVisible(false);
@@ -177,6 +251,8 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     );
   }
 
+  // (Inline per-card availability messaging; no global banner)
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6">
@@ -190,6 +266,13 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
         {cards.map(({ genre, movie: m }, i) => {
           const k = keyFor(genre, m);
           const r = ratings[k];
+          // Determine if a replacement exists anywhere, excluding currently visible cards (except this one)
+          const excludeKeys = new Set(
+            cards.filter((_, j) => j !== i).map(({ genre: g, movie }) => keyFor(g, movie))
+          );
+          const canShuffle = Object.keys(remainingByGenre).some((g) =>
+            (remainingByGenre[g] ?? []).some((mv) => !excludeKeys.has(keyFor(g, mv)))
+          );
           return (
             <Card key={i} className="overflow-hidden">
               <CardContent className="p-0">
@@ -223,7 +306,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                       variant="ghost"
                       size="sm"
                       className={clsx(
-                        "justify-center",
+                        "justify-center w-full",
                         r === "love" && "bg-pink-100 text-pink-700 border border-pink-300"
                       )}
                       onClick={() => setRating(genre, m, "love")}
@@ -237,7 +320,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                       variant="ghost"
                       size="sm"
                       className={clsx(
-                        "justify-center",
+                        "justify-center w-full",
                         r === "like" && "bg-green-100 text-green-700 border border-green-300"
                       )}
                       onClick={() => setRating(genre, m, "like")}
@@ -251,7 +334,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                       variant="ghost"
                       size="sm"
                       className={clsx(
-                        "justify-center",
+                        "justify-center w-full",
                         r === "dislike" && "bg-amber-100 text-amber-800 border border-amber-300"
                       )}
                       onClick={() => setRating(genre, m, "dislike")}
@@ -260,20 +343,42 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                     >
                       <ThumbsDown className="h-4 w-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className={clsx(
-                        "justify-center",
-                        r === "dismiss" && "bg-slate-100 text-slate-700 border border-slate-300"
-                      )}
-                      onClick={() => handleSkip(i, genre, m)}
-                      aria-pressed={r === "dismiss"}
-                      title="Skip and show another"
+                    <div className={clsx("relative group w-full")}
+                      title={
+                        canShuffle ? undefined : "You’ve rated all the titles for now — thanks! 🎉"
+                      }
+                      onClick={() => {
+                        if (!canShuffle) {
+                          toast({
+                            title: "All Rated",
+                            description: "You’ve rated all the titles for now — thanks! 🎉",
+                            variant: "success",
+                          });
+                        }
+                      }}
                     >
-                      <Shuffle className="h-4 w-4" />
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={clsx(
+                          "justify-center w-full",
+                          r === "dismiss" && "bg-slate-100 text-slate-700 border border-slate-300"
+                        )}
+                        onClick={() => canShuffle && handleSkip(i, genre, m)}
+                        aria-pressed={r === "dismiss"}
+                        aria-disabled={!canShuffle}
+                        disabled={!canShuffle}
+                        title={canShuffle ? "See a different title" : undefined}
+                      >
+                        {canShuffle ? (
+                          <Shuffle className="h-4 w-4" />
+                        ) : (
+                          <CircleSlash className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                      {/* No custom hover tooltip to avoid clipping inside card; rely on title + toast */}
+                    </div>
                   </div>
                 </div>
                 </AnimatedSwap>
@@ -283,12 +388,42 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
         })}
       </div>
 
+      {/* Rate more titles (loads from the same remaining pool) */}
+      {(() => {
+        const displayed = new Set(cards.map(({ genre, movie }) => keyFor(genre, movie)));
+        let remainingCount = 0;
+        for (const [g, list] of Object.entries(remainingByGenre)) {
+          for (const mv of list ?? []) {
+            if (!displayed.has(keyFor(g, mv))) remainingCount++;
+          }
+        }
+        const canLoadMore = remainingCount > 0;
+        const desired = isDesktop ? 6 : 3;
+        return canLoadMore ? (
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full gap-2 px-3"
+              aria-label="Rate more titles"
+              title="Rate more titles"
+              onClick={() => loadMore(desired)}
+            >
+              <Plus className="h-4 w-4" />
+              Rate more titles
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-4 flex justify-center text-xs text-muted-foreground">
+            All rated! Congrats 🎉
+          </div>
+        );
+      })()}
+
       <div className="flex items-center justify-between mt-8">
         <Button variant="outline" onClick={onBack}>Back</Button>
         <Button
           onClick={() => {
-            // Per-click writes are already scheduled via upsertUserInteraction.
-            // Continue now only advances the flow without batching writes.
             onFinish?.(ratings);
           }}
         >

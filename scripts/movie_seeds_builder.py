@@ -13,7 +13,11 @@ SEEDS_300 = {
             "year": 2015,
             "vibes": ["Dystopian", "Post-Apocalyptic", "Dieselpunk"],
         },
-        {"title": "John Wick", "year": 2014, "vibes": ["Fast-Paced", "Action-Packed"]},
+        {
+            "title": "John Wick",
+            "year": 2014,
+            "vibes": ["Action Thriller", "Revenge", "Action-Packed"],
+        },
         {
             "title": "Mission: Impossible - Fallout",
             "year": 2018,
@@ -566,12 +570,12 @@ SEEDS_300 = {
         {
             "title": "Nomadland",
             "year": 2021,
-            "vibes": ["Social Commentary", "Emotional"],
+            "vibes": ["Social Commentary", "Freedom", "Reflective"],
         },
         {
             "title": "The Social Network",
             "year": 2010,
-            "vibes": ["Docudrama", "Social commentary", "Biography"],
+            "vibes": ["Docudrama", "Social Commentary", "Biography"],
         },
         {
             "title": "Ford v Ferrari",
@@ -592,12 +596,12 @@ SEEDS_300 = {
         {
             "title": "Spotlight",
             "year": 2015,
-            "vibes": ["Investigative journalism", "Ensemble", "True Story"],
+            "vibes": ["Investigative Journalism", "Social Issue Drama", "True Story"],
         },
         {
             "title": "Room",
             "year": 2015,
-            "vibes": ["Psychological", "Mother-child relationship"],
+            "vibes": ["Psychological", "Mother-Child"],
         },
         {
             "title": "Call Me by Your Name",
@@ -607,7 +611,7 @@ SEEDS_300 = {
         {
             "title": "Lady Bird",
             "year": 2017,
-            "vibes": ["Coming-of-Age", "Mother-daughter", "Sacramento"],
+            "vibes": ["Coming-of-Age", "Mother-Daughter", "Heartfelt"],
         },
         {
             "title": "Three Billboards Outside Ebbing, Missouri",
@@ -627,7 +631,7 @@ SEEDS_300 = {
         {
             "title": "First Man",
             "year": 2018,
-            "vibes": ["Space program", "Neil Armstrong", "Personal cost"],
+            "vibes": ["Historical Drama", "Biography", "Tragic"],
         },
         {
             "title": "A Star Is Born",
@@ -637,7 +641,7 @@ SEEDS_300 = {
         {
             "title": "Marriage Story",
             "year": 2019,
-            "vibes": ["Divorce", "Performances", "Honest"],
+            "vibes": ["Divorce", "Domestic Drama", "Melancholic"],
         },
         {
             "title": "1917",
@@ -672,23 +676,23 @@ SEEDS_300 = {
         {
             "title": "Oppenheimer",
             "year": 2023,
-            "vibes": ["Historical epic", "Psychological", "Character study"],
+            "vibes": ["Historical Epic", "Psychological", "Character Study"],
         },
         {
             "title": "TÁR",
             "year": 2022,
-            "vibes": ["Classical music", "Power dynamics", "Cate Blanchett"],
+            "vibes": ["Classical Music", "Power Dynamics", "Psychological Drama"],
         },
         {
             "title": "Million Dollar Baby",
             "year": 2004,
             "vibes": ["Sports Drama", "Emotional", "Boxing"],
         },
-        {
-            "title": "Drive My Car",
-            "year": 2021,
-            "vibes": ["Road Movie", "Slow-Burn", "Grief and Loss"],
-        },
+        # {
+        #     "title": "Drive My Car",
+        #     "year": 2021,
+        #     "vibes": ["Road Movie", "Slow-Burn", "Grief and Loss"],
+        # },
     ],
     "Fantasy": [
         {
@@ -778,14 +782,26 @@ SEEDS_300 = {
             "year": 2008,
             "vibes": ["Children's Fantasy", "Fairy creatures"],
         },
-        # {'title': 'Where the Wild Things Are', 'year': 2009, 'vibes': ['Children\'s Book', 'Spike Jonze']},
         {
-            "title": "The Dark Crystal",
-            "year": 1982,
-            "vibes": ["Jim Henson", "Puppetry", "Dark fantasy"],
+            "title": "Spider-Man: Into the Spider-Verse",
+            "year": 2018,
+            "vibes": ["Teen Adventure", "Quirky", "Imaginative"],
         },
-        # {'title': 'Labyrinth', 'year': 1986, 'vibes': ['Jim Henson', 'David Bowie', 'Coming-of-age']},
-        # {'title': 'The NeverEnding Story', 'year': 1984, 'vibes': ['Meta-fantasy', 'Children\'s adventure']},
+        {
+            "title": "Interview with the Vampire",
+            "year": 1994,
+            "vibes": ["Dark Fantasy", "Gothic Horror", "Vampire"],
+        },
+        {
+            "title": "Okja",
+            "year": 2017,
+            "vibes": ["Dystopian", "Heartwarming", "Satirical"],
+        },
+        {
+            "title": "The Hunger Games",
+            "year": 2012,
+            "vibes": ["Dystopian", "Teen Adventure", "Survival"],
+        },
         {
             "title": "Wicked",
             "year": 2024,
@@ -908,12 +924,12 @@ SEEDS_300 = {
         {
             "title": "Saw",
             "year": 2004,
-            "vibes": ["Torture porn", "Puzzle traps", "Low budget"],
+            "vibes": ["Torture Porn", "Puzzle Traps", "Low Budget"],
         },
         {
             "title": "The Blair Witch Project",
             "year": 1999,
-            "vibes": ["Found footage", "Marketing phenomenon"],
+            "vibes": ["Found Footage", "Marketing Phenomenon"],
         },
         {
             "title": "Paranormal Activity",
@@ -1241,25 +1257,25 @@ SEEDS_300 = {
             "year": 2011,
             "vibes": ["Suspenseful", "Dark"],
         },
-        {
-            "title": "Zodiac",
-            "year": 2007,
-            "vibes": ["Serial killer", "Investigation", "1970s"],
-        },
-        {
-            "title": "Se7en",
-            "year": 1995,
-            "vibes": ["Serial killer", "Dark", "Religious themes"],
-        },
+        # {
+        #     "title": "Zodiac",
+        #     "year": 2007,
+        #     "vibes": ["Serial killer", "Investigation", "1970s"],
+        # },
+        # {
+        #     "title": "Se7en",
+        #     "year": 1995,
+        #     "vibes": ["Serial killer", "Dark", "Religious themes"],
+        # },
         {
             "title": "Fight Club",
             "year": 1999,
-            "vibes": ["Identity crisis", "Twist ending", "Social commentary"],
+            "vibes": ["Identity Crisis", "Twist Ending", "Social Commentary"],
         },
         {
             "title": "Memento",
             "year": 2000,
-            "vibes": ["Reverse chronology", "Memory loss", "Nolan"],
+            "vibes": ["Reverse Chronology", "Psychological Thriller", "Existential"],
         },
         {
             "title": "Rear Window",
@@ -1269,7 +1285,7 @@ SEEDS_300 = {
         {
             "title": "The Secret in Their Eyes",
             "year": 2009,
-            "vibes": ["Dark romance", "Erotic thriller", "Tragic"],
+            "vibes": ["Dark Romance", "Erotic Thriller", "Tragic"],
         },
         {
             "title": "Joker",
@@ -1301,7 +1317,7 @@ SEEDS_300 = {
         {
             "title": "The Others",
             "year": 2001,
-            "vibes": ["Ghost story", "Nicole Kidman", "Twist ending"],
+            "vibes": ["Ghost Story", "Nicole Kidman", "Twist Ending"],
         },
         {
             "title": "Identity",
@@ -1326,7 +1342,7 @@ SEEDS_300 = {
         {
             "title": "Burning",
             "year": 2018,
-            "vibes": ["Korean psychological", "Class tensions", "Mysterious"],
+            "vibes": ["Korean Psychological", "Class Tensions", "Mysterious"],
         },
         # {'title': 'Parasite', 'year': 2019, 'vibes': ['Social thriller', 'Class warfare', 'Basement twist']}
     ],
@@ -1334,14 +1350,14 @@ SEEDS_300 = {
 
 
 def query_qdrant(filter):
-    point, _ = qdrant_client.scroll(
+    points, _ = qdrant_client.scroll(
         collection_name=QDRANT_MOVIE_COLLECTION_NAME,
         scroll_filter=filter,
         limit=1,
         with_payload=True,
         with_vectors=False,
     )
-    return point
+    return points
 
 
 qdrant_client = connect_qdrant(QDRANT_API_KEY, QDRANT_ENDPOINT)
@@ -1351,16 +1367,15 @@ for genre, medias in SEEDS_300.items():
     for m in medias:
         filter = build_qfilter(titles=[m["title"]], release_year=m["year"])
         # print (m['title'])
-        point = query_qdrant(filter)
-        if point:
-            payload = point[0].payload
+        points = query_qdrant(filter)
+        if points and points[0].payload:
+            payload = points[0].payload
             m["poster_url"] = payload["poster_url"]
             m["media_id"] = payload["media_id"]
         else:
+            print (f"Missing {m['title']}")
             m["poster_url"] = ""
             m["media_id"] = ""
-            print(f"Missing: {payload['title']}")
-
 
 SEEDS_300
 

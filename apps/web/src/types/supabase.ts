@@ -395,19 +395,19 @@ export type Database = {
       user_subscriptions: {
         Row: {
           active: boolean | null
-          provider_id: string
+          provider_id: number
           updated_at: string | null
           user_id: string
         }
         Insert: {
           active?: boolean | null
-          provider_id: string
+          provider_id: number
           updated_at?: string | null
           user_id: string
         }
         Update: {
           active?: boolean | null
-          provider_id?: string
+          provider_id?: number
           updated_at?: string | null
           user_id?: string
         }

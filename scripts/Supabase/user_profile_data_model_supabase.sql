@@ -78,7 +78,7 @@ for each row execute procedure public.tg_set_updated_at();
 -- Subscriptions (soft-remove via active=false)
 create table if not exists public.user_subscriptions (
   user_id     uuid not null references public.app_user(user_id) on delete cascade,
-  provider_id text not null,   -- 'netflix'|'hulu'|'max' etc.
+  provider_id bigint not null,   -- tmdb provider_id
   active      boolean default true,
   updated_at  timestamptz default now(),
   primary key (user_id, provider_id)
