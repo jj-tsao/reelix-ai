@@ -105,6 +105,18 @@ export default function ProvidersStep({
     });
   }
 
+  // Auto-unfold "See more services" when any selected provider lives in the MORE list.
+  useEffect(() => {
+    if (showMore) return; // don't override user's manual toggle once open
+    const moreIds = new Set(moreProviders.map((p) => p.id));
+    for (const id of selected) {
+      if (moreIds.has(id)) {
+        setShowMore(true);
+        break;
+      }
+    }
+  }, [selected, moreProviders, showMore]);
+
   function renderGrid(list: Provider[]) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
