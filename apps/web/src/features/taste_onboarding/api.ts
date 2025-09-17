@@ -188,26 +188,33 @@ export async function upsertUserSubscriptions(providerIds: number[]): Promise<vo
   if (existingErr) throw new Error(existingErr.message);
 
   const now = new Date().toISOString();
-  const selected = new Set(providerIds.map((n) => Number(n)));
-  const rows: Array<TablesInsert<"user_subscriptions"> | TablesUpdate<"user_subscriptions">> = [];
+  const selected = new Set<number>(providerIds.map((n) => Number(n)));
 
-  // Activate or create selected providers
-  for (const pid of selected) {
-    rows.push({ user_id: user.id, provider_id: pid as number, active: true, updated_at: now } as TablesInsert<"user_subscriptions">);
+  // Split into two operations to keep types precise and avoid `any` casts.
+  const toActivate: TablesInsert<"user_subscriptions">[] = Array.from(selected).map((pid) => ({
+    user_id: user.id,
+    provider_id: pid,
+    active: true,
+    updated_at: now,
+  }));
+
+  const toDeactivate: number[] = (existing ?? [])
+    .filter((r) => r.active === true && !selected.has(Number(r.provider_id)))
+    .map((r) => Number(r.provider_id));
+
+  if (toActivate.length > 0) {
+    const { error } = await supabase
+      .from("user_subscriptions")
+      .upsert(toActivate, { onConflict: "user_id, provider_id" });
+    if (error) throw new Error(error.message);
   }
 
-  // Deactivate previously active providers that are no longer selected
-  for (const r of existing ?? []) {
-    const pid = Number(r.provider_id);
-    if (r.active === true && !selected.has(pid)) {
-      rows.push({ user_id: user.id, provider_id: pid, active: false, updated_at: now } as TablesUpdate<"user_subscriptions">);
-    }
+  if (toDeactivate.length > 0) {
+    const { error } = await supabase
+      .from("user_subscriptions")
+      .update({ active: false, updated_at: now })
+      .eq("user_id", user.id)
+      .in("provider_id", toDeactivate);
+    if (error) throw new Error(error.message);
   }
-
-  if (rows.length === 0) return;
-
-  const { error: upsertErr } = await supabase
-    .from("user_subscriptions")
-    .upsert(rows as any, { onConflict: "user_id, provider_id" });
-  if (upsertErr) throw new Error(upsertErr.message);
 }

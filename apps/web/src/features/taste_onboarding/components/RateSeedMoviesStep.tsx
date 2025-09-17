@@ -223,9 +223,10 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
   }
 
   useEffect(() => {
+    const timers = upsertTimers.current;
     return () => {
-      upsertTimers.current.forEach((t) => clearTimeout(t));
-      upsertTimers.current.clear();
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
     };
   }, []);
 
