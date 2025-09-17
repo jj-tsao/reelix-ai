@@ -1246,23 +1246,39 @@ SEEDS_300 = {
         {
             "title": "The Silence of the Lambs",
             "year": 1991,
-            "vibes": ["Psychological", "Dark"],
+            "vibes": ["Police Procedural", "Intense Suspense", "Unnerving"],
         },
         {
             "title": "Shutter Island",
             "year": 2010,
-            "vibes": ["Psychological", "Suspenseful"],
+            "vibes": ["Mystery", "Suspenseful", "Disorienting"],
         },
-        {"title": "Gone Girl", "year": 2014, "vibes": ["Psychological", "Suspenseful"]},
-        {"title": "No Country for Old Men", "year": 2007, "vibes": ["Intense", "Dark"]},
+        {
+            "title": "Gone Girl",
+            "year": 2014,
+            "vibes": ["Psychological", "Suspenseful", "Unsettling"],
+        },
+        {
+            "title": "No Country for Old Men",
+            "year": 2007,
+            "vibes": ["Neo-Western", "Grim Realism", "Intense"],
+        },
         {"title": "Nightcrawler", "year": 2014, "vibes": ["Dark", "Psychological"]},
         {
             "title": "Donnie Darko",
             "year": 2001,
-            "vibes": ["Mystery", "Psychological Thriller"],
+            "vibes": ["Mystery", "Enigmatic", "Philosophical"],
         },
-        {"title": "Sicario", "year": 2015, "vibes": ["Intense", "Suspenseful"]},
-        {"title": "The Prestige", "year": 2006, "vibes": ["Psychological", "Dark"]},
+        {
+            "title": "Sicario",
+            "year": 2015,
+            "vibes": ["Neo-Western", "Political Thriller", "Visceral"],
+        },
+        {
+            "title": "The Prestige",
+            "year": 2006,
+            "vibes": ["Steampunk", "Dark", "Enigmatic"],
+        },
         {
             "title": "Black Swan",
             "year": 2010,
@@ -1278,11 +1294,11 @@ SEEDS_300 = {
         #     "year": 2007,
         #     "vibes": ["Serial killer", "Investigation", "1970s"],
         # },
-        # {
-        #     "title": "Se7en",
-        #     "year": 1995,
-        #     "vibes": ["Serial killer", "Dark", "Religious themes"],
-        # },
+        {
+            "title": "The Game",
+            "year": 1997,
+            "vibes": ["Conspiracy Thriller", "Paranoid", "Disorienting"],
+        },
         {
             "title": "Fight Club",
             "year": 1999,
@@ -1316,7 +1332,7 @@ SEEDS_300 = {
         {
             "title": "Fatal Attraction",
             "year": 1987,
-            "vibes": ["Adultery consequences", "Stalker", "Family"],
+            "vibes": ["Adultery Consequences", "Stalker", "Family"],
         },
         {
             "title": "The Lives of Others",
