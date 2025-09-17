@@ -218,3 +218,22 @@ export async function upsertUserSubscriptions(providerIds: number[]): Promise<vo
     if (error) throw new Error(error.message);
   }
 }
+
+// ---------- User settings: provider filter mode ----------
+export type ProviderFilterMode = "ALL" | "SELECTED";
+
+export async function setProviderFilterMode(mode: ProviderFilterMode): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (!user) throw new Error("Not signed in");
+
+  const payload: TablesInsert<"user_settings"> = {
+    user_id: user.id,
+    provider_filter_mode: mode,
+  };
+
+  const { error } = await supabase
+    .from("user_settings")
+    .upsert(payload, { onConflict: "user_id" });
+  if (error) throw new Error(error.message);
+}

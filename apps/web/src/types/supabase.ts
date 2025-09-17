@@ -392,6 +392,44 @@ export type Database = {
           },
         ]
       }
+      user_settings: {
+        Row: {
+          autoplay_trailers: boolean | null
+          default_sort_order: string | null
+          language_ui: string | null
+          onboarding_completed: boolean | null
+          provider_filter_mode: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          autoplay_trailers?: boolean | null
+          default_sort_order?: string | null
+          language_ui?: string | null
+          onboarding_completed?: boolean | null
+          provider_filter_mode?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          autoplay_trailers?: boolean | null
+          default_sort_order?: string | null
+          language_ui?: string | null
+          onboarding_completed?: boolean | null
+          provider_filter_mode?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "app_user"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       user_subscriptions: {
         Row: {
           active: boolean | null

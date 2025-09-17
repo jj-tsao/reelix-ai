@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import clsx from "clsx";
 import { WATCH_PROVIDERS } from "../data/watch_providers";
-import { getActiveSubscriptionIds, upsertUserSubscriptions } from "../api";
+import { getActiveSubscriptionIds, upsertUserSubscriptions, setProviderFilterMode } from "../api";
 
 type Props = {
   onBack?: () => void;
@@ -76,10 +76,9 @@ export default function ProvidersStep({
     [byName]
   );
 
-  const [selected, setSelected] = useState<Set<number>>(
-    new Set(initialSelected ?? [])
-  );
+  const [selected, setSelected] = useState<Set<number>>(new Set(initialSelected ?? []));
   const [showMore, setShowMore] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (initialSelected && initialSelected.length > 0) {
@@ -190,35 +189,62 @@ export default function ProvidersStep({
           </button>
         </div>
 
-        {showMore && (
-          <Card>
-            <CardContent className="p-3">
-              {renderGrid(moreProviders)}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+  {showMore && (
+    <Card>
+      <CardContent className="p-3">
+        {renderGrid(moreProviders)}
+      </CardContent>
+    </Card>
+  )}
+</div>
 
-      <div className="flex items-center justify-between mt-8">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={onBack}>Back</Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={onShowAll}>
-            Show me everything
-          </Button>
-          <Button
-            onClick={async () => {
-              await upsertUserSubscriptions(selectedArr);
-              onContinue?.(selectedArr);
-            }}
-            disabled={selectedArr.length === 0}
-            aria-disabled={selectedArr.length === 0}
-          >
-            Continue
-          </Button>
-        </div>
-      </div>
+<div className="flex items-center justify-between mt-8">
+  <div className="flex items-center gap-2">
+    <Button variant="outline" onClick={onBack} disabled={saving} aria-disabled={saving}>
+      Back
+    </Button>
+  </div>
+  <div className="flex items-center gap-2">
+    <Button
+      variant="outline"
+      disabled={saving}
+      aria-disabled={saving}
+      onClick={async () => {
+        setSaving(true);
+        try {
+          await upsertUserSubscriptions(selectedArr);
+          await setProviderFilterMode("ALL");
+        } catch (e) {
+          console.warn("Failed to save subscriptions/settings", e);
+        } finally {
+          setSaving(false);
+          onShowAll?.();
+        }
+      }}
+    >
+      Show me everything
+    </Button>
+    <Button
+      onClick={async () => {
+        setSaving(true);
+        try {
+          await upsertUserSubscriptions(selectedArr);
+          await setProviderFilterMode("SELECTED");
+          onContinue?.(selectedArr);
+        } catch (e) {
+          console.warn("Failed to save subscriptions/settings", e);
+        } finally {
+          setSaving(false);
+        }
+      }}
+      disabled={selectedArr.length === 0 || saving}
+      aria-disabled={selectedArr.length === 0 || saving}
+    >
+      Continue
+    </Button>
+  </div>
+</div>
+
     </div>
   );
 }

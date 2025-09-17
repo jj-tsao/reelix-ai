@@ -109,16 +109,37 @@ create index if not exists idx_ui_event on public.user_interactions(event_type);
 create index if not exists user_interactions_source_idx on public.user_interactions (source);
 
 -- Idempotency: ensure one row per (user, media, type, source)
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'user_interactions_user_media_source_uniq'
-  ) then
-    alter table public.user_interactions
-      add constraint user_interactions_user_media_source_uniq
-      unique (user_id, media_id, media_type, source);
-  end if;
-end$$;
+select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.user_interactions'::regclass and contype='u';
+
+alter table public.user_interactions
+add constraint user_interactions_user_media_source_uniq
+unique (user_id, media_id, media_type, source);
+
+
+--  user_settings
+create table if not exists public.user_settings (
+  user_id uuid primary key references public.app_user(user_id) on delete cascade,
+  -- Recommendation behavior
+  provider_filter_mode text not null
+    check (provider_filter_mode in ('SELECTED','ALL')) default 'SELECTED',
+  default_sort_order text
+    check (default_sort_order in ('popularity','rating','recency'))
+    default 'popularity',
+
+  -- UI / personalization
+  language_ui text default 'en-US',
+  autoplay_trailers boolean default true,
+
+  -- Onboarding
+  onboarding_completed boolean default false,
+
+  updated_at timestamptz default now()
+);
+
+drop trigger if exists user_settings_updated_at on public.user_settings;
+create trigger user_settings_updated_at
+before update on public.user_settings
+for each row execute procedure public.tg_set_updated_at();
 
 -- Follows (soft-delete via is_deleted)
 create or replace function public.handle_new_user()
@@ -145,7 +166,6 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
-
 
 -- Alert rules (keep; no delete policy; disable via is_active=false)
 create table if not exists public.user_alert_rules (
@@ -199,6 +219,7 @@ alter table public.user_follows       enable row level security;
 alter table public.user_alert_rules   enable row level security;
 alter table public.user_notifications enable row level security;
 alter table public.user_agent_state   enable row level security;
+alter table public.user_settings enable row level security;
 
 do $$
 begin
@@ -281,6 +302,35 @@ begin
   ) then
     create policy interactions_update_own on public.user_interactions for update using (public.is_me(user_id)) with check (public.is_me(user_id));
   end if;
+
+-- user_settings (insert + update; no delete)
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_settings' and policyname='settings_select_own'
+  ) then
+    create policy settings_select_own on public.user_settings
+      for select using (public.is_me(user_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_settings' and policyname='settings_insert_own'
+  ) then
+    create policy settings_insert_own on public.user_settings
+      for insert with check (public.is_me(user_id));
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_settings' and policyname='settings_update_own'
+  ) then
+    create policy settings_update_own on public.user_settings
+      for update using (public.is_me(user_id)) with check (public.is_me(user_id));
+  end if;
+end
+$$ language plpgsql;
 
   -- user_follows (soft delete via is_deleted)
   if not exists (
@@ -367,16 +417,27 @@ $$ language plpgsql;
 
 -- ========== 3) Seed defaults on first app_user row ==========
 create or replace function public.seed_user_defaults()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
   insert into public.user_preferences (user_id) values (new.user_id)
     on conflict (user_id) do nothing;
+
   insert into public.user_notifications (user_id) values (new.user_id)
     on conflict (user_id) do nothing;
+
   insert into public.user_agent_state (user_id) values (new.user_id)
     on conflict (user_id) do nothing;
+
+  insert into public.user_settings (user_id) values (new.user_id)
+    on conflict (user_id) do nothing;
+
   return new;
 end $$;
+
 drop trigger if exists on_app_user_created on public.app_user;
 create trigger on_app_user_created
 after insert on public.app_user
