@@ -24,7 +24,7 @@ class BuildParams:
     w_love: float = 2.0
     w_like: float = 1.0
     w_dislike: float = 1.5
-    lambda_month: float = 0.3      # decay per 30 days
+    lambda_month: float = 0.05     # decay per 30 days (half-life = 12 months)
     alpha: float = 1.0             # +pos centroid
     beta: float = 0.6              # −neg centroid
     gamma: float = 0.2             # genre/vibe prior

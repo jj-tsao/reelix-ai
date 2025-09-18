@@ -9,10 +9,13 @@ from .types import UserSignals, BuildParams, MediaId
 Embed = np.ndarray
 
 # ---- small utils ----
+
+# L2 normalization
 def _l2(x: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(x))
     return x if n == 0 else x / n
 
+# weighted average vectors
 def _wmean(vecs: list[np.ndarray], w: list[float]) -> np.ndarray:
     if not vecs:
         return np.zeros((0,), dtype=np.float32)
@@ -22,13 +25,16 @@ def _wmean(vecs: list[np.ndarray], w: list[float]) -> np.ndarray:
         acc += v * ww
     return acc / s
 
+# absolute day difference
 def _days(a: datetime, b: datetime) -> float:
     return abs((b - a).total_seconds()) / 86400.0
 
+# classic exponential decay per 30 days
 def _tdecay(ts: datetime, now: datetime, lam_month: float) -> float:
     return math.exp(-lam_month * (_days(ts, now) / 30.0))
 
 # ---- priors ----
+
 def prior_from_genres(genres: list[str], vibe_centroids: Mapping[str, np.ndarray], dim: int) -> np.ndarray:
     picks: list[np.ndarray] = []
     for g in genres:
@@ -47,6 +53,7 @@ def prior_from_keywords(keywords: list[str], embed_texts: Callable[[Sequence[str
     return _l2(np.asarray(vec, dtype=np.float32))
 
 # ---- main builder ----
+
 def build_taste_vector(
     user: UserSignals,
     *,
@@ -64,15 +71,16 @@ def build_taste_vector(
 
     # fetch vectors
     ids = [it.media_id for it in pos] + [it.media_id for it in neg]
-    vec_map = get_item_embeddings(ids) if ids else {}
-
+    vec_map = get_item_embeddings(ids) if ids else {}  # Dict[media_id, vector]
+    
+    # construct list of vectors and weights
     vpos_list, wpos = [], []
     for it in pos:
         v = vec_map.get(it.media_id)
         if v is None: 
             continue
         base = params.w_love if it.kind == "love" else params.w_like
-        wpos.append(base * _tdecay(it.ts, now, params.lambda_month))
+        wpos.append(base * _tdecay(it.ts, now, params.lambda_month))  # default: half-life = 12 months
         vpos_list.append(np.asarray(v, dtype=np.float32))
     vneg_list, wneg = [], []
     for it in neg:
@@ -81,10 +89,11 @@ def build_taste_vector(
             continue
         wneg.append(params.w_dislike * _tdecay(it.ts, now, params.lambda_month))
         vneg_list.append(np.asarray(v, dtype=np.float32))
-
+        
     vpos = _wmean(vpos_list, wpos) if vpos_list else np.zeros((params.dim,), dtype=np.float32)
     vneg = _wmean(vneg_list, wneg) if vneg_list else np.zeros((params.dim,), dtype=np.float32)
 
+    # genre and keywor priors
     g_prior = prior_from_genres(user.genres_include, vibe_centroids, params.dim)
     k_prior = prior_from_keywords(user.keywords_include, embed_texts, params.dim) if user.keywords_include else np.zeros((params.dim,), dtype=np.float32)
 
