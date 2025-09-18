@@ -1277,7 +1277,7 @@ SEEDS_300 = {
         {
             "title": "The Prestige",
             "year": 2006,
-            "vibes": ["Steampunk", "Dark", "Enigmatic"],
+            "vibes": ["Period Drama", "Dark", "Enigmatic"],
         },
         {
             "title": "Black Swan",
