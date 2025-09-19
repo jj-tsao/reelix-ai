@@ -95,7 +95,7 @@ def build_taste_vector(
     vneg = _wmean(vneg_list, wneg) if vneg_list else np.zeros((params.dim,), dtype=np.float32)
 
     # genre and keywor priors
-    g_prior = prior_from_genres(user.genres_include, vibe_centroids, params.dim)
+    g_prior = prior_from_genres(user.genres_include, vibe_centroids, params.dim) if user.genres_include else np.zeros((params.dim,), dtype=np.float32)
     k_prior = prior_from_keywords(user.keywords_include, embed_texts, params.dim) if user.keywords_include else np.zeros((params.dim,), dtype=np.float32)
 
     combo = params.alpha * vpos - params.beta * vneg + params.gamma * g_prior + params.delta * k_prior
