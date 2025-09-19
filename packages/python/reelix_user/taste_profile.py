@@ -52,6 +52,7 @@ def prior_from_keywords(keywords: list[str], embed_texts: Callable[[Sequence[str
     [vec] = embed_texts([q])
     return _l2(np.asarray(vec, dtype=np.float32))
 
+
 # ---- main builder ----
 
 def build_taste_vector(

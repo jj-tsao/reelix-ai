@@ -293,7 +293,7 @@ SEEDS_300 = {
             "year": 2014,
             "vibes": ["Quirky", "Melancholic"],
         },
-        {"title": "Green Book", "year": 2018, "vibes": ["Feel-Good", "Period Drama"]},
+        # {"title": "Green Book", "year": 2018, "vibes": ["Road Movie", "Feel-Good", "Period Drama"]},
         {
             "title": "Poor Things",
             "year": 2023,
@@ -626,7 +626,7 @@ SEEDS_300 = {
         {
             "title": "Green Book",
             "year": 2018,
-            "vibes": ["Racial relations", "Road trip", "1960s"],
+            "vibes": ["Racial Relations", "Road Movie", "Feel-Good"],
         },
         {
             "title": "First Man",
@@ -661,7 +661,7 @@ SEEDS_300 = {
         {
             "title": "The Father",
             "year": 2020,
-            "vibes": ["Dementia", "Anthony Hopkins", "Perspective"],
+            "vibes": ["Dementia", "Disorienting", "Perspective"],
         },
         {
             "title": "CODA",
@@ -676,7 +676,7 @@ SEEDS_300 = {
         {
             "title": "Oppenheimer",
             "year": 2023,
-            "vibes": ["Historical Epic", "Psychological", "Character Study"],
+            "vibes": ["Historical Epic", "Courtroom Drama", "Character Study"],
         },
         {
             "title": "TÁR",
@@ -688,11 +688,11 @@ SEEDS_300 = {
             "year": 2004,
             "vibes": ["Sports Drama", "Emotional", "Boxing"],
         },
-        # {
-        #     "title": "Drive My Car",
-        #     "year": 2021,
-        #     "vibes": ["Road Movie", "Slow-Burn", "Grief and Loss"],
-        # },
+        {
+            "title": "Schindler's List",
+            "year": 1993,
+            "vibes": ["Historical Epic", "Redemption", "Hopeful"],
+        },
     ],
     "Fantasy": [
         {
@@ -735,7 +735,7 @@ SEEDS_300 = {
         {
             "title": "The Lord of the Rings: The Return of the King",
             "year": 2003,
-            "vibes": ["Epic conclusion", "Mythic"],
+            "vibes": ["Epic Conclusion", "Mythic"],
         },
         {
             "title": "Harry Potter and the Goblet of Fire",
@@ -777,11 +777,11 @@ SEEDS_300 = {
             "year": 2010,
             "vibes": ["Greek Mythology", "Young Adult"],
         },
-        {
-            "title": "The Spiderwick Chronicles",
-            "year": 2008,
-            "vibes": ["Children's Fantasy", "Fairy creatures"],
-        },
+        # {
+        #     "title": "The Spiderwick Chronicles",
+        #     "year": 2008,
+        #     "vibes": ["Children's Fantasy", "Fairy creatures"],
+        # },
         {
             "title": "Spider-Man: Into the Spider-Verse",
             "year": 2018,
