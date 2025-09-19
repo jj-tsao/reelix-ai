@@ -335,7 +335,7 @@ SEEDS_300 = {
         {
             "title": "The Hangover",
             "year": 2009,
-            "vibes": ["Bachelor party", "Mystery Comedy", "Raunchy"],
+            "vibes": ["Slapstick", "Mystery Comedy", "Raunchy"],
         },
         {
             "title": "Borat: Cultural Learnings of America for Make Benefit Glorious Nation of Kazakhstan",

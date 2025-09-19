@@ -14,18 +14,18 @@ export const ALL_GENRES = [
 export type Genre = (typeof ALL_GENRES)[number];
 
 export const VIBE_TAGS: Record<Genre, string[]> = {
-  Action: ["Fast-paced", "High-stakes", "Action-packed", "Espionage"],
-  Adventure: ["Epic scale", "Whimsical", "Visually-stunning", "Grand journey"],
-  Comedy: ["Quirky", "Satirical", "Feel-good", "Light-hearted"],
-  Crime: ["Gritty", "Plot-twisty", "Slow-burn", "Neo-Noir"],
-  Drama: ["Character-driven", "Emotional", "Social commentary", "Historical"],
-  Fantasy: ["Dreamlike", "Magical", "Mythic", "High fantasy"],
-  Horror: ["Supernatural", "Slasher", "Body horror", "Twisted"],
-  Romance: ["Heartwarming", "Romantic comedy", "Tragic love", "Bittersweet"],
+  Action: ["Fast-Paced", "High-Stakes", "Action-Packed", "Espionage"],
+  Adventure: ["Epic Scale", "Whimsical", "Visually-Stunning", "Grand Journey"],
+  Comedy: ["Quirky", "Satirical", "Feel-Good", "Light-Hearted"],
+  Crime: ["Gritty", "Plot-Twisty", "Slow-burn", "Neo-Noir"],
+  Drama: ["Character-Driven", "Emotional", "Social Commentary", "Coming-of-Age"],
+  Fantasy: ["Dreamlike", "Magical", "Mythic", "High Fantasy"],
+  Horror: ["Supernatural", "Slasher", "Body Horror", "Twisted"],
+  Romance: ["Heartwarming", "Romantic Comedy", "Tragic Love", "Bittersweet"],
   "Science Fiction": [
-    "Mind-bending",
+    "Mind-Bending",
     "Dystopian",
-    "Thought-provoking",
+    "Thought-Provoking",
     "Cyberpunk",
   ],
   Thriller: ["Psychological", "Suspenseful", "Intense", "Dark"],
