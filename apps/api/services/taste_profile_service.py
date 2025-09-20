@@ -5,7 +5,7 @@ from qdrant_client import QdrantClient
 
 from reelix_user.types import UserSignals, Interaction, BuildParams
 from reelix_user.taste_profile import build_taste_vector
-from reelix_user.qdrant_items import load_item_embeddings_qdrant
+from reelix_retrieval.embedding_loader import load_embeddings_qdrant
 from reelix_user import store as taste_store
 
 
@@ -20,7 +20,7 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
     )
     rows = await pg.fetch(
         """
-      select media_id, interaction_type, created_at
+      select media_type, media_id, event_type, created_at
       from public.user_interactions
       where user_id=$1
       order by created_at desc
@@ -33,8 +33,9 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
         keywords_include=list(prefs["kws"] or []),
         interactions=[
             Interaction(
-                media_id=str(r["media_id"]),
-                kind=r["interaction_type"],
+                media_type=str(r["media_type"]),
+                media_id=int(r["media_id"]),
+                kind=r["event_type"],
                 ts=r["created_at"],
             )
             for r in rows
@@ -57,7 +58,7 @@ async def rebuild_and_store(
     params: BuildParams = BuildParams(dim=768),
 ):
     signals = await get_user_signals(pg, user_id)
-    get_item_embeddings = lambda ids: load_item_embeddings_qdrant(
+    get_item_embeddings = lambda ids: load_embeddings_qdrant(
         qdrant, collection, ids, "dense_vector"
     )
     vibe_centroids = load_vibe_centroids()
