@@ -1,12 +1,14 @@
+import os
 from typing import Optional
 
 from fastapi import Depends, Header, HTTPException, status
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SupabaseSettings(BaseSettings):
-    supabase_url: str
-    supabase_anon_key: str
+    supabase_url: str = Field(default_factory=lambda: os.getenv("SUPABASE_URL", ""))
+    supabase_anon_key: str = Field(default_factory=lambda: os.getenv("SUPABASE_ANON_KEY", ""))
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -16,37 +18,25 @@ settings = SupabaseSettings()  # Loaded once; env vars required at runtime
 def require_bearer_token(authorization: Optional[str] = Header(None)) -> str:
     if not authorization:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Authorization header")
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Authorization header format")
-    return parts[1].strip()
+    return token.strip()
 
 
 def get_supabase_client(user_token: str = Depends(require_bearer_token)):
-    """Return a Supabase client authorized as the end user.
-    Authenticate PostgREST with the user's JWT so that RLS policies (auth.uid()) are enforced server-side. 
-    Never use a service role for these profile routes.
-    """
+    """Return a Supabase client authorized as the end user (DB calls go through PostgREST with user JWT)."""
     try:
-        # Lazy import to avoid import-time failures during tooling
         from supabase import create_client, Client  # type: ignore
-
         client: Client = create_client(settings.supabase_url, settings.supabase_anon_key)
-        # Ensure all downstream requests carry the user's JWT (RLS enforced)
+
+        # Critical: attach the user's JWT for DB calls so RLS (auth.uid()) is enforced.
         client.postgrest.auth(user_token)
-        # Align other clients as well (storage/realtime) if ever used
-        try:
-            client.storage.auth(user_token)
-        except Exception:
-            pass
-        try:
-            client.realtime.auth(user_token)
-        except Exception:
-            pass
+
         return client
     except HTTPException:
         raise
-    except Exception as exc:  # pragma: no cover - protects from missing deps at dev time
+    except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Supabase init failed: {exc}")
 
 

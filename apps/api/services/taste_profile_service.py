@@ -8,7 +8,7 @@ from qdrant_client import QdrantClient
 from reelix_user.types import UserSignals, Interaction, BuildParams, MediaId
 from reelix_user.taste_profile import build_taste_vector
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant
-# from reelix_user import store as taste_store
+from reelix_user import store as taste_store
 
 
 # 1) fetch user signals from DB
@@ -78,5 +78,5 @@ async def rebuild_and_store(
         keyword_centroids=keyword_centroids,
         params=params,
     )
-    # await taste_store.upsert(pg, user_id, vec, debug)
+    await taste_store.upsert(pg, user_id, vec, debug)
     return vec, debug

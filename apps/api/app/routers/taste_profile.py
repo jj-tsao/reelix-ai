@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.supabase_client import get_supabase_client, get_current_user_id
 from reelix_retrieval.vectorstore import connect_qdrant
 from services.taste_profile_service import rebuild_and_store
-from reelix_user.store_supabase import fetch as fetch_profile  # <-- new (see #2)
+from reelix_user.store import fetch as fetch_profile
 
 router = APIRouter(prefix="/taste_profile", tags=["taste"])
 
