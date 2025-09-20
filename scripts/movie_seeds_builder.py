@@ -29,36 +29,36 @@ SEEDS_300 = {
             "year": 2000,
             "vibes": ["Action epic", "Martial Arts"],
         },
-        {"title": "Die Hard", "year": 1988, "vibes": ["High-stakes", "Action-packed"]},
+        {"title": "Die Hard", "year": 1988, "vibes": ["High-Stakes", "Action-packed", "Christmas Movie"]},
         {
             "title": "Gladiator",
             "year": 2000,
-            "vibes": ["Action epic", "Grand journey", "Sword and Sandal"],
+            "vibes": ["Action Epic", "Grand Journey", "Sword and Sandal"],
         },
         {
             "title": "The Bourne Ultimatum",
             "year": 2007,
-            "vibes": ["Espionage", "Fast-paced"],
+            "vibes": ["Conspiracy Thriller", "Fast-Paced", "Espionage"],
         },
         {
             "title": "Edge of Tomorrow",
             "year": 2014,
-            "vibes": ["Fast-paced", "Action-packed"],
+            "vibes": ["Military Sci-Fi", "Time-Loop", "Redemption"],
         },
         {
             "title": "The Dark Knight",
             "year": 2008,
-            "vibes": ["High-stakes", "Action-packed"],
+            "vibes": ["Crime Epic", "High-stakes", "Gritty Realism"],
         },
         {
             "title": "Casino Royale",
             "year": 2006,
-            "vibes": ["Espionage", "High-stakes", "Reboot"],
+            "vibes": ["Espionage", "Neo-Noir Spy", "Gritty Realism"],
         },
         {
             "title": "Top Gun: Maverick",
             "year": 2022,
-            "vibes": ["High-octane", "Nostalgic", "Spectacular"],
+            "vibes": ["High-Octane", "Nostalgic", "Spectacular"],
         },
         {
             "title": "The Northman",
@@ -68,22 +68,22 @@ SEEDS_300 = {
         {
             "title": "Terminator 2: Judgment Day",
             "year": 1991,
-            "vibes": ["Sci-fi action", "High-stakes"],
+            "vibes": ["Techno-Thriller", "Action Epic", "Free Will"],
         },
         {
             "title": "Heat",
             "year": 1995,
-            "vibes": ["Crime action", "Methodical", "Epic"],
+            "vibes": ["Crime Epic", "Methodical", "Somber"],
         },
         {
             "title": "Wonder Woman",
             "year": 2017,
-            "vibes": ["Superhero", "Empowering", "Period setting"],
+            "vibes": ["Historical Epic", "Empowering", "Superhero"],
         },
         {
             "title": "Dawn of the Planet of the Apes",
             "year": 2014,
-            "vibes": ["Intense", "Dystopian", "Thought-provoking"],
+            "vibes": ["Post-Apocalyptic", "Dystopian Sci-Fi", "Visceral"],
         },
         {
             "title": "The Matrix",

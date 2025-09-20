@@ -3,15 +3,12 @@ import numpy as np
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
 
-from reelix_retrieval.vectorstore import connect_qdrant
-from reelix_core.config import QDRANT_MOVIE_COLLECTION_NAME, QDRANT_API_KEY, QDRANT_ENDPOINT
-
 def load_embeddings_qdrant(
     client: QdrantClient,
     collection: str,
     ids: Sequence[int],
     vector_name: str = "dense_vector"
-) -> Dict[str, np.ndarray]:
+) -> Dict[int, np.ndarray]:
     if not ids:
         return {}
     res, _ = client.scroll(
@@ -21,9 +18,9 @@ def load_embeddings_qdrant(
         with_vectors=True,
         limit=len(ids),
     )
-    out: Dict[str, np.ndarray] = {}
+    out: Dict[int, np.ndarray] = {}
     for p in res:
-        vid = str(p.id)
+        vid = int(p.id)
         if vid is None:
             continue
 
@@ -41,5 +38,3 @@ def load_embeddings_qdrant(
         if vector_data is not None:
             out[vid] = np.asarray(vector_data, dtype=np.float32)
     return out
-
-load_embeddings_qdrant(connect_qdrant(QDRANT_API_KEY, QDRANT_ENDPOINT), QDRANT_MOVIE_COLLECTION_NAME, [11, 12])

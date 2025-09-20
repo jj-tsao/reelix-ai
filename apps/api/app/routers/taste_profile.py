@@ -28,9 +28,9 @@ async def rebuild_my_profile(
     user_id: str = Depends(get_current_user_id),
     qdrant=Depends(connect_qdrant),
 ):
-    from app.llm.custom_models import load_sentence_model
-    model = load_sentence_model()
-    text_embedder = lambda texts: model.encode(list(texts), show_progress_bar=False).tolist()
+    # from reelix_models.custom_models import load_sentence_model
+    # model = load_sentence_model()
+    # text_embedder = lambda texts: model.encode(list(texts), show_progress_bar=False).tolist()
 
     # if your service currently expects an asyncpg connection, pass sb instead and
     # use the supabase-based store functions (below)
@@ -39,6 +39,6 @@ async def rebuild_my_profile(
         user_id,
         qdrant,
         collection="movies",
-        text_embedder=text_embedder,
+        # text_embedder=text_embedder,
     )
     return {"dim": int(vec.shape[0]), "pos_count": debug["pos_count"], "neg_count": debug["neg_count"]}

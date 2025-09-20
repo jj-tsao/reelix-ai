@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, Sequence, Mapping
 import numpy as np
+from numpy.typing import NDArray
 from qdrant_client import QdrantClient
 
-from reelix_user.types import UserSignals, Interaction, BuildParams
+
+from reelix_user.types import UserSignals, Interaction, BuildParams, MediaId
 from reelix_user.taste_profile import build_taste_vector
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant
-from reelix_user import store as taste_store
+# from reelix_user import store as taste_store
 
 
 # 1) fetch user signals from DB
@@ -43,32 +45,38 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
     )
 
 
-# 2) vibe centroids loader (stub → wire to your cache file/artifact)
+# 2) vibe & keyword centroids loader
 def load_vibe_centroids() -> Dict[str, np.ndarray]:
     # TODO: read from a .npz/.json or module you produce at training time
     return {}
 
+def load_keyword_centroids() -> Dict[str, np.ndarray]:
+    # TODO: read from a .npz/.json or module you produce at training time
+    return {}
+
+EmbedMap = Mapping[MediaId, NDArray[np.float32]]
 
 async def rebuild_and_store(
     pg,
     user_id: str,
     qdrant: QdrantClient,
     collection: str,
-    text_embedder,  # callable: list[str] -> list[np.ndarray]
     params: BuildParams = BuildParams(dim=768),
 ):
     signals = await get_user_signals(pg, user_id)
-    get_item_embeddings = lambda ids: load_embeddings_qdrant(
-        qdrant, collection, ids, "dense_vector"
-    )
+
+    def get_item_embeddings(ids: Sequence[MediaId]) -> EmbedMap:
+        return load_embeddings_qdrant(qdrant, collection, ids)
+
     vibe_centroids = load_vibe_centroids()
+    keyword_centroids = load_keyword_centroids()
 
     vec, debug = build_taste_vector(
         user=signals,
         get_item_embeddings=get_item_embeddings,
-        embed_texts=text_embedder,
         vibe_centroids=vibe_centroids,
+        keyword_centroids=keyword_centroids,
         params=params,
     )
-    await taste_store.upsert(pg, user_id, vec, debug)
+    # await taste_store.upsert(pg, user_id, vec, debug)
     return vec, debug

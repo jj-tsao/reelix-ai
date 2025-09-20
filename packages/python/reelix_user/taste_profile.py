@@ -35,22 +35,33 @@ def _tdecay(ts: datetime, now: datetime, lam_month: float) -> float:
 
 # ---- priors ----
 
-def prior_from_genres(genres: list[str], vibe_centroids: Mapping[str, np.ndarray], dim: int) -> np.ndarray:
+def get_priors(keys: list[str], centroids: Mapping[str, np.ndarray], dim: int) -> np.ndarray:
     picks: list[np.ndarray] = []
-    for g in genres:
-        v = vibe_centroids.get(g)
+    for k in keys:
+        v = centroids.get(k)
         if v is not None:
             picks.append(np.asarray(v, dtype=np.float32))
     if not picks:
         return np.zeros((dim,), dtype=np.float32)
     return _l2(np.mean(picks, axis=0).astype(np.float32))
 
-def prior_from_keywords(keywords: list[str], embed_texts: Callable[[Sequence[str]], list[np.ndarray]], dim: int) -> np.ndarray:
-    if not keywords:
-        return np.zeros((dim,), dtype=np.float32)
-    q = ", ".join(keywords[:8])
-    [vec] = embed_texts([q])
-    return _l2(np.asarray(vec, dtype=np.float32))
+
+# def prior_from_genres(genres: list[str], vibe_centroids: Mapping[str, np.ndarray], dim: int) -> np.ndarray:
+#     picks: list[np.ndarray] = []
+#     for g in genres:
+#         v = vibe_centroids.get(g)
+#         if v is not None:
+#             picks.append(np.asarray(v, dtype=np.float32))
+#     if not picks:
+#         return np.zeros((dim,), dtype=np.float32)
+#     return _l2(np.mean(picks, axis=0).astype(np.float32))
+
+# def prior_from_keywords(keywords: list[str], embed_texts: Callable[[Sequence[str]], list[np.ndarray]], dim: int) -> np.ndarray:
+#     if not keywords:
+#         return np.zeros((dim,), dtype=np.float32)
+#     q = ", ".join(keywords[:8])
+#     [vec] = embed_texts([q])
+#     return _l2(np.asarray(vec, dtype=np.float32))
 
 
 # ---- main builder ----
@@ -59,8 +70,9 @@ def build_taste_vector(
     user: UserSignals,
     *,
     get_item_embeddings: Callable[[Sequence[MediaId]], Mapping[MediaId, np.ndarray]],
-    embed_texts: Callable[[Sequence[str]], list[np.ndarray]],
+    # embed_texts: Callable[[Sequence[str]], list[np.ndarray]],
     vibe_centroids: Mapping[str, np.ndarray],
+    keyword_centroids: Mapping[str, np.ndarray],
     params: BuildParams,
     now: datetime | None = None
 ) -> tuple[np.ndarray, dict[str, Any]]:
@@ -95,8 +107,10 @@ def build_taste_vector(
     vneg = _wmean(vneg_list, wneg) if vneg_list else np.zeros((params.dim,), dtype=np.float32)
 
     # genre and keywor priors
-    g_prior = prior_from_genres(user.genres_include, vibe_centroids, params.dim) if user.genres_include else np.zeros((params.dim,), dtype=np.float32)
-    k_prior = prior_from_keywords(user.keywords_include, embed_texts, params.dim) if user.keywords_include else np.zeros((params.dim,), dtype=np.float32)
+    # g_prior = prior_from_genres(user.genres_include, vibe_centroids, params.dim) if user.genres_include else np.zeros((params.dim,), dtype=np.float32)
+    # k_prior = prior_from_keywords(user.keywords_include, embed_texts, params.dim) if user.keywords_include else np.zeros((params.dim,), dtype=np.float32)
+    g_prior = get_priors(user.genres_include, vibe_centroids, params.dim) if user.genres_include else np.zeros((params.dim,), dtype=np.float32)
+    k_prior = get_priors(user.keywords_include, keyword_centroids, params.dim) if user.keywords_include else np.zeros((params.dim,), dtype=np.float32)
 
     combo = params.alpha * vpos - params.beta * vneg + params.gamma * g_prior + params.delta * k_prior
 
