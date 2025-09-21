@@ -1,11 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 
 from app.supabase_client import get_supabase_client, get_current_user_id
-from reelix_retrieval.vectorstore import connect_qdrant
 from services.taste_profile_service import rebuild_and_store
 from reelix_user.store import fetch as fetch_profile
 
 router = APIRouter(prefix="/taste_profile", tags=["taste"])
+
+
+def get_qdrant_client(request: Request):
+    qdrant = getattr(request.app.state, "qdrant", None)
+    if qdrant is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="QDRANT client not initialized",
+        )
+    return qdrant
 
 @router.get("/me")
 async def get_my_profile(
@@ -26,16 +35,14 @@ async def get_my_profile(
 async def rebuild_my_profile(
     sb=Depends(get_supabase_client),
     user_id: str = Depends(get_current_user_id),
-    qdrant=Depends(connect_qdrant),
+    qdrant=Depends(get_qdrant_client),
 ):
     # from reelix_models.custom_models import load_sentence_model
     # model = load_sentence_model()
     # text_embedder = lambda texts: model.encode(list(texts), show_progress_bar=False).tolist()
 
-    # if your service currently expects an asyncpg connection, pass sb instead and
-    # use the supabase-based store functions (below)
     vec, debug = await rebuild_and_store(
-        sb,  # 👈 pass supabase client
+        sb,  
         user_id,
         qdrant,
         collection="movies",

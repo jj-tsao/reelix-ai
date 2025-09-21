@@ -4,7 +4,16 @@ reelix_core.egg-info/PKG-INFO
 reelix_core.egg-info/SOURCES.txt
 reelix_core.egg-info/dependency_links.txt
 reelix_core.egg-info/top_level.txt
+reelix_models/__init__.py
+reelix_models/custom_models.py
 reelix_ranking/types.py
 reelix_retrieval/__init__.py
 reelix_retrieval/base_retriever.py
+reelix_retrieval/embedding_loader.py
+reelix_retrieval/filter_builder.py
 reelix_retrieval/vectorstore.py
+reelix_tmdb/tmdb_client.py
+reelix_user/__init__.py
+reelix_user/store.py
+reelix_user/taste_profile.py
+reelix_user/types.py

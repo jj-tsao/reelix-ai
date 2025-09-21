@@ -1,5 +1,7 @@
 reelix_core
 reelix_eval
+reelix_models
 reelix_ranking
 reelix_retrieval
 reelix_tmdb
+reelix_user
