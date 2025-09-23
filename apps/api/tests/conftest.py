@@ -1,8 +1,22 @@
 from typing import Any, Dict, List
 
 import os
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
+
+
+def _load_test_env() -> None:
+    env_path = Path(__file__).parent / "data" / "env_test.json"
+    if not env_path.exists():
+        return
+    import json
+
+    with env_path.open("r", encoding="utf-8") as fh:
+        data = json.load(fh)
+    for key, value in data.items():
+        os.environ.setdefault(key, value)
 
 
 class _FakeQuery:
@@ -50,8 +64,7 @@ class FakeSupabaseClient:
 @pytest.fixture()
 def test_client():
     # Ensure required env vars exist before importing the app
-    os.environ.setdefault("SUPABASE_URL", "http://localhost")
-    os.environ.setdefault("SUPABASE_ANON_KEY", "test_anon_key")
+    _load_test_env()
 
     # Import after env is set to avoid pydantic settings errors
     from app.main import app  # type: ignore

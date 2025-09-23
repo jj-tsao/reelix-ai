@@ -89,6 +89,11 @@ def test_rls_forbidden_maps_403(test_client, monkeypatch):
     from app.main import app
     from fastapi.testclient import TestClient
 
+    os.environ.setdefault("QDRANT_ENDPOINT", "http://localhost:6333")
+    os.environ.setdefault("QDRANT_API_KEY", "test_qdrant_key")
+    os.environ.setdefault("SUPABASE_URL", "http://localhost")
+    os.environ.setdefault("SUPABASE_ANON_KEY", "test_anon_key")
+
     app.dependency_overrides[get_supabase_client] = _override_client
     app.dependency_overrides[get_current_user_id] = (
         lambda: "00000000-0000-0000-0000-000000000000"
@@ -106,6 +111,8 @@ def test_missing_token_401_enforced():
     from fastapi.testclient import TestClient
 
     # Ensure env is present before importing app
+    os.environ.setdefault("QDRANT_ENDPOINT", "http://localhost:6333")
+    os.environ.setdefault("QDRANT_API_KEY", "test_qdrant_key")
     os.environ.setdefault("SUPABASE_URL", "http://localhost")
     os.environ.setdefault("SUPABASE_ANON_KEY", "test_anon_key")
     from app.main import app
