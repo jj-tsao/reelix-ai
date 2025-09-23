@@ -3,14 +3,11 @@ from qdrant_client import QdrantClient
 
 from app.supabase_client import get_supabase_client, get_current_user_id
 from app.deps import get_qdrant
+from app.repositories.taste_profile_store import fetch as fetch_profile
 from services.taste_profile_service import rebuild_and_store
-from reelix_user.store import fetch as fetch_profile
 
 router = APIRouter(prefix="/taste_profile", tags=["taste"])
 
-
-def get_qdrant_client(q: QdrantClient = Depends(get_qdrant)) -> QdrantClient:
-    return q
 
 @router.get("/me")
 async def get_my_profile(
@@ -31,7 +28,7 @@ async def get_my_profile(
 async def rebuild_my_profile(
     sb=Depends(get_supabase_client),
     user_id: str = Depends(get_current_user_id),
-    qdrant: QdrantClient = Depends(get_qdrant_client),
+    qdrant: QdrantClient = Depends(get_qdrant),
 ):
     # from reelix_models.custom_models import load_sentence_model
     # model = load_sentence_model()
@@ -41,7 +38,7 @@ async def rebuild_my_profile(
         sb,  
         user_id,
         qdrant,
-        collection="movies",
+        media_type="movie",
         # text_embedder=text_embedder,
     )
     return {"dim": int(vec.shape[0]), "pos_count": debug["pos_count"], "neg_count": debug["neg_count"]}

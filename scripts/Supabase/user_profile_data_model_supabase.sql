@@ -1,6 +1,7 @@
 -- ========== 0) Extensions & helpers ==========
 create extension if not exists pgcrypto;   -- gen_random_uuid()
 create extension if not exists citext;     -- case-insensitive text
+create extension if not exists vector;     -- pgvector for storing user taste vector
 
 -- Trigger for last update time
 create or replace function public.tg_set_updated_at()
@@ -209,6 +210,29 @@ create trigger user_agent_state_updated_at
 before update on public.user_agent_state
 for each row execute procedure public.tg_set_updated_at();
 
+-- User taste profile with taste vectors
+create table if not exists public.user_taste_profile (
+  user_id     uuid not null references public.app_user(user_id) on delete cascade,
+  media_type  text not null check (media_type in ('movie','tv')),
+  model_name  text not null,                     -- e.g. 'bge-base-en-v1.5'
+  dim         int  not null default 768,
+  dense       vector(768) not null,              -- match your prod dim
+  positive_n  int not null default 0,
+  negative_n  int not null default 0,
+  params      jsonb not null default '{}'::jsonb, -- α,β,γ,δ, λ, etc.
+  last_built_at timestamptz not null default now(),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  primary key (user_id, media_type, model_name)
+);
+create or replace function public.tg_set_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at := now(); return new; end $$;
+
+drop trigger if exists user_taste_profile_updated_at on public.user_taste_profile;
+create trigger user_taste_profile_updated_at
+before update on public.user_taste_profile
+for each row execute procedure public.tg_set_updated_at();
 
 -- ========== 2) RLS: enable + granular policies (no DELETE) ==========
 alter table public.app_user           enable row level security;
@@ -220,6 +244,7 @@ alter table public.user_alert_rules   enable row level security;
 alter table public.user_notifications enable row level security;
 alter table public.user_agent_state   enable row level security;
 alter table public.user_settings enable row level security;
+alter table public.user_taste_profile enable row level security;
 
 do $$
 begin
@@ -304,8 +329,6 @@ begin
   end if;
 
 -- user_settings (insert + update; no delete)
-do $$
-begin
   if not exists (
     select 1 from pg_policies
     where schemaname='public' and tablename='user_settings' and policyname='settings_select_own'
@@ -329,8 +352,6 @@ begin
     create policy settings_update_own on public.user_settings
       for update using (public.is_me(user_id)) with check (public.is_me(user_id));
   end if;
-end
-$$ language plpgsql;
 
   -- user_follows (soft delete via is_deleted)
   if not exists (
@@ -411,6 +432,27 @@ $$ language plpgsql;
   ) then
     create policy agent_update_own on public.user_agent_state for update using (public.is_me(user_id)) with check (public.is_me(user_id));
   end if;
+
+-- taste profile
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_taste_profile' and policyname='taste_select_own'
+  ) then
+    create policy taste_select_own on public.user_taste_profile for select using (public.is_me(user_id));
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_taste_profile' and policyname='taste_insert_own'
+  ) then
+    create policy taste_insert_own on public.user_taste_profile for insert with check (public.is_me(user_id));
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='user_taste_profile' and policyname='taste_update_own'
+  ) then
+    create policy taste_update_own on public.user_taste_profile for update using (public.is_me(user_id)) with check (public.is_me(user_id));
+  end if;
+
 end
 $$ language plpgsql;
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime, timezone
 from typing import Dict, Sequence, Mapping
 import numpy as np
 from numpy.typing import NDArray
@@ -8,40 +9,100 @@ from qdrant_client import QdrantClient
 from reelix_user.types import UserSignals, Interaction, BuildParams, MediaId
 from reelix_user.taste_profile import build_taste_vector
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant
-from reelix_user import store as taste_store
+from app.repositories import taste_profile_store as taste_store
 
 
 # 1) fetch user signals from DB
+def _ensure_ts(value) -> datetime | None:
+    """Normalize timestamps coming from Postgres/Supabase into tz-aware datetimes."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        # Supabase returns ISO strings that may end with `Z`; make them explicit UTC.
+        normalized = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
 async def get_user_signals(pg, user_id: str) -> UserSignals:
-    prefs = await pg.fetchrow(
-        """
-      select coalesce(genres_include,'{}') as genres, coalesce(keywords_include,'{}') as kws
-      from public.user_preferences where user_id=$1
-    """,
-        user_id,
-    )
-    rows = await pg.fetch(
-        """
-      select media_type, media_id, event_type, created_at
-      from public.user_interactions
-      where user_id=$1
-      order by created_at desc
-      limit 500
-    """,
-        user_id,
-    )
-    return UserSignals(
-        genres_include=list(prefs["genres"] or []),
-        keywords_include=list(prefs["kws"] or []),
-        interactions=[
-            Interaction(
-                media_type=str(r["media_type"]),
-                media_id=int(r["media_id"]),
-                kind=r["event_type"],
-                ts=r["created_at"],
+    timestamp_key = "occurred_at"
+
+    rows: list[dict]
+    if hasattr(pg, "fetchrow"):
+        prefs_row = await pg.fetchrow(
+            """
+          select coalesce(genres_include,'{}') as genres, coalesce(keywords_include,'{}') as kws
+          from public.user_preferences where user_id=$1
+        """,
+            user_id,
+        )
+        async_rows = await pg.fetch(
+            f"""
+          select media_type, media_id, event_type, {timestamp_key}
+          from public.user_interactions
+          where user_id=$1
+          order by {timestamp_key} desc
+          limit 500
+        """,
+            user_id,
+        )
+        prefs_dict = dict(prefs_row) if prefs_row else {}
+        rows = [dict(r) for r in async_rows]
+        genres = list(prefs_dict.get("genres") or [])
+        keywords = list(prefs_dict.get("kws") or [])
+    else:
+        try:
+            pref_res = (
+                pg.postgrest.table("user_preferences")
+                .select("genres_include, keywords_include")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
             )
-            for r in rows
-        ],
+            pref_rows = getattr(pref_res, "data", None)
+            prefs = pref_rows[0] if pref_rows else {}
+        except Exception:
+            prefs = {}
+        genres = list(prefs.get("genres_include") or [])
+        keywords = list(prefs.get("keywords_include") or [])
+
+        try:
+            inter_res = (
+                pg.postgrest.table("user_interactions")
+            .select(f"media_type, media_id, event_type, {timestamp_key}")
+                .eq("user_id", user_id)
+                .order(timestamp_key, desc=True)
+                .limit(500)
+                .execute()
+            )
+            rows = list(getattr(inter_res, "data", []) or [])
+        except Exception:
+            rows = []
+
+    interactions = [
+        Interaction(
+            media_type=str(row["media_type"]),
+            media_id=int(row["media_id"]),
+            kind=row["event_type"],
+            ts=ts,
+        )
+        for row in rows
+        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at"))) is not None
+    ]
+
+    return UserSignals(
+        genres_include=genres,
+        keywords_include=keywords,
+        interactions=interactions,
     )
 
 
@@ -60,13 +121,13 @@ async def rebuild_and_store(
     pg,
     user_id: str,
     qdrant: QdrantClient,
-    collection: str,
+    media_type: str,
     params: BuildParams = BuildParams(dim=768),
 ):
     signals = await get_user_signals(pg, user_id)
 
     def get_item_embeddings(ids: Sequence[MediaId]) -> EmbedMap:
-        return load_embeddings_qdrant(qdrant, collection, ids)
+        return load_embeddings_qdrant(qdrant, media_type, ids)
 
     vibe_centroids = load_vibe_centroids()
     keyword_centroids = load_keyword_centroids()

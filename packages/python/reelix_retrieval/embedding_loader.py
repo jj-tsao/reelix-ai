@@ -2,17 +2,18 @@ from typing import Sequence, Dict, Union, List, Any
 import numpy as np
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
+from reelix_core.config import QDRANT_MOVIE_COLLECTION_NAME, QDRANT_TV_COLLECTION_NAME
 
 def load_embeddings_qdrant(
     client: QdrantClient,
-    collection: str,
+    media_type: str,
     ids: Sequence[int],
     vector_name: str = "dense_vector"
 ) -> Dict[int, np.ndarray]:
     if not ids:
         return {}
     res, _ = client.scroll(
-        collection_name=collection,
+        collection_name=QDRANT_MOVIE_COLLECTION_NAME if media_type == "movie" else QDRANT_TV_COLLECTION_NAME,
         scroll_filter=qm.Filter(must=[qm.HasIdCondition(has_id=list(ids))]),
         with_payload=False,
         with_vectors=True,

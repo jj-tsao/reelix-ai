@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from qdrant_client import QdrantClient
 
@@ -36,6 +37,31 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Reelix Discovery Agent API", lifespan=lifespan)
+
+
+def _custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version="0.1.0",
+        description="Reelix Discovery Agent API",
+        routes=app.routes,
+    )
+    components = schema.setdefault("components", {})
+    components.setdefault("securitySchemes", {})["BearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+    }
+    for path_item in schema.get("paths", {}).values():
+        for operation in path_item.values():
+            operation.setdefault("security", []).append({"BearerAuth": []})
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = _custom_openapi
 
 
 @app.get("/health")

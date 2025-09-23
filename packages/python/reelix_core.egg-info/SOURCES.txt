@@ -14,6 +14,5 @@ reelix_retrieval/filter_builder.py
 reelix_retrieval/vectorstore.py
 reelix_tmdb/tmdb_client.py
 reelix_user/__init__.py
-reelix_user/store.py
 reelix_user/taste_profile.py
 reelix_user/types.py
