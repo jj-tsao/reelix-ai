@@ -1,4 +1,5 @@
 from typing import Any, Dict
+import os
 
 
 def test_upsert_preferences_success(test_client):
