@@ -1,3 +1,4 @@
+build
 reelix_core
 reelix_eval
 reelix_models

@@ -3,24 +3,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
-
+from reelix_core.config import EMBEDDING_MODEL
 
 TABLE = "user_taste_profile"
 
-
-async def upsert(sb: Any, user_id: str, vec: np.ndarray, debug: dict[str, Any]):
-    payload = {
-        "user_id": user_id,
-        "dense": vec.tolist(),
-        "positive_n": int(debug["pos_count"]),
-        "negative_n": int(debug["neg_count"]),
-        "params": debug["params"],
-    }
-    res = sb.postgrest.table(TABLE).upsert(payload).execute()
-    return getattr(res, "data", None)
-
-
-async def upsert_taste_profile(sb: Any, user_id: str, media_type: str, model_name: str, vec: np.ndarray, debug: dict[str, Any], dim=768):
+async def upsert_taste_profile(sb: Any, user_id: str, media_type: str, vec: np.ndarray, debug: dict[str, Any], model_name: str = EMBEDDING_MODEL, dim=768):
     payload = {
         "user_id": user_id,
         "media_type": media_type,
