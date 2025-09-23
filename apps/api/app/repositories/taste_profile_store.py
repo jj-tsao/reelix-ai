@@ -34,6 +34,8 @@ async def upsert_taste_profile(
 
 
 async def fetch(sb: Any, user_id: str) -> Optional[dict[str, Any]]:
-    res = sb.postgrest.table(TABLE).select("*").eq("user_id", user_id).single().execute()
+    res = (
+        sb.postgrest.table(TABLE).select("*").eq("user_id", user_id).single().execute()
+    )
     data = getattr(res, "data", None)
     return data if data else None

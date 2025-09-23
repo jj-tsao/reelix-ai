@@ -96,7 +96,8 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
             ts=ts,
         )
         for row in rows
-        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at"))) is not None
+        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at")))
+        is not None
     ]
 
     return UserSignals(
@@ -111,11 +112,14 @@ def load_vibe_centroids() -> Dict[str, np.ndarray]:
     # TODO: read from a .npz/.json or module you produce at training time
     return {}
 
+
 def load_keyword_centroids() -> Dict[str, np.ndarray]:
     # TODO: read from a .npz/.json or module you produce at training time
     return {}
 
+
 EmbedMap = Mapping[MediaId, NDArray[np.float32]]
+
 
 async def rebuild_and_store(
     pg,
