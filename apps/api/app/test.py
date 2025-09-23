@@ -1,20 +1,18 @@
 import os
-
-from dotenv import find_dotenv, load_dotenv
-
-from reelix_retrieval.embedding_loader import load_embeddings_qdrant
-from reelix_user.taste_profile import build_taste_vector
-from reelix_retrieval.vectorstore import connect_qdrant
-from reelix_user.types import UserSignals, Interaction, BuildParams, MediaId
-from reelix_core.config import EMBEDDING_MODEL
-from typing import Optional, Mapping, Sequence, Any
-from numpy.typing import NDArray
-import numpy as np
 from datetime import datetime, timezone
+from typing import Any, Mapping, Optional, Sequence
 
+import numpy as np
+from dotenv import find_dotenv, load_dotenv
 from fastapi import Depends, Header, HTTPException, status
+from numpy.typing import NDArray
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from reelix_core.config import EMBEDDING_MODEL
+from reelix_retrieval.embedding_loader import load_embeddings_qdrant
+from reelix_retrieval.vectorstore import connect_qdrant
+from reelix_user.taste_profile import build_taste_vector
+from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
 
 load_dotenv(find_dotenv(), override=False)
 
@@ -52,7 +50,7 @@ def require_bearer_token(authorization: Optional[str] = Header(None)) -> str:
 def get_supabase_client(user_token: str = Depends(require_bearer_token)):
     """Return a Supabase client authorized as the end user (DB calls go through PostgREST with user JWT)."""
     try:
-        from supabase import create_client, Client  # type: ignore
+        from supabase import Client, create_client  # type: ignore
         client: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
         # Critical: attach the user's JWT for DB calls so RLS (auth.uid()) is enforced.

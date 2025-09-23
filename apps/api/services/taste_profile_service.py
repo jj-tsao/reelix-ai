@@ -1,15 +1,15 @@
 from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Dict, Sequence, Mapping
+from typing import Dict, Mapping, Sequence
+
 import numpy as np
 from numpy.typing import NDArray
 from qdrant_client import QdrantClient
 
-
-from reelix_user.types import UserSignals, Interaction, BuildParams, MediaId
-from reelix_user.taste_profile import build_taste_vector
-from reelix_retrieval.embedding_loader import load_embeddings_qdrant
 from app.repositories.taste_profile_store import upsert_taste_profile
+from reelix_retrieval.embedding_loader import load_embeddings_qdrant
+from reelix_user.taste_profile import build_taste_vector
+from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
 
 
 # 1) fetch user signals from DB
@@ -78,7 +78,7 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
         try:
             inter_res = (
                 pg.postgrest.table("user_interactions")
-            .select(f"media_type, media_id, event_type, {timestamp_key}")
+                .select(f"media_type, media_id, event_type, {timestamp_key}")
                 .eq("user_id", user_id)
                 .order(timestamp_key, desc=True)
                 .limit(500)
