@@ -21,14 +21,6 @@ QDRANT_ENDPOINT = str(os.getenv("QDRANT_ENDPOINT"))
 SUPABASE_URL = str(os.getenv("SUPABASE_URL"))
 SUPABASE_ANON_KEY = str(os.getenv("SUPABASE_ANON_KEY"))
 
-if (
-    not QDRANT_API_KEY
-    or not QDRANT_ENDPOINT
-    or not SUPABASE_URL
-    or not SUPABASE_ANON_KEY
-):
-    raise ValueError("Missing api key or endpoint.")
-
 class SupabaseSettings(BaseSettings):
     supabase_url: str = Field(default_factory=lambda: os.getenv("SUPABASE_URL", ""))
     supabase_anon_key: str = Field(default_factory=lambda: os.getenv("SUPABASE_ANON_KEY", ""))
