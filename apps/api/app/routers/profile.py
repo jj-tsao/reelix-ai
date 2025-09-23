@@ -38,7 +38,10 @@ def upsert_preferences(
         if isinstance(data, list):
             data = data[0] if data else None
         if not data:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Upsert failed")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Upsert failed",
+            )
         return data
     except Exception as exc:
         _raise_http_from_supabase(exc)
@@ -54,7 +57,11 @@ def upsert_subscriptions(
     Uses composite unique key (user_id, provider_id). Soft-delete is via active=false.
     """
     rows = [
-        {"user_id": user_id, "provider_id": s.provider_id, "active": True if s.active is None else s.active}
+        {
+            "user_id": user_id,
+            "provider_id": s.provider_id,
+            "active": True if s.active is None else s.active,
+        }
         for s in payload.subscriptions
     ]
     try:
@@ -111,9 +118,13 @@ def _raise_http_from_supabase(exc: Exception) -> None:
     code = getattr(exc, "code", None)
     # Map common authorization/rls failures to 403 per requirements
     if code in ("PGRST301", "PGRST302") or "permission denied" in detail.lower():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="forbidden/ownership")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="forbidden/ownership"
+        )
     # Constraint violations surface as 400 to clients
     if "check constraint" in detail.lower() or "violates" in detail.lower():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     # Fallback to 500
-    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail
+    )

@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+
 def test_upsert_preferences_success(test_client):
     payload: Dict[str, Any] = {
         "year_min": 1990,
@@ -35,7 +36,12 @@ def test_upsert_subscriptions_success(test_client):
 def test_insert_interactions_success(test_client):
     payload = {
         "interactions": [
-            {"media_type": "movie", "tmdb_id": 603, "event_type": "like", "weight": 1.0},
+            {
+                "media_type": "movie",
+                "tmdb_id": 603,
+                "event_type": "like",
+                "weight": 1.0,
+            },
             {"media_type": "tv", "tmdb_id": 1396, "event_type": "view"},
         ]
     }
@@ -84,7 +90,9 @@ def test_rls_forbidden_maps_403(test_client, monkeypatch):
     from fastapi.testclient import TestClient
 
     app.dependency_overrides[get_supabase_client] = _override_client
-    app.dependency_overrides[get_current_user_id] = lambda: "00000000-0000-0000-0000-000000000000"
+    app.dependency_overrides[get_current_user_id] = (
+        lambda: "00000000-0000-0000-0000-000000000000"
+    )
 
     with TestClient(app) as c:
         res = c.post("/profile/preferences", json={"include_movies": True})
@@ -105,4 +113,6 @@ def test_missing_token_401_enforced():
     with TestClient(app) as c:
         r = c.post("/profile/preferences", json={"include_movies": True})
         assert r.status_code == 401
-        assert "Authorization" in r.json()["detail"] or r.json()["detail"].startswith("Missing")
+        assert "Authorization" in r.json()["detail"] or r.json()["detail"].startswith(
+            "Missing"
+        )

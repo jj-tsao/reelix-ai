@@ -19,7 +19,9 @@ class PreferencesUpdate(BaseModel):
     include_movies: Optional[bool] = None
     include_tv: Optional[bool] = None
     prefer_recency: Optional[bool] = None
-    diversity_level: Optional[int] = Field(None, description="0=strict,1=balanced,2=explore")
+    diversity_level: Optional[int] = Field(
+        None, description="0=strict,1=balanced,2=explore"
+    )
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "PreferencesUpdate":
@@ -70,4 +72,3 @@ class InteractionCreate(BaseModel):
 
 class InteractionsPayload(BaseModel):
     interactions: List[InteractionCreate]
-

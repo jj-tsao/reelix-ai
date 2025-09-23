@@ -24,6 +24,7 @@ async def get_my_profile(
         "dim": len(row["dense"]),
     }
 
+
 @router.post("/rebuild")
 async def rebuild_my_profile(
     sb=Depends(get_supabase_client),
@@ -35,10 +36,14 @@ async def rebuild_my_profile(
     # text_embedder = lambda texts: model.encode(list(texts), show_progress_bar=False).tolist()
 
     vec, debug = await rebuild_and_store(
-        sb,  
+        sb,
         user_id,
         qdrant,
         media_type="movie",
         # text_embedder=text_embedder,
     )
-    return {"dim": int(vec.shape[0]), "pos_count": debug["pos_count"], "neg_count": debug["neg_count"]}
+    return {
+        "dim": int(vec.shape[0]),
+        "pos_count": debug["pos_count"],
+        "neg_count": debug["neg_count"],
+    }

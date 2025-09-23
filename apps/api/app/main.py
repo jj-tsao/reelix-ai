@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_dotenv(find_dotenv(), override=False)
-    
+
     settings = Settings()
     app.state.settings = settings
 
@@ -27,7 +27,9 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("Missing QDRANT_ENDPOINT or QDRANT_API_KEY")
 
     # Eager init of external clients/models
-    app.state.qdrant = QdrantClient(url=settings.qdrant_endpoint, api_key=settings.qdrant_api_key)
+    app.state.qdrant = QdrantClient(
+        url=settings.qdrant_endpoint, api_key=settings.qdrant_api_key
+    )
 
     try:
         yield
