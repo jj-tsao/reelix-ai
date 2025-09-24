@@ -879,8 +879,8 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "pydantic-settings" },
     { name = "qdrant-client" },
-    { name = "reelix-core", directory = "../../packages/python" },
-    { name = "reelix-discovery-agent-api-client", directory = "../../packages/py-sdk" },
+    { name = "reelix-core", editable = "../../packages/python" },
+    { name = "reelix-discovery-agent-api-client", editable = "../../packages/py-sdk" },
     { name = "supabase", specifier = ">=2.7.4" },
     { name = "uvicorn", extras = ["standard"] },
 ]
@@ -897,12 +897,12 @@ dev = [
 [[package]]
 name = "reelix-core"
 version = "0.1.0"
-source = { directory = "../../packages/python" }
+source = { editable = "../../packages/python" }
 
 [[package]]
 name = "reelix-discovery-agent-api-client"
 version = "0.1.0"
-source = { directory = "../../packages/py-sdk" }
+source = { editable = "../../packages/py-sdk" }
 dependencies = [
     { name = "attrs" },
     { name = "httpx" },

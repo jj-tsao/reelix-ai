@@ -1,7 +1,20 @@
-from typing import Any
+from typing import Any, Callable, TYPE_CHECKING, cast
 
 from fastapi import HTTPException, Request, status
 from qdrant_client import QdrantClient
+
+if TYPE_CHECKING:
+    from reelix_recommendation.recommend import RecommendPipeline
+
+
+def _get_state_attr(request: Request, name: str, error_detail: str) -> Any:
+    value = getattr(request.app.state, name, None)
+    if value is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_detail,
+        )
+    return value
 
 
 def get_settings(request: Request) -> Any:
@@ -15,10 +28,25 @@ def get_settings(request: Request) -> Any:
 
 
 def get_qdrant(request: Request) -> QdrantClient:
-    client = getattr(request.app.state, "qdrant", None)
-    if client is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="QDRANT client not initialized",
-        )
-    return client
+    return cast(
+        QdrantClient,
+        _get_state_attr(request, "qdrant", "QDRANT client not initialized"),
+    )
+
+
+def get_recommend_pipeline(request: Request) -> "RecommendPipeline":
+    return cast(
+        "RecommendPipeline",
+        _get_state_attr(
+            request,
+            "recommend_pipeline",
+            "Recommendation pipeline not initialized",
+        ),
+    )
+
+
+def get_chat_fn(request: Request) -> Callable[..., Any]:
+    return cast(
+        Callable[..., Any],
+        _get_state_attr(request, "chat_fn", "Chat function not initialized"),
+    )

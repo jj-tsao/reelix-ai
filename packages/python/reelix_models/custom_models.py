@@ -3,12 +3,12 @@ from pathlib import Path
 
 import joblib
 import torch
-from app.core.config import BM25_PATH, EMBEDDING_MODEL, INTENT_MODEL
+from reelix_core.config import BM25_PATH, EMBEDDING_MODEL, INTENT_MODEL, RERANKER_MODEL
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline
 
-# === Model Config ===
+# Global model config
 _sentence_model = None  # Not loaded at import time
 
 
@@ -54,7 +54,7 @@ def setup_intent_classifier():
     return classifier
 
 
-def load_bm25_files() -> tuple[dict[str, BM25Okapi], dict[str, int]]:
+def load_bm25_files() -> tuple[dict[str, BM25Okapi], dict[str, dict[str, int]]]:
     bm25_dir = Path(BM25_PATH)
     try:
         bm25_models = {
@@ -70,7 +70,34 @@ def load_bm25_files() -> tuple[dict[str, BM25Okapi], dict[str, int]]:
         raise FileNotFoundError(f"Missing BM25 files: {e}")
     return bm25_models, bm25_vocabs
 
+def load_cross_encoder(
+    model_name: str = RERANKER_MODEL,
+    batch_size: int = 32,
+    max_length: int = 512,
+):
+    global _ce_model
+    try:
+        _ce_model
+    except NameError:
+        _ce_model = None
 
-def embed_text(text: str) -> list[float]:
-    model = load_sentence_model()
-    return model.encode(text).tolist()
+    if _ce_model is None:
+        import time
+        from reelix_models.cross_encoder_reranker import CrossEncoderReranker
+
+        t0 = time.time()
+        # Favor shorter sequences and larger batches on GPU for latency
+        is_cuda = torch.cuda.is_available()
+        effective_max_len = 256 if is_cuda else max_length
+        effective_batch = 48 if is_cuda else batch_size
+        _ce_model = CrossEncoderReranker(
+            model_name=model_name,
+            batch_size=effective_batch,
+            max_length=effective_max_len,
+        )
+        try:
+            _ = _ce_model.score("warmup query", ["warmup doc"])
+        except Exception as e:
+            print("⚠️ CE warmup error (continuing):", e)
+        print(f"✅ CrossEncoder loaded in {time.time() - t0:.2f}s")
+    return _ce_model
