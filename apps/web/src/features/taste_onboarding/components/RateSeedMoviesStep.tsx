@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { upsertUserInteraction } from "../api";
+import { rebuildTasteProfile } from "@/api";
 import type { PropsWithChildren } from "react";
 import { SEED_MOVIES } from "../data/seed_movies";
 import { useToast } from "@/components/ui/useToast";
@@ -424,8 +425,14 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
       <div className="flex items-center justify-between mt-8">
         <Button variant="outline" onClick={onBack}>Back</Button>
         <Button
-          onClick={() => {
-            onFinish?.(ratings);
+          onClick={async () => {
+            try {
+              await rebuildTasteProfile();
+            } catch (err) {
+              console.warn("Failed to rebuild taste profile", err);
+            } finally {
+              onFinish?.(ratings);
+            }
           }}
         >
           Continue

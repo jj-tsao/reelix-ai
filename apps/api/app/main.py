@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from qdrant_client import QdrantClient
@@ -39,6 +40,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Reelix Discovery Agent API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _custom_openapi():

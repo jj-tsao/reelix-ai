@@ -1,6 +1,8 @@
 import type { ChatRequest } from "./types/types";
+import { supabase } from "./lib/supabase";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+// const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const BASE_URL = "http://127.0.0.1:8000"
 
 export async function streamChatResponse(
   request: ChatRequest,
@@ -50,5 +52,27 @@ export async function logFinalRecs({
 
   if (!res.ok) {
     console.warn("Failed to log final recommendations");
+  }
+}
+
+export async function rebuildTasteProfile(): Promise<void> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) {
+    throw new Error("Not signed in");
+  }
+
+  const res = await fetch(`${BASE_URL}/taste_profile/rebuild`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Failed to rebuild taste profile");
   }
 }
