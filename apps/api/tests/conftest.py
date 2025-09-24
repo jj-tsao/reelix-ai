@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+# Skip expensive recommendation bootstrap (and heavy optional deps) during tests
+os.environ.setdefault("REELIX_SKIP_RECOMMENDER_INIT", "1")
+
 
 def _load_test_env() -> None:
     env_path = Path(__file__).parent / "data" / "env_test.json"

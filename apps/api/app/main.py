@@ -2,7 +2,6 @@ import os
 import time
 from contextlib import asynccontextmanager
 
-import nltk
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,28 +24,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    load_dotenv(find_dotenv(), override=False)
+def _should_init_recommendation() -> bool:
+    flag = os.getenv("REELIX_SKIP_RECOMMENDER_INIT", "")
+    return flag.strip().lower() not in {"1", "true", "yes"}
 
-    settings = Settings()
-    app.state.settings = settings
 
-    if not settings.qdrant_endpoint or not settings.qdrant_api_key:
-        raise RuntimeError("Missing QDRANT_ENDPOINT or QDRANT_API_KEY")
-
-    # Eager init of external clients/models
-    app.state.qdrant = QdrantClient(
-        url=settings.qdrant_endpoint, api_key=settings.qdrant_api_key
-    )
-
-    # Initialize recommendation stack
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    startup_t0 = time.perf_counter()
-
-    nltk_data_path = str(NLTK_PATH)
-    if nltk_data_path not in nltk.data.path:
-        nltk.data.path.append(nltk_data_path)
+def _init_recommendation_stack(app: FastAPI) -> None:
+    import nltk
 
     from reelix_models.custom_models import (
         load_bm25_files,
@@ -55,10 +39,15 @@ async def lifespan(app: FastAPI):
         setup_intent_classifier,
     )
     from reelix_recommendation.recommend import RecommendPipeline
-
-    # from reelix_recommendation.chat import build_chat_fn
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
+
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    startup_t0 = time.perf_counter()
+
+    nltk_data_path = str(NLTK_PATH)
+    if nltk_data_path not in nltk.data.path:
+        nltk.data.path.append(nltk_data_path)
 
     intent_classifier = setup_intent_classifier()
     embed_model = load_sentence_model()
@@ -74,11 +63,6 @@ async def lifespan(app: FastAPI):
         sparse_vector_name="sparse_vector",
     )
     pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
-    # chat_fn = build_chat_fn(
-    #     pipeline=pipeline,
-    #     intent_classifier=intent_classifier,
-    #     query_encoder=query_encoder,
-    # )
 
     app.state.intent_classifier = intent_classifier
     app.state.embed_model = embed_model
@@ -87,9 +71,36 @@ async def lifespan(app: FastAPI):
     app.state.query_encoder = query_encoder
     app.state.cross_encoder = cross_encoder
     app.state.recommend_pipeline = pipeline
-    # app.state.chat_fn = chat_fn
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_dotenv(find_dotenv(), override=False)
+
+    settings = Settings()
+    app.state.settings = settings
+
+    if not settings.qdrant_endpoint or not settings.qdrant_api_key:
+        raise RuntimeError("Missing QDRANT_ENDPOINT or QDRANT_API_KEY")
+
+    # Eager init of external clients/models
+    app.state.qdrant = QdrantClient(
+        url=settings.qdrant_endpoint, api_key=settings.qdrant_api_key
+    )
+
+    if _should_init_recommendation():
+        try:
+            _init_recommendation_stack(app)
+        except ModuleNotFoundError as exc:
+            missing = exc.name or "dependency"
+            raise RuntimeError(
+                f"Missing dependency '{missing}' required for recommendation bootstrap. "
+                "Install it or set REELIX_SKIP_RECOMMENDER_INIT=1 to skip initialization."
+            ) from exc
+    else:
+        print("⚠️ Recommendation stack initialization skipped by REELIX_SKIP_RECOMMENDER_INIT")
 
     try:
         yield
