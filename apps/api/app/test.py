@@ -1,4 +1,6 @@
 import os
+import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Optional, Sequence
 
@@ -14,13 +16,8 @@ from reelix_retrieval.vectorstore import connect_qdrant
 from reelix_user.taste_profile import build_taste_vector
 from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
 
-load_dotenv(find_dotenv(), override=False)
 
-QDRANT_API_KEY = str(os.getenv("QDRANT_API_KEY"))
-QDRANT_ENDPOINT = str(os.getenv("QDRANT_ENDPOINT"))
-SUPABASE_URL = str(os.getenv("SUPABASE_URL"))
-SUPABASE_ANON_KEY = str(os.getenv("SUPABASE_ANON_KEY"))
-
+# ===== Supabase Client =====
 
 class SupabaseSettings(BaseSettings):
     supabase_url: str = Field(default_factory=lambda: os.getenv("SUPABASE_URL", ""))
@@ -29,9 +26,7 @@ class SupabaseSettings(BaseSettings):
     )
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-settings = SupabaseSettings()  # Loaded once; env vars required at runtime
-
+settings = SupabaseSettings()
 
 def require_bearer_token(authorization: Optional[str] = Header(None)) -> str:
     if not authorization:
@@ -97,6 +92,8 @@ def get_current_user_id(
         )
 
 
+# ===== Fetch User Signals =====
+
 def _ensure_ts(value) -> datetime | None:
     """Normalize timestamps coming from Postgres/Supabase into tz-aware datetimes."""
     if value is None:
@@ -117,47 +114,57 @@ def _ensure_ts(value) -> datetime | None:
     return None
 
 
-def get_user_signals_via_supabase(pg, user_id: str) -> UserSignals:
-    pref_res = (
-        pg.postgrest.table("user_preferences")
-        .select("genres_include, keywords_include")
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
-    prefs = pref_res.data or {}
+def get_user_signals(pg, user_id: str) -> UserSignals:
+    timestamp_key = "occurred_at"
 
-    inter_res = (
-        pg.postgrest.table("user_interactions")
-        .select("media_type, media_id, event_type, occurred_at")
-        .eq("user_id", user_id)
-        .order("occurred_at", desc=True)
-        .limit(500)
-        .execute()
-    )
-    rows = inter_res.data or []
+    try:
+        pref_res = (
+            pg.postgrest.table("user_preferences")
+            .select("genres_include, keywords_include")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        pref_rows = getattr(pref_res, "data", None) or []
+        prefs = pref_rows[0] if pref_rows else {}
+    except Exception:
+        prefs = {}
 
-    def parse_ts(raw: str) -> datetime:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    try:
+        inter_res = (
+            pg.postgrest.table("user_interactions")
+            .select(f"media_type, media_id, event_type, {timestamp_key}")
+            .eq("user_id", user_id)
+            .order(timestamp_key, desc=True)
+            .limit(500)
+            .execute()
+        )
+        rows = list(getattr(inter_res, "data", None) or [])
+    except Exception:
+        rows = []
+
+    interactions = [
+        Interaction(
+            media_type=str(row["media_type"]),
+            media_id=int(row["media_id"]),
+            kind=row["event_type"],
+            ts=ts,
+        )
+        for row in rows
+        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at")))
+        is not None
+    ]
 
     return UserSignals(
         genres_include=list(prefs.get("genres_include") or []),
         keywords_include=list(prefs.get("keywords_include") or []),
-        interactions=[
-            Interaction(
-                media_type=str(r["media_type"]),
-                media_id=int(r["media_id"]),
-                kind=r["event_type"],
-                ts=ts,
-            )
-            for r in rows
-            if (ts := _ensure_ts(r["occurred_at"])) is not None
-        ],
+        interactions=interactions,
     )
 
 
-TABLE = "user_taste_profile"
+# ===== Write Taste Vector to DB =====
 
+TABLE = "user_taste_profile"
 
 def upsert_taste_profile(
     sb: Any,
@@ -182,25 +189,157 @@ def upsert_taste_profile(
     sb.postgrest.table(TABLE).upsert(payload).execute()
 
 
-ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IndVTWNiVm9BM253TU9yMTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3l5Z3Buemtndmpzdnd3Z25vaGpyLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1OTlkMzk0YS1lNjc0LTRhOTUtOWUxNi02MGQ0NzEyYWVmYmQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzU4NjU0NDg4LCJpYXQiOjE3NTg2NTA4ODgsImVtYWlsIjoiamoudHNhby5tYWlsQGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJqai50c2FvLm1haWxAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNTk5ZDM5NGEtZTY3NC00YTk1LTllMTYtNjBkNDcxMmFlZmJkIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NTg1OTE4MTZ9XSwic2Vzc2lvbl9pZCI6ImE1YTJmZThlLWNlNDktNDI4MC1hY2Y5LWRmYjljYWIwODlkNCIsImlzX2Fub255bW91cyI6ZmFsc2V9.j33SFgMoKyynKxQS84vlkOtehM3_UKSD92MCF1lRuaI"
+# ===== Fetch User Taste and Prefs for Recommendation =====
+
+@dataclass
+class UserTasteContext:
+    taste_vector: list[float] | None
+    positive_n: int | None
+    negative_n: int | None
+    last_built_at: datetime | None
+    genres_include: list[str]
+    genres_exclude: list[str]
+    keywords_include: list[str]
+    keywords_exclude: list[str]
+    active_subscriptions: list[int]
+    provider_filter_mode: str | None
+
+def fetch_user_taste_context(
+    sb,
+    user_id: str,
+    media_type: str = "movie",
+) -> UserTasteContext:
+    try:
+        taste_res = (
+            sb.postgrest.table("user_taste_profile")
+            .select("dense, positive_n, negative_n, last_built_at")
+            .eq("user_id", user_id)
+            .eq("media_type", media_type)
+            .order("last_built_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        taste_data = getattr(taste_res, "data", None) or []
+        if isinstance(taste_data, dict):
+            taste_row = taste_data
+        else:
+            taste_row = taste_data[0] if taste_data else None
+    except Exception:
+        taste_row = None
+
+    try:
+        prefs_res = (
+            sb.postgrest.table("user_preferences")
+            .select(
+                "genres_include, genres_exclude, keywords_include, keywords_exclude"
+            )
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        prefs_rows = getattr(prefs_res, "data", None) or []
+        prefs_row = prefs_rows[0] if prefs_rows else {}
+    except Exception:
+        prefs_row = {}
+
+    try:
+        subs_res = (
+            sb.postgrest.table("user_subscriptions")
+            .select("provider_id")
+            .eq("user_id", user_id)
+            .eq("active", True)
+            .execute()
+        )
+        subs_rows = getattr(subs_res, "data", None) or []
+    except Exception:
+        subs_rows = []
+
+    try:
+        settings_res = (
+            sb.postgrest.table("user_settings")
+            .select("provider_filter_mode")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        settings_rows = getattr(settings_res, "data", None) or []
+        settings_row = settings_rows[0] if settings_rows else {}
+    except Exception:
+        settings_row = {}
+
+    dense = (taste_row or {}).get("dense") if taste_row else None
+    taste_vector: list[float] | None = None
+    if isinstance(dense, list):
+        taste_vector = [float(v) for v in dense]
+    elif isinstance(dense, str):
+        raw = dense.strip()
+        try:
+            # PostgREST often returns pgvector as JSON array string
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            # Fallback for Postgres "{...}" array format
+            trimmed = raw.strip("{}")
+            items = [i for i in trimmed.split(",") if i]
+            try:
+                parsed = [float(i) for i in items]
+            except ValueError:
+                parsed = None
+        if isinstance(parsed, list):
+            taste_vector = [float(v) for v in parsed]
+
+    raw_positive = (taste_row or {}).get("positive_n") if taste_row else None
+    positive_n = int(raw_positive) if raw_positive is not None else None
+    raw_negative = (taste_row or {}).get("negative_n") if taste_row else None
+    negative_n = int(raw_negative) if raw_negative is not None else None
+
+    return UserTasteContext(
+        taste_vector=taste_vector,
+        positive_n=positive_n,
+        negative_n=negative_n,
+        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at"))
+        if taste_row
+        else None,
+        genres_include=list(prefs_row.get("genres_include") or []),
+        genres_exclude=list(prefs_row.get("genres_exclude") or []),
+        keywords_include=list(prefs_row.get("keywords_include") or []),
+        keywords_exclude=list(prefs_row.get("keywords_exclude") or []),
+        active_subscriptions=[
+            int(row["provider_id"])
+            for row in subs_rows
+            if row.get("provider_id") is not None
+        ],
+        provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
+    )
 
 
-sb = get_supabase_client(ACCESS_TOKEN)
-user_id = get_current_user_id(sb, ACCESS_TOKEN)
 
-signals = get_user_signals_via_supabase(sb, user_id)
+# ===== Dependencies ===== 
+
+load_dotenv(find_dotenv(), override=False)
+
+QDRANT_API_KEY = str(os.getenv("QDRANT_API_KEY"))
+QDRANT_ENDPOINT = str(os.getenv("QDRANT_ENDPOINT"))
+SUPABASE_URL = str(os.getenv("SUPABASE_URL"))
+SUPABASE_ANON_KEY = str(os.getenv("SUPABASE_ANON_KEY"))
+
+TEST_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IndVTWNiVm9BM253TU9yMTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3l5Z3Buemtndmpzdnd3Z25vaGpyLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1OTlkMzk0YS1lNjc0LTRhOTUtOWUxNi02MGQ0NzEyYWVmYmQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzU4ODI4ODMxLCJpYXQiOjE3NTg4MjUyMzEsImVtYWlsIjoiamoudHNhby5tYWlsQGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJqai50c2FvLm1haWxAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNTk5ZDM5NGEtZTY3NC00YTk1LTllMTYtNjBkNDcxMmFlZmJkIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NTg1OTE4MTZ9XSwic2Vzc2lvbl9pZCI6ImE1YTJmZThlLWNlNDktNDI4MC1hY2Y5LWRmYjljYWIwODlkNCIsImlzX2Fub255bW91cyI6ZmFsc2V9.ZZ3VeKgkzIP7bznEpDWfc4t8uPkUisK4F3Fd_Eo5p20"
+
+sb = get_supabase_client(TEST_ACCESS_TOKEN)
+user_id = get_current_user_id(sb, TEST_ACCESS_TOKEN)
 
 qdrant = connect_qdrant(api_key=QDRANT_API_KEY, endpoint=QDRANT_ENDPOINT)
 
-embds = load_embeddings_qdrant(qdrant, "movie", [11, 12])
+
+# ===== [TEST] Build and Write Tasete Vector to DB ===== 
+
 media_type = "movie"
+
+signals = get_user_signals(sb, user_id)
 
 EmbedMap = Mapping[MediaId, NDArray[np.float32]]
 
-
 def get_item_embeddings(ids: Sequence[MediaId]) -> EmbedMap:
     return load_embeddings_qdrant(qdrant, media_type, ids)
-
 
 vec, debug = build_taste_vector(
     user=signals,
@@ -211,3 +350,25 @@ vec, debug = build_taste_vector(
 )
 
 upsert_taste_profile(sb, user_id, media_type, vec, debug)
+
+
+# ===== [TEST] Fetch User Context and Make First Recs =====
+
+media_type = "movie"
+
+user_context = fetch_user_taste_context(sb, user_id)
+
+user_context.taste_vector
+user_context.genres_include
+
+UserTasteContext(
+    taste_vector=None, 
+    positive_n=25, 
+    negative_n=7, 
+    last_built_at=datetime.datetime(2025, 9, 25, 18, 50, 29, 794987, tzinfo=datetime.timezone.utc), 
+    genres_include=['Drama', 'Romance', 'Thriller', 'Science Fiction', 'Crime'], 
+    genres_exclude=[], 
+    keywords_include=['Character-Driven', 'Emotional', 'Coming-of-Age', 'Heartwarming', 'Tragic Love', 'Suspenseful', 'Intense', 'Mind-Bending', 'Dystopian'], 
+    keywords_exclude=[], 
+    active_subscriptions=[8, 15, 9], 
+    provider_filter_mode='SELECTED')

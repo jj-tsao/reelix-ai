@@ -1,5 +1,7 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 from typing import Dict, Mapping, Sequence
 
 import numpy as np
@@ -12,7 +14,20 @@ from reelix_user.taste_profile import build_taste_vector
 from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
 
 
-# 1) fetch user signals from DB
+@dataclass
+class UserTasteContext:
+    taste_vector: list[float] | None
+    positive_n: int | None
+    negative_n: int | None
+    last_built_at: datetime | None
+    genres_include: list[str]
+    genres_exclude: list[str]
+    keywords_include: list[str]
+    keywords_exclude: list[str]
+    active_subscriptions: list[int]
+    provider_filter_mode: str | None
+
+
 def _ensure_ts(value) -> datetime | None:
     """Normalize timestamps coming from Postgres/Supabase into tz-aware datetimes."""
     if value is None:
@@ -36,57 +51,31 @@ def _ensure_ts(value) -> datetime | None:
 async def get_user_signals(pg, user_id: str) -> UserSignals:
     timestamp_key = "occurred_at"
 
-    rows: list[dict]
-    if hasattr(pg, "fetchrow"):
-        prefs_row = await pg.fetchrow(
-            """
-          select coalesce(genres_include,'{}') as genres, coalesce(keywords_include,'{}') as kws
-          from public.user_preferences where user_id=$1
-        """,
-            user_id,
+    try:
+        pref_res = (
+            pg.postgrest.table("user_preferences")
+            .select("genres_include, keywords_include")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
         )
-        async_rows = await pg.fetch(
-            f"""
-          select media_type, media_id, event_type, {timestamp_key}
-          from public.user_interactions
-          where user_id=$1
-          order by {timestamp_key} desc
-          limit 500
-        """,
-            user_id,
-        )
-        prefs_dict = dict(prefs_row) if prefs_row else {}
-        rows = [dict(r) for r in async_rows]
-        genres = list(prefs_dict.get("genres") or [])
-        keywords = list(prefs_dict.get("kws") or [])
-    else:
-        try:
-            pref_res = (
-                pg.postgrest.table("user_preferences")
-                .select("genres_include, keywords_include")
-                .eq("user_id", user_id)
-                .limit(1)
-                .execute()
-            )
-            pref_rows = getattr(pref_res, "data", None)
-            prefs = pref_rows[0] if pref_rows else {}
-        except Exception:
-            prefs = {}
-        genres = list(prefs.get("genres_include") or [])
-        keywords = list(prefs.get("keywords_include") or [])
+        pref_rows = getattr(pref_res, "data", None) or []
+        prefs = pref_rows[0] if pref_rows else {}
+    except Exception:
+        prefs = {}
 
-        try:
-            inter_res = (
-                pg.postgrest.table("user_interactions")
-                .select(f"media_type, media_id, event_type, {timestamp_key}")
-                .eq("user_id", user_id)
-                .order(timestamp_key, desc=True)
-                .limit(500)
-                .execute()
-            )
-            rows = list(getattr(inter_res, "data", []) or [])
-        except Exception:
-            rows = []
+    try:
+        inter_res = (
+            pg.postgrest.table("user_interactions")
+            .select(f"media_type, media_id, event_type, {timestamp_key}")
+            .eq("user_id", user_id)
+            .order(timestamp_key, desc=True)
+            .limit(500)
+            .execute()
+        )
+        rows = list(getattr(inter_res, "data", None) or [])
+    except Exception:
+        rows = []
 
     interactions = [
         Interaction(
@@ -101,13 +90,121 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
     ]
 
     return UserSignals(
-        genres_include=genres,
-        keywords_include=keywords,
+        genres_include=list(prefs.get("genres_include") or []),
+        keywords_include=list(prefs.get("keywords_include") or []),
         interactions=interactions,
     )
 
 
-# 2) vibe & keyword centroids loader
+# Collect taste vector and preference metadata for recommendaitons.
+async def fetch_user_taste_context(
+    sb,
+    user_id: str,
+    media_type: str = "movie",
+) -> UserTasteContext:
+    try:
+        taste_res = (
+            sb.postgrest.table("user_taste_profile")
+            .select("dense, positive_n, negative_n, last_built_at")
+            .eq("user_id", user_id)
+            .eq("media_type", media_type)
+            .order("last_built_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        taste_data = getattr(taste_res, "data", None) or []
+        if isinstance(taste_data, dict):
+            taste_row = taste_data
+        else:
+            taste_row = taste_data[0] if taste_data else None
+    except Exception:
+        taste_row = None
+
+    try:
+        prefs_res = (
+            sb.postgrest.table("user_preferences")
+            .select(
+                "genres_include, genres_exclude, keywords_include, keywords_exclude"
+            )
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        prefs_rows = getattr(prefs_res, "data", None) or []
+        prefs_row = prefs_rows[0] if prefs_rows else {}
+    except Exception:
+        prefs_row = {}
+
+    try:
+        subs_res = (
+            sb.postgrest.table("user_subscriptions")
+            .select("provider_id")
+            .eq("user_id", user_id)
+            .eq("active", True)
+            .execute()
+        )
+        subs_rows = getattr(subs_res, "data", None) or []
+    except Exception:
+        subs_rows = []
+
+    try:
+        settings_res = (
+            sb.postgrest.table("user_settings")
+            .select("provider_filter_mode")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        settings_rows = getattr(settings_res, "data", None) or []
+        settings_row = settings_rows[0] if settings_rows else {}
+    except Exception:
+        settings_row = {}
+
+    dense = (taste_row or {}).get("dense") if taste_row else None
+    taste_vector: list[float] | None = None
+    if isinstance(dense, list):
+        taste_vector = [float(v) for v in dense]
+    elif isinstance(dense, str):
+        raw = dense.strip()
+        try:
+            # PostgREST often returns pgvector as JSON array string
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            # Fallback for Postgres "{...}" array format
+            trimmed = raw.strip("{}")
+            items = [i for i in trimmed.split(",") if i]
+            try:
+                parsed = [float(i) for i in items]
+            except ValueError:
+                parsed = None
+        if isinstance(parsed, list):
+            taste_vector = [float(v) for v in parsed]
+
+    raw_positive = (taste_row or {}).get("positive_n") if taste_row else None
+    positive_n = int(raw_positive) if raw_positive is not None else None
+    raw_negative = (taste_row or {}).get("negative_n") if taste_row else None
+    negative_n = int(raw_negative) if raw_negative is not None else None
+
+    return UserTasteContext(
+        taste_vector=taste_vector,
+        positive_n=positive_n,
+        negative_n=negative_n,
+        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at"))
+        if taste_row
+        else None,
+        genres_include=list(prefs_row.get("genres_include") or []),
+        genres_exclude=list(prefs_row.get("genres_exclude") or []),
+        keywords_include=list(prefs_row.get("keywords_include") or []),
+        keywords_exclude=list(prefs_row.get("keywords_exclude") or []),
+        active_subscriptions=[
+            int(row["provider_id"])
+            for row in subs_rows
+            if row.get("provider_id") is not None
+        ],
+        provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
+    )
+
+
 def load_vibe_centroids() -> Dict[str, np.ndarray]:
     # TODO: read from a .npz/.json or module you produce at training time
     return {}
