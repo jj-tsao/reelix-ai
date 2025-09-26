@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Iterable, List
 
 MediaType = str
 MediaId = int
@@ -17,6 +18,19 @@ class UserSignals:
     genres_include: list[str]
     keywords_include: list[str]
     interactions: list[Interaction]
+
+    def _by_kind(self, kinds: Iterable[str]) -> List[Interaction]:
+        kinds_norm = {k.lower() for k in kinds}
+        return [i for i in self.interactions if i.kind.lower() in kinds_norm]
+
+    def positive_interactions(self) -> List[Interaction]:
+        """Interactions where kind is 'like' or 'love'."""
+        return self._by_kind({"like", "love"})
+
+    def negative_interactions(self) -> List[Interaction]:
+        """Interactions where kind is 'dislike'."""
+        return self._by_kind({"dislike"})
+
 
 @dataclass
 class BuildParams:

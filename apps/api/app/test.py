@@ -2,7 +2,7 @@ import os
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence, List
 
 import numpy as np
 from dotenv import find_dotenv, load_dotenv
@@ -11,11 +11,28 @@ from numpy.typing import NDArray
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from reelix_core.config import EMBEDDING_MODEL
-from reelix_retrieval.embedding_loader import load_embeddings_qdrant
+from reelix_retrieval.embedding_loader import load_embeddings_qdrant, load_metadata_qdrant
 from reelix_retrieval.vectorstore import connect_qdrant
 from reelix_user.taste_profile import build_taste_vector
 from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
+from reelix_retrieval.query_encoder import Encoder
+from reelix_retrieval.base_retriever import BaseRetriever
+from reelix_recommendation.first_rec import FirstRecommendPipeline
+from reelix_ranking.types import Candidate
 
+
+from reelix_core.config import (
+    NLTK_PATH,
+    QDRANT_MOVIE_COLLECTION_NAME,
+    QDRANT_TV_COLLECTION_NAME,
+)
+
+from reelix_models.custom_models import (
+    load_bm25_files,
+    load_cross_encoder,
+    load_sentence_model,
+    setup_intent_classifier,
+)
 
 # ===== Supabase Client =====
 
@@ -313,7 +330,7 @@ def fetch_user_taste_context(
 
 
 
-# ===== Dependencies ===== 
+# ===== Dependencies & Bootstrapping ===== 
 
 load_dotenv(find_dotenv(), override=False)
 
@@ -322,12 +339,26 @@ QDRANT_ENDPOINT = str(os.getenv("QDRANT_ENDPOINT"))
 SUPABASE_URL = str(os.getenv("SUPABASE_URL"))
 SUPABASE_ANON_KEY = str(os.getenv("SUPABASE_ANON_KEY"))
 
-TEST_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IndVTWNiVm9BM253TU9yMTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3l5Z3Buemtndmpzdnd3Z25vaGpyLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1OTlkMzk0YS1lNjc0LTRhOTUtOWUxNi02MGQ0NzEyYWVmYmQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzU4ODI4ODMxLCJpYXQiOjE3NTg4MjUyMzEsImVtYWlsIjoiamoudHNhby5tYWlsQGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJqai50c2FvLm1haWxAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNTk5ZDM5NGEtZTY3NC00YTk1LTllMTYtNjBkNDcxMmFlZmJkIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NTg1OTE4MTZ9XSwic2Vzc2lvbl9pZCI6ImE1YTJmZThlLWNlNDktNDI4MC1hY2Y5LWRmYjljYWIwODlkNCIsImlzX2Fub255bW91cyI6ZmFsc2V9.ZZ3VeKgkzIP7bznEpDWfc4t8uPkUisK4F3Fd_Eo5p20"
+TEST_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IndVTWNiVm9BM253TU9yMTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3l5Z3Buemtndmpzdnd3Z25vaGpyLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1OTlkMzk0YS1lNjc0LTRhOTUtOWUxNi02MGQ0NzEyYWVmYmQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzU4ODM2MzYxLCJpYXQiOjE3NTg4MzI3NjEsImVtYWlsIjoiamoudHNhby5tYWlsQGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJqai50c2FvLm1haWxAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNTk5ZDM5NGEtZTY3NC00YTk1LTllMTYtNjBkNDcxMmFlZmJkIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NTg1OTE4MTZ9XSwic2Vzc2lvbl9pZCI6ImE1YTJmZThlLWNlNDktNDI4MC1hY2Y5LWRmYjljYWIwODlkNCIsImlzX2Fub255bW91cyI6ZmFsc2V9.w8H_YtazQlCy8JqNv8yfdz6p6X1zpJxKXmRiAGY69bw"
 
 sb = get_supabase_client(TEST_ACCESS_TOKEN)
 user_id = get_current_user_id(sb, TEST_ACCESS_TOKEN)
 
 qdrant = connect_qdrant(api_key=QDRANT_API_KEY, endpoint=QDRANT_ENDPOINT)
+
+embed_model = load_sentence_model()
+bm25_models, bm25_vocabs = load_bm25_files()
+query_encoder = Encoder(embed_model, bm25_models, bm25_vocabs)
+
+cross_encoder = load_cross_encoder()
+base_retriever = BaseRetriever(
+    client=qdrant,
+    movie_collection=QDRANT_MOVIE_COLLECTION_NAME,
+    tv_collection=QDRANT_TV_COLLECTION_NAME,
+    dense_vector_name="dense_vector",
+    sparse_vector_name="sparse_vector",
+)
+pipeline = FirstRecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
 
 
 # ===== [TEST] Build and Write Tasete Vector to DB ===== 
@@ -354,21 +385,57 @@ upsert_taste_profile(sb, user_id, media_type, vec, debug)
 
 # ===== [TEST] Fetch User Context and Make First Recs =====
 
+
+def bm25_query_from_signals(genres_inc, keywords_inc):
+    # 1) collect and weight terms
+    # vibe_tags_weighted: list[("slow-burn", 0.9), ("psychological", 0.8), ...]
+    def reps(w):
+        # map w in [0,1] to repetitions; tune as you like
+        return 1 if w < 0.4 else 2 if w < 0.6 else 3 if w < 0.8 else 4
+
+    bag = []
+    # light boost for included genres (don’t add too many)
+    for g in (genres_inc or []):
+        bag += [g] * 2
+
+    for k in (keywords_inc or []):
+        bag += [k] * 3
+
+    # 3) collapse back to a short “query doc”
+    return " ".join(bag[:60])  # guardrail on length
+
+
+def summarize_ranking(ranking: List[Candidate], top_k: int=20):
+    for idx, r in enumerate(ranking[:top_k], start=1):
+        print (f"#{idx}: Title: {r.payload['title']} | Dense Score: {r.dense_score} | Sparse Score: {r.sparse_score} | Rating: {r.payload['vote_average']} | Popularity: {r.payload['popularity']}")
+
+
 media_type = "movie"
 
 user_context = fetch_user_taste_context(sb, user_id)
 
-user_context.taste_vector
-user_context.genres_include
+bm25_tags = bm25_query_from_signals(user_context.genres_include, user_context.keywords_include)
 
-UserTasteContext(
-    taste_vector=None, 
-    positive_n=25, 
-    negative_n=7, 
-    last_built_at=datetime.datetime(2025, 9, 25, 18, 50, 29, 794987, tzinfo=datetime.timezone.utc), 
-    genres_include=['Drama', 'Romance', 'Thriller', 'Science Fiction', 'Crime'], 
-    genres_exclude=[], 
-    keywords_include=['Character-Driven', 'Emotional', 'Coming-of-Age', 'Heartwarming', 'Tragic Love', 'Suspenseful', 'Intense', 'Mind-Bending', 'Dystopian'], 
-    keywords_exclude=[], 
-    active_subscriptions=[8, 15, 9], 
-    provider_filter_mode='SELECTED')
+dense_vec = user_context.taste_vector
+sparse_vec = query_encoder.encode_sparse(bm25_tags, media_type)
+
+first_recs, _ = pipeline.run(media_type=media_type, dense_vec=dense_vec, sparse_vec=sparse_vec, sparse_depth=200)
+
+summarize_ranking(first_recs)
+
+
+res = load_metadata_qdrant(qdrant, media_type, [11])
+res.get(11).get('title')
+
+interactions = load_metadata_qdrant(qdrant, media_type, [i.media_id for i in signals.interactions if i.kind in {"like", "love"}])
+
+user_context.genres_include
+user_context.keywords_include
+
+
+
+signals.positive_interactions()
+
+pos_int = load_metadata_qdrant(qdrant, media_type, [i.media_id for i in signals.positive_interactions()])
+for k, v in pos_int.items():
+    print (v.get("title", ""))

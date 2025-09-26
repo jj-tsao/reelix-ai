@@ -39,3 +39,28 @@ def load_embeddings_qdrant(
         if vector_data is not None:
             out[vid] = np.asarray(vector_data, dtype=np.float32)
     return out
+
+def load_metadata_qdrant(
+    client: QdrantClient,
+    media_type: str,
+    ids: Sequence[int],
+) -> Dict[int, np.ndarray]:
+    if not ids:
+        return {}
+    res, _ = client.scroll(
+        collection_name=QDRANT_MOVIE_COLLECTION_NAME if media_type == "movie" else QDRANT_TV_COLLECTION_NAME,
+        scroll_filter=qm.Filter(must=[qm.HasIdCondition(has_id=list(ids))]),
+        with_payload=[
+                "llm_context",
+                "title",
+                "popularity",
+                "vote_average",
+            ],
+        with_vectors=False,
+        limit=len(ids),
+    )
+    out: Dict[int, List[str]] = {}
+    for p in res:
+        vid = int(p.id)
+        out[vid] = p.payload
+    return out

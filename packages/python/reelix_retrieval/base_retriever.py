@@ -44,8 +44,10 @@ class BaseRetriever:
                 "embedding_text",
                 "media_id",
                 "title",
+                "genres",
                 "popularity",
                 "vote_average",
+                "vote_count",
             ],
             query_filter=qfilter,
         )
