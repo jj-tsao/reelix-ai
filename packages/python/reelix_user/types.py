@@ -13,6 +13,7 @@ class Interaction:
     kind: str                # 'love' | 'like' | 'dislike'
     ts: datetime             # tz-aware
 
+
 @dataclass
 class UserSignals:
     genres_include: list[str]
@@ -45,3 +46,14 @@ class BuildParams:
     delta: float = 0.15            # keyword prior
     min_pos_for_profile: int = 1
     min_total_for_profile: int = 2
+
+
+@dataclass
+class UserTasteContext:
+    taste_vector: list[float] | None
+    positive_n: int | None
+    negative_n: int | None
+    last_built_at: datetime | None
+    signals: UserSignals
+    active_subscriptions: list[int]
+    provider_filter_mode: str | None

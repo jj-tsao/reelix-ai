@@ -14,7 +14,7 @@ from reelix_core.config import EMBEDDING_MODEL
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant, load_metadata_qdrant
 from reelix_retrieval.vectorstore import connect_qdrant
 from reelix_user.taste_profile import build_taste_vector
-from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
+from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals, UserTasteContext
 from reelix_retrieval.query_encoder import Encoder
 from reelix_retrieval.base_retriever import BaseRetriever
 from reelix_recommendation.first_rec import FirstRecommendPipeline
@@ -131,9 +131,14 @@ def _ensure_ts(value) -> datetime | None:
     return None
 
 
-def get_user_signals(pg, user_id: str) -> UserSignals:
-    timestamp_key = "occurred_at"
-
+def get_user_signals(
+    pg,
+    user_id: str,
+    *,
+    media_type: str | None = None,
+    interaction_limit: int = 500,
+    timestamp_key: str = "occurred_at",
+) -> UserSignals:
     try:
         pref_res = (
             pg.postgrest.table("user_preferences")
@@ -148,13 +153,17 @@ def get_user_signals(pg, user_id: str) -> UserSignals:
         prefs = {}
 
     try:
-        inter_res = (
+        q = (
             pg.postgrest.table("user_interactions")
-            .select(f"media_type, media_id, event_type, {timestamp_key}")
+            .select(f"media_type, media_id, event_type, {timestamp_key}, created_at")
             .eq("user_id", user_id)
-            .order(timestamp_key, desc=True)
-            .limit(500)
-            .execute()
+        )
+        if media_type:
+            q = q.eq("media_type", media_type)
+        inter_res = (
+            q.order(timestamp_key, desc=True)
+             .limit(interaction_limit)
+             .execute()
         )
         rows = list(getattr(inter_res, "data", None) or [])
     except Exception:
@@ -168,8 +177,7 @@ def get_user_signals(pg, user_id: str) -> UserSignals:
             ts=ts,
         )
         for row in rows
-        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at")))
-        is not None
+        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at"))) is not None
     ]
 
     return UserSignals(
@@ -208,24 +216,12 @@ def upsert_taste_profile(
 
 # ===== Fetch User Taste and Prefs for Recommendation =====
 
-@dataclass
-class UserTasteContext:
-    taste_vector: list[float] | None
-    positive_n: int | None
-    negative_n: int | None
-    last_built_at: datetime | None
-    genres_include: list[str]
-    genres_exclude: list[str]
-    keywords_include: list[str]
-    keywords_exclude: list[str]
-    active_subscriptions: list[int]
-    provider_filter_mode: str | None
-
 def fetch_user_taste_context(
     sb,
     user_id: str,
     media_type: str = "movie",
 ) -> UserTasteContext:
+    # 1) Taste profile
     try:
         taste_res = (
             sb.postgrest.table("user_taste_profile")
@@ -237,28 +233,14 @@ def fetch_user_taste_context(
             .execute()
         )
         taste_data = getattr(taste_res, "data", None) or []
-        if isinstance(taste_data, dict):
-            taste_row = taste_data
-        else:
-            taste_row = taste_data[0] if taste_data else None
+        taste_row = taste_data if isinstance(taste_data, dict) else (taste_data[0] if taste_data else None)
     except Exception:
         taste_row = None
 
-    try:
-        prefs_res = (
-            sb.postgrest.table("user_preferences")
-            .select(
-                "genres_include, genres_exclude, keywords_include, keywords_exclude"
-            )
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        prefs_rows = getattr(prefs_res, "data", None) or []
-        prefs_row = prefs_rows[0] if prefs_rows else {}
-    except Exception:
-        prefs_row = {}
+    # 2) Signals
+    signals = get_user_signals(sb, user_id, media_type=media_type)
 
+    # 3) Subs + settings
     try:
         subs_res = (
             sb.postgrest.table("user_subscriptions")
@@ -284,6 +266,7 @@ def fetch_user_taste_context(
     except Exception:
         settings_row = {}
 
+    # 4) Parse vector + counts
     dense = (taste_row or {}).get("dense") if taste_row else None
     taste_vector: list[float] | None = None
     if isinstance(dense, list):
@@ -291,10 +274,8 @@ def fetch_user_taste_context(
     elif isinstance(dense, str):
         raw = dense.strip()
         try:
-            # PostgREST often returns pgvector as JSON array string
             parsed = json.loads(raw)
         except json.JSONDecodeError:
-            # Fallback for Postgres "{...}" array format
             trimmed = raw.strip("{}")
             items = [i for i in trimmed.split(",") if i]
             try:
@@ -304,27 +285,17 @@ def fetch_user_taste_context(
         if isinstance(parsed, list):
             taste_vector = [float(v) for v in parsed]
 
-    raw_positive = (taste_row or {}).get("positive_n") if taste_row else None
-    positive_n = int(raw_positive) if raw_positive is not None else None
-    raw_negative = (taste_row or {}).get("negative_n") if taste_row else None
-    negative_n = int(raw_negative) if raw_negative is not None else None
+    def _toi(x): return int(x) if x is not None else None
+    positive_n = _toi((taste_row or {}).get("positive_n") if taste_row else None)
+    negative_n = _toi((taste_row or {}).get("negative_n") if taste_row else None)
 
     return UserTasteContext(
+        signals=signals,
         taste_vector=taste_vector,
         positive_n=positive_n,
         negative_n=negative_n,
-        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at"))
-        if taste_row
-        else None,
-        genres_include=list(prefs_row.get("genres_include") or []),
-        genres_exclude=list(prefs_row.get("genres_exclude") or []),
-        keywords_include=list(prefs_row.get("keywords_include") or []),
-        keywords_exclude=list(prefs_row.get("keywords_exclude") or []),
-        active_subscriptions=[
-            int(row["provider_id"])
-            for row in subs_rows
-            if row.get("provider_id") is not None
-        ],
+        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at")) if taste_row else None,
+        active_subscriptions=[int(r["provider_id"]) for r in subs_rows if r.get("provider_id") is not None],
         provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
     )
 
@@ -339,7 +310,7 @@ QDRANT_ENDPOINT = str(os.getenv("QDRANT_ENDPOINT"))
 SUPABASE_URL = str(os.getenv("SUPABASE_URL"))
 SUPABASE_ANON_KEY = str(os.getenv("SUPABASE_ANON_KEY"))
 
-TEST_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IndVTWNiVm9BM253TU9yMTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3l5Z3Buemtndmpzdnd3Z25vaGpyLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1OTlkMzk0YS1lNjc0LTRhOTUtOWUxNi02MGQ0NzEyYWVmYmQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzU4ODM2MzYxLCJpYXQiOjE3NTg4MzI3NjEsImVtYWlsIjoiamoudHNhby5tYWlsQGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJqai50c2FvLm1haWxAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNTk5ZDM5NGEtZTY3NC00YTk1LTllMTYtNjBkNDcxMmFlZmJkIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NTg1OTE4MTZ9XSwic2Vzc2lvbl9pZCI6ImE1YTJmZThlLWNlNDktNDI4MC1hY2Y5LWRmYjljYWIwODlkNCIsImlzX2Fub255bW91cyI6ZmFsc2V9.w8H_YtazQlCy8JqNv8yfdz6p6X1zpJxKXmRiAGY69bw"
+TEST_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsImtpZCI6IndVTWNiVm9BM253TU9yMTEiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3l5Z3Buemtndmpzdnd3Z25vaGpyLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI1OTlkMzk0YS1lNjc0LTRhOTUtOWUxNi02MGQ0NzEyYWVmYmQiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzU4OTEwMTcwLCJpYXQiOjE3NTg5MDY1NzAsImVtYWlsIjoiamoudHNhby5tYWlsQGdtYWlsLmNvbSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJqai50c2FvLm1haWxAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNTk5ZDM5NGEtZTY3NC00YTk1LTllMTYtNjBkNDcxMmFlZmJkIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3NTg1OTE4MTZ9XSwic2Vzc2lvbl9pZCI6ImE1YTJmZThlLWNlNDktNDI4MC1hY2Y5LWRmYjljYWIwODlkNCIsImlzX2Fub255bW91cyI6ZmFsc2V9.7M2ltn_LgW7FbiJpxr7HCAfRyMJDCWpPORuzV5gkF40"
 
 sb = get_supabase_client(TEST_ACCESS_TOKEN)
 user_id = get_current_user_id(sb, TEST_ACCESS_TOKEN)
@@ -365,7 +336,7 @@ pipeline = FirstRecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=
 
 media_type = "movie"
 
-signals = get_user_signals(sb, user_id)
+signals = get_user_signals(sb, user_id, media_type=media_type)
 
 EmbedMap = Mapping[MediaId, NDArray[np.float32]]
 
@@ -414,28 +385,52 @@ media_type = "movie"
 
 user_context = fetch_user_taste_context(sb, user_id)
 
-bm25_tags = bm25_query_from_signals(user_context.genres_include, user_context.keywords_include)
+bm25_tags = bm25_query_from_signals(user_context.signals.genres_include, user_context.signals.keywords_include)
 
 dense_vec = user_context.taste_vector
 sparse_vec = query_encoder.encode_sparse(bm25_tags, media_type)
 
-first_recs, _ = pipeline.run(media_type=media_type, dense_vec=dense_vec, sparse_vec=sparse_vec, sparse_depth=200)
+first_recs, _ = pipeline.run(media_type=media_type, dense_vec=dense_vec, sparse_vec=sparse_vec, sparse_depth=200, weights={"dense": 0.45, "sparse": 0.15, "rating": 0.20, "popularity": 0.10})
 
 summarize_ranking(first_recs)
 
+
+# ===== Test Input Interactions =====
 
 res = load_metadata_qdrant(qdrant, media_type, [11])
 res.get(11).get('title')
 
 interactions = load_metadata_qdrant(qdrant, media_type, [i.media_id for i in signals.interactions if i.kind in {"like", "love"}])
 
-user_context.genres_include
-user_context.keywords_include
-
-
+user_context.taste_vector
+user_context.signals.genres_include
+user_context.signals. keywords_include
+user_context.signals.interactions
 
 signals.positive_interactions()
 
 pos_int = load_metadata_qdrant(qdrant, media_type, [i.media_id for i in signals.positive_interactions()])
 for k, v in pos_int.items():
     print (v.get("title", ""))
+    
+    
+#1: Title: The Curious Case of Benjamin Button | Dense Score: 0.40896344 | Sparse Score: 60.849274 | Rating: 7.594 | Popularity: 9.287
+#2: Title: Whiplash | Dense Score: 0.35855168 | Sparse Score: None | Rating: 8.377 | Popularity: 17.6069
+#3: Title: Her | Dense Score: 0.37067655 | Sparse Score: None | Rating: 7.847 | Popularity: 8.515
+#4: Title: Fight Club | Dense Score: 0.3863207 | Sparse Score: None | Rating: 8.4 | Popularity: 20.3297
+#5: Title: The Great Gatsby | Dense Score: 0.37500882 | Sparse Score: None | Rating: 7.361 | Popularity: 7.6377
+#6: Title: The Prestige | Dense Score: 0.3986895 | Sparse Score: None | Rating: 8.204 | Popularity: 15.4664
+#7: Title: Sunset Boulevard | Dense Score: 0.3489128 | Sparse Score: None | Rating: 8.292 | Popularity: 3.9608
+#8: Title: Logan | Dense Score: 0.36030138 | Sparse Score: None | Rating: 7.82 | Popularity: 10.3345
+#9: Title: 8½ | Dense Score: 0.38152653 | Sparse Score: None | Rating: 8.1 | Popularity: 3.2041
+#10: Title: The Danish Girl | Dense Score: 0.39892426 | Sparse Score: None | Rating: 7.567 | Popularity: 3.42
+#11: Title: Mr. Nobody | Dense Score: 0.3837769 | Sparse Score: None | Rating: 7.805 | Popularity: 3.505
+#12: Title: Poor Things | Dense Score: 0.3440053 | Sparse Score: None | Rating: 7.671 | Popularity: 11.5659
+#13: Title: Blade Runner | Dense Score: 0.31622797 | Sparse Score: 72.68185 | Rating: 7.942 | Popularity: 10.2113
+#14: Title: Interview with the Vampire | Dense Score: 0.33603358 | Sparse Score: None | Rating: 7.4 | Popularity: 7.77
+#15: Title: Eternal Sunshine of the Spotless Mind | Dense Score: 0.2949273 | Sparse Score: 61.944168 | Rating: 8.093 | Popularity: 12.3963
+#16: Title: A Beautiful Mind | Dense Score: 0.31089553 | Sparse Score: 46.972534 | Rating: 7.856 | Popularity: 6.1061
+#17: Title: Only Lovers Left Alive | Dense Score: 0.34301126 | Sparse Score: None | Rating: 7.213 | Popularity: 2.7544
+#18: Title: The Father | Dense Score: 0.2943558 | Sparse Score: 55.779892 | Rating: 8.109 | Popularity: 3.9571
+#19: Title: Leaving Las Vegas | Dense Score: 0.33776125 | Sparse Score: None | Rating: 7.251 | Popularity: 4.2452
+#20: Title: Finch | Dense Score: 0.28760812 | Sparse Score: 45.68068 | Rating: 7.833 | Popularity: 5.6205

@@ -27,7 +27,6 @@ def set_metadata_anchors(media_type: str, anchors: NormAnchors) -> None:
     """Runtime override (feature flag, admin panel, tests)."""
     DEFAULT_ANCHORS[media_type.lower()] = anchors
 
-
 def _clamp01(x: float) -> float:
     return 0.0 if x <= 0.0 else 1.0 if x >= 1.0 else x
 

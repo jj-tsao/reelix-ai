@@ -73,7 +73,7 @@ class FirstRecommendPipeline:
         meta_sorted = [c for c, _ in meta_scored][:meta_top_n]
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
         
-        # 4.5) Fallback to metadata reranked results when CE reranker is not available
+        # 4.5) Fallback to metadata reranked results when no text query or CE reranker is not available
         if (self.ce is None or query_text is None):
             final = meta_sorted[:final_top_k]
 

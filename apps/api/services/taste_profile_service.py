@@ -1,5 +1,4 @@
 from __future__ import annotations
-from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from typing import Dict, Mapping, Sequence
@@ -11,21 +10,7 @@ from qdrant_client import QdrantClient
 from app.repositories.taste_profile_store import upsert_taste_profile
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant
 from reelix_user.taste_profile import build_taste_vector
-from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals
-
-
-@dataclass
-class UserTasteContext:
-    taste_vector: list[float] | None
-    positive_n: int | None
-    negative_n: int | None
-    last_built_at: datetime | None
-    genres_include: list[str]
-    genres_exclude: list[str]
-    keywords_include: list[str]
-    keywords_exclude: list[str]
-    active_subscriptions: list[int]
-    provider_filter_mode: str | None
+from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals, UserTasteContext
 
 
 def _ensure_ts(value) -> datetime | None:
@@ -48,12 +33,16 @@ def _ensure_ts(value) -> datetime | None:
     return None
 
 
-async def get_user_signals(pg, user_id: str) -> UserSignals:
-    timestamp_key = "occurred_at"
-
+async def get_user_signals(
+    sb,
+    user_id: str,
+    *,
+    media_type: str | None = None,
+    interaction_limit: int = 500,
+) -> UserSignals:
     try:
         pref_res = (
-            pg.postgrest.table("user_preferences")
+            sb.postgrest.table("user_preferences")
             .select("genres_include, keywords_include")
             .eq("user_id", user_id)
             .limit(1)
@@ -65,13 +54,18 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
         prefs = {}
 
     try:
-        inter_res = (
-            pg.postgrest.table("user_interactions")
-            .select(f"media_type, media_id, event_type, {timestamp_key}")
+        q = (
+            sb.postgrest.table("user_interactions")
+            .select("media_type, media_id, event_type, occurred_at")
             .eq("user_id", user_id)
-            .order(timestamp_key, desc=True)
-            .limit(500)
-            .execute()
+        )
+        print (q)
+        if media_type:
+            q = q.eq("media_type", media_type)
+        inter_res = (
+            q.order("occurred_at", desc=True)
+             .limit(interaction_limit)
+             .execute()
         )
         rows = list(getattr(inter_res, "data", None) or [])
     except Exception:
@@ -85,8 +79,7 @@ async def get_user_signals(pg, user_id: str) -> UserSignals:
             ts=ts,
         )
         for row in rows
-        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at")))
-        is not None
+        if (ts := _ensure_ts(row.get("occurred_at") or row.get("created_at"))) is not None
     ]
 
     return UserSignals(
@@ -102,6 +95,7 @@ async def fetch_user_taste_context(
     user_id: str,
     media_type: str = "movie",
 ) -> UserTasteContext:
+    # 1) Taste profile
     try:
         taste_res = (
             sb.postgrest.table("user_taste_profile")
@@ -113,28 +107,14 @@ async def fetch_user_taste_context(
             .execute()
         )
         taste_data = getattr(taste_res, "data", None) or []
-        if isinstance(taste_data, dict):
-            taste_row = taste_data
-        else:
-            taste_row = taste_data[0] if taste_data else None
+        taste_row = taste_data if isinstance(taste_data, dict) else (taste_data[0] if taste_data else None)
     except Exception:
         taste_row = None
 
-    try:
-        prefs_res = (
-            sb.postgrest.table("user_preferences")
-            .select(
-                "genres_include, genres_exclude, keywords_include, keywords_exclude"
-            )
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        prefs_rows = getattr(prefs_res, "data", None) or []
-        prefs_row = prefs_rows[0] if prefs_rows else {}
-    except Exception:
-        prefs_row = {}
+    # 2) Signals
+    signals = await get_user_signals(sb, user_id, media_type=media_type)
 
+    # 3) Subs + settings
     try:
         subs_res = (
             sb.postgrest.table("user_subscriptions")
@@ -160,6 +140,7 @@ async def fetch_user_taste_context(
     except Exception:
         settings_row = {}
 
+    # 4) Parse vector + counts
     dense = (taste_row or {}).get("dense") if taste_row else None
     taste_vector: list[float] | None = None
     if isinstance(dense, list):
@@ -167,10 +148,8 @@ async def fetch_user_taste_context(
     elif isinstance(dense, str):
         raw = dense.strip()
         try:
-            # PostgREST often returns pgvector as JSON array string
             parsed = json.loads(raw)
         except json.JSONDecodeError:
-            # Fallback for Postgres "{...}" array format
             trimmed = raw.strip("{}")
             items = [i for i in trimmed.split(",") if i]
             try:
@@ -180,27 +159,17 @@ async def fetch_user_taste_context(
         if isinstance(parsed, list):
             taste_vector = [float(v) for v in parsed]
 
-    raw_positive = (taste_row or {}).get("positive_n") if taste_row else None
-    positive_n = int(raw_positive) if raw_positive is not None else None
-    raw_negative = (taste_row or {}).get("negative_n") if taste_row else None
-    negative_n = int(raw_negative) if raw_negative is not None else None
+    def _toi(x): return int(x) if x is not None else None
+    positive_n = _toi((taste_row or {}).get("positive_n") if taste_row else None)
+    negative_n = _toi((taste_row or {}).get("negative_n") if taste_row else None)
 
     return UserTasteContext(
+        signals=signals,
         taste_vector=taste_vector,
         positive_n=positive_n,
         negative_n=negative_n,
-        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at"))
-        if taste_row
-        else None,
-        genres_include=list(prefs_row.get("genres_include") or []),
-        genres_exclude=list(prefs_row.get("genres_exclude") or []),
-        keywords_include=list(prefs_row.get("keywords_include") or []),
-        keywords_exclude=list(prefs_row.get("keywords_exclude") or []),
-        active_subscriptions=[
-            int(row["provider_id"])
-            for row in subs_rows
-            if row.get("provider_id") is not None
-        ],
+        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at")) if taste_row else None,
+        active_subscriptions=[int(r["provider_id"]) for r in subs_rows if r.get("provider_id") is not None],
         provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
     )
 
@@ -219,13 +188,13 @@ EmbedMap = Mapping[MediaId, NDArray[np.float32]]
 
 
 async def rebuild_and_store(
-    pg,
+    sb,
     user_id: str,
     qdrant: QdrantClient,
     media_type: str = "movie",
     params: BuildParams = BuildParams(dim=768),
 ):
-    signals = await get_user_signals(pg, user_id)
+    signals = await get_user_signals(sb, user_id, media_type=media_type)
 
     def get_item_embeddings(ids: Sequence[MediaId]) -> EmbedMap:
         return load_embeddings_qdrant(qdrant, media_type, ids)
@@ -240,5 +209,5 @@ async def rebuild_and_store(
         keyword_centroids=keyword_centroids,
         params=params,
     )
-    await upsert_taste_profile(pg, user_id, media_type, vec, debug)
+    await upsert_taste_profile(sb, user_id, media_type, vec, debug)
     return vec, debug
