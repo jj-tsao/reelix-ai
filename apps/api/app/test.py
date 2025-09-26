@@ -1,6 +1,6 @@
 import os
 import json
-from dataclasses import dataclass
+import nltk
 from datetime import datetime, timezone
 from typing import Any, Mapping, Optional, Sequence, List
 
@@ -31,7 +31,6 @@ from reelix_models.custom_models import (
     load_bm25_files,
     load_cross_encoder,
     load_sentence_model,
-    setup_intent_classifier,
 )
 
 # ===== Supabase Client =====
@@ -316,6 +315,7 @@ user_id = get_current_user_id(sb, TEST_ACCESS_TOKEN)
 
 qdrant = connect_qdrant(api_key=QDRANT_API_KEY, endpoint=QDRANT_ENDPOINT)
 
+nltk.data.path.append(NLTK_PATH)
 embed_model = load_sentence_model()
 bm25_models, bm25_vocabs = load_bm25_files()
 query_encoder = Encoder(embed_model, bm25_models, bm25_vocabs)
