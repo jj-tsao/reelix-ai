@@ -132,16 +132,15 @@ def _ensure_ts(value) -> datetime | None:
 
 
 def get_user_signals(
-    pg,
+    sb,
     user_id: str,
     *,
     media_type: str | None = None,
     interaction_limit: int = 500,
-    timestamp_key: str = "occurred_at",
 ) -> UserSignals:
     try:
         pref_res = (
-            pg.postgrest.table("user_preferences")
+            sb.postgrest.table("user_preferences")
             .select("genres_include, keywords_include")
             .eq("user_id", user_id)
             .limit(1)
@@ -154,14 +153,15 @@ def get_user_signals(
 
     try:
         q = (
-            pg.postgrest.table("user_interactions")
-            .select(f"media_type, media_id, event_type, {timestamp_key}, created_at")
+            sb.postgrest.table("user_interactions")
+            .select("media_type, media_id, event_type, occurred_at")
             .eq("user_id", user_id)
         )
+        print (q)
         if media_type:
             q = q.eq("media_type", media_type)
         inter_res = (
-            q.order(timestamp_key, desc=True)
+            q.order("occurred_at", desc=True)
              .limit(interaction_limit)
              .execute()
         )
@@ -177,7 +177,7 @@ def get_user_signals(
             ts=ts,
         )
         for row in rows
-        if (ts := _ensure_ts(row.get(timestamp_key) or row.get("created_at"))) is not None
+        if (ts := _ensure_ts(row.get("occurred_at") or row.get("created_at"))) is not None
     ]
 
     return UserSignals(
@@ -185,7 +185,6 @@ def get_user_signals(
         keywords_include=list(prefs.get("keywords_include") or []),
         interactions=interactions,
     )
-
 
 # ===== Write Taste Vector to DB =====
 
