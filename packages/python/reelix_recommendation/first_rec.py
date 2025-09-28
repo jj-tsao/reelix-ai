@@ -5,6 +5,7 @@ from reelix_ranking.metadata import metadata_rerank
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_retrieval.base_retriever import BaseRetriever
 from reelix_retrieval.filter_builder import build_qfilter
+from reelix_user.types import UserTasteContext
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -28,6 +29,7 @@ class FirstRecommendPipeline:
         media_type: str,
         dense_vec: List[float],
         sparse_vec: Dict[str, List[float]],
+        user_context: UserTasteContext,
         query_text: str = "",
         genres: Optional[List[str]] = None,
         providers: Optional[List[str]] = None,
@@ -38,7 +40,7 @@ class FirstRecommendPipeline:
         meta_top_n: int = 100,
         meta_ce_top_n: int = 30,
         weights: Dict[str, float] = dict(
-            dense=0.60, sparse=0.10, rating=0.20, popularity=0.10
+            dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0
         ),
         final_top_k: int = 20,
     ) -> Tuple[List[Candidate], Dict[str, ScoreTrace]]:
@@ -67,6 +69,7 @@ class FirstRecommendPipeline:
         # 4) metadata rerank
         meta_scored = metadata_rerank(
             pool,
+            user_context,
             weights=weights,
             media_type=media_type,
         )

@@ -63,6 +63,8 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         sparse_vector_name="sparse_vector",
     )
     pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
+    
+    
 
     app.state.intent_classifier = intent_classifier
     app.state.embed_model = embed_model

@@ -76,10 +76,13 @@ class BaseRetriever:
             # Sparse phase does not need CE text; keep payload light
             with_payload=[
                 "llm_context",
+                "embedding_text",
                 "media_id",
                 "title",
+                "genres",
                 "popularity",
                 "vote_average",
+                "vote_count",
             ],
             query_filter=qfilter,
         )

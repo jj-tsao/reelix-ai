@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
 import math
 from reelix_ranking.types import Candidate
+from reelix_user.types import UserTasteContext
 
 
 @dataclass(frozen=True)
@@ -44,12 +45,23 @@ def norm_popularity(pop: float, anchor: float, alpha: float = 0.6) -> float:
         return 0.0
     return (math.log1p(pop) / math.log1p(anchor)) ** alpha
 
+def genre_boost(user_genres: set[str], item_genres: set[str]) -> float:
+    if not user_genres or not item_genres: 
+        return 0.0
+    
+    inter = len(user_genres & item_genres)
+    total_user_pref = len(user_genres)
+
+    # Only rewards matches, no punish to non-overlapping genres since user_genres are cold start interests in first_rec
+    return inter / total_user_pref
+
 
 def metadata_rerank(
     candidates: List[Candidate],
+    user_context: UserTasteContext,
     *,
     weights: Dict[str, float] = dict(
-        dense=0.60, sparse=0.10, rating=0.20, popularity=0.10
+        dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0
     ),
     media_type: str,
     anchors: Optional[NormAnchors] = None,
@@ -66,20 +78,28 @@ def metadata_rerank(
     )
     p95 = s_vals[int(0.95 * (len(s_vals) - 1))] if s_vals else 1e-6
     den = math.log1p(p95)
+    user_genres = user_context.signals.genres_include
+    print (user_genres)
 
     out: List[Tuple[Candidate, float]] = []
     for c in candidates:
-        raw_r = bayes_quality(c.payload.get("vote_average"), c.payload.get("vote_count"))
-        q = norm_rating(raw_r, a.rating_floor, a.rating_ceil)
-        p = norm_popularity(c.payload.get("popularity"), a.pop_anchor)
         dense = float(c.dense_score or 0.0)
         raw_s = float(c.sparse_score or 0.0)
         sparse = _clamp01(math.log1p(max(0.0, raw_s)) / max(1e-6, den))
+        raw_r = bayes_quality(c.payload.get("vote_average"), c.payload.get("vote_count"))
+        q = norm_rating(raw_r, a.rating_floor, a.rating_ceil)
+        p = norm_popularity(c.payload.get("popularity"), a.pop_anchor)
+        print (c.payload.get("title"))
+        print (c.payload.get("genres"))
+        c_genres = c.payload.get("genres")
+        g = genre_boost(set(user_genres), set(c_genres)) if c_genres else 0
+        print (g)
         score = (
             weights["dense"] * dense
             + weights["sparse"] * sparse
             + weights["rating"] * q
             + weights["popularity"] * p
+            + weights["genre"] * g
         )
         out.append((c, score))
 
