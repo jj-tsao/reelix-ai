@@ -8,7 +8,7 @@ def format_context(candidates: list[dict]) -> str:
         [f"  {c.payload.get('llm_context', '')}" for c in candidates]
     )
 
-def build_chat_fn(pipeline, intent_classifier, query_encoder):
+def build_interactive_rec_fn(pipeline, intent_classifier, query_encoder):
     def chat(
         question,
         history,

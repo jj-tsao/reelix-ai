@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Callable, Sequence, Mapping, Any
 import numpy as np
 
-from .types import UserSignals, BuildParams, MediaId
+from reelix_core.types import UserSignals, BuildParams, MediaId
 
 Embed = np.ndarray
 
