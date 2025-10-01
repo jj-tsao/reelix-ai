@@ -11,7 +11,7 @@ def build_interactive_stream_fn(
 ):
     """
     Streaming recommender for /recommend/interactive.
-    query_text is required; user_context optional.
+    query_text is required; user_id and user_context are optional.
     """
 
     def stream_interactive(
@@ -132,16 +132,17 @@ def build_interactive_stream_fn(
 
         # Non-recommendation: answer directly
         else:
-            # log_query_and_results(
-            #     query_entry={
-            #         "query_id": query_id,
-            #         "session_id": session_id,
-            #         "question": query_text,
-            #         "intent": "chat",
-            #         "media_type": media_type,
-            #     },
-            #     result_entries=[]
-            # )
+            log_query_and_results(
+                query_entry={
+                    "query_id": query_id,
+                    "session_id": session_id,
+                    "question": query_text,
+                    "intent": "chat",
+                    "media_type": media_type,
+                },
+                result_entries=[],
+                creds=logging_creds,
+            )
 
             user_message = f"The user did not ask for recommendations. Ask them to be more specific. Answer concisely as a general question: {query_text}"
             print(

@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     app_name: str = "Reelix Discovery Agent API"
     qdrant_endpoint: str | None = None
     qdrant_api_key: str | None = None
-    openai_api_key: str | None = None
     supabase_url: str | None = None
     supabase_api_key: str | None = None
+    openai_api_key: str | None = None
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

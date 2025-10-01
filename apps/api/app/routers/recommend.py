@@ -21,6 +21,7 @@ async def recommend_interactive(req: InteractiveRequest, stream_fn = Depends(get
             query_id=req.query_id,
             device_info=req.device_info,
             logging_creds=creds,
+            logging=False,
         )
         for chunk in generator:
             yield chunk
