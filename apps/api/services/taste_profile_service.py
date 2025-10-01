@@ -10,7 +10,7 @@ from qdrant_client import QdrantClient
 from app.repositories.taste_profile_store import upsert_taste_profile
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant
 from reelix_user.taste_profile import build_taste_vector
-from reelix_user.types import BuildParams, Interaction, MediaId, UserSignals, UserTasteContext
+from reelix_core.types import BuildParams, Interaction, MediaId, UserSignals, UserTasteContext
 
 
 def _ensure_ts(value) -> datetime | None:
@@ -33,7 +33,7 @@ def _ensure_ts(value) -> datetime | None:
     return None
 
 
-async def get_user_signals(
+async def fetch_user_signals(
     sb,
     user_id: str,
     *,
@@ -112,7 +112,7 @@ async def fetch_user_taste_context(
         taste_row = None
 
     # 2) Signals
-    signals = await get_user_signals(sb, user_id, media_type=media_type)
+    signals = await fetch_user_signals(sb, user_id, media_type=media_type)
 
     # 3) Subs + settings
     try:
@@ -194,7 +194,7 @@ async def rebuild_and_store(
     media_type: str = "movie",
     params: BuildParams = BuildParams(dim=768),
 ):
-    signals = await get_user_signals(sb, user_id, media_type=media_type)
+    signals = await fetch_user_signals(sb, user_id, media_type=media_type)
 
     def get_item_embeddings(ids: Sequence[MediaId]) -> EmbedMap:
         return load_embeddings_qdrant(qdrant, media_type, ids)

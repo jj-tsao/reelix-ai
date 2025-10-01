@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 QDRANT_MOVIE_COLLECTION_NAME = "Movies_BGE_AUG-RE"
 QDRANT_TV_COLLECTION_NAME = "TV_Shows_BGE_AUG-RE"
 

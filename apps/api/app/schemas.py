@@ -1,18 +1,74 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Optional
+from enum import Enum
 
-from pydantic import BaseModel, Field, model_validator
-
-
-
-
+from pydantic import BaseModel, field_validator, model_validator
+from reelix_core.types import UserTasteContext
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class MediaType(str, Enum):
+    MOVIE = "movie"
+    TV = "tv"
+
+
+class DeviceInfo(BaseModel):
+    device_type: Optional[str] = None
+    platform: Optional[str] = None
+    user_agent: Optional[str] = None
+
+
+class DiscoverRequest(BaseModel):
+    user_id: Optional[str]
+    media_type: MediaType = MediaType.MOVIE
+    user_context: UserTasteContext
+    page: int = 1
+    page_size: int = 20
+    include_llm_why: bool = False  # if true, returns markdown “why” in JSON
+
+class InteractiveRequest(BaseModel):
+    user_id: Optional[str] = None
+    media_type: MediaType = MediaType.MOVIE
+    query_text: str
+    user_context: Optional[UserTasteContext] = None
+    history: List[ChatMessage] = []
+    genres: List[str] = []
+    providers: List[str] = []
+    year_range: List[int] = [1970, 2025]
+    session_id: str
+    query_id: str
+    device_info: Optional[DeviceInfo] = None
+
+    @field_validator("query_text")
+    def validate_question(cls, v):
+        if not v.strip():
+            raise ValueError("Query cannot be empty")
+        return v
+
+    @model_validator(mode="after")
+    def validate_year_range(self) -> "InteractiveRequest":
+        if len(self.year_range) != 2:
+            raise ValueError("year_range must be a list of exactly two integers: [start, end]")
+        return self
+
+
+class FinalRec(BaseModel):
+    media_id: int
+    why: str
+
+
+class FinalRecsRequest(BaseModel):
+    query_id: str
+    final_recs: List[FinalRec]
 
 
 
-# # ===== User Taste Profile =====
+# ===== User Taste Profile =====
 
 # class PreferencesUpdate(BaseModel):
 #     genres_include: Optional[List[str]] = None

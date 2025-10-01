@@ -86,7 +86,7 @@ def test_rls_forbidden_maps_403(test_client, monkeypatch):
     def _override_client():
         return FailingClient()
 
-    from app.supabase_client import get_supabase_client, get_current_user_id
+    from apps.api.app.repositories.supabase_client import get_supabase_client, get_current_user_id
     from app.main import app
     from fastapi.testclient import TestClient
 

@@ -44,9 +44,15 @@ def get_recommend_pipeline(request: Request) -> "RecommendPipeline":
         ),
     )
 
+def get_interactive_stream_fn(request: Request) -> Callable:
+    fn = getattr(request.app.state, "interactive_stream_fn", None)
+    if not callable(fn):
+        raise HTTPException(status_code=503, detail="Recommendation service is initializing.")
+    return fn
 
-def get_chat_fn(request: Request) -> Callable[..., Any]:
-    return cast(
-        Callable[..., Any],
-        _get_state_attr(request, "chat_fn", "Chat function not initialized"),
-    )
+
+# def get_chat_fn(request: Request) -> Callable[..., Any]:
+#     return cast(
+#         Callable[..., Any],
+#         _get_state_attr(request, "chat_fn", "Chat function not initialized"),
+#     )

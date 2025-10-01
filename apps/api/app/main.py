@@ -8,11 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from qdrant_client import QdrantClient
+from openai import OpenAI
+from reelix_models.llm_completion import OpenAIChatLLM
 
 from reelix_core.config import (
     NLTK_PATH,
     QDRANT_MOVIE_COLLECTION_NAME,
     QDRANT_TV_COLLECTION_NAME,
+    OPENAI_MODEL,
 )
 from .routers import all_routers
 
@@ -21,6 +24,7 @@ class Settings(BaseSettings):
     app_name: str = "Reelix Discovery Agent API"
     qdrant_endpoint: str | None = None
     qdrant_api_key: str | None = None
+    openai_api_key: str | None = None
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -41,14 +45,21 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
+    from services.recommend_service import build_interactive_stream_fn
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
-
+    
     nltk_data_path = str(NLTK_PATH)
     if nltk_data_path not in nltk.data.path:
         nltk.data.path.append(nltk_data_path)
 
+    if not app.state.settings.openai_api_key:
+        raise RuntimeError("Missing OPEN_AI_API_KEY in environment")
+    
+    openai_client = OpenAI(api_key=app.state.settings.openai_api_key)
+    chat_completion_llm = OpenAIChatLLM(openai_client, request_timeout=60.0, max_retries=2)
+    
     intent_classifier = setup_intent_classifier()
     embed_model = load_sentence_model()
     bm25_models, bm25_vocabs = load_bm25_files()
@@ -63,9 +74,8 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         sparse_vector_name="sparse_vector",
     )
     pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
+    interactive_stream_fn = build_interactive_stream_fn(pipeline, intent_classifier, query_encoder, chat_completion_llm) 
     
-    
-
     app.state.intent_classifier = intent_classifier
     app.state.embed_model = embed_model
     app.state.bm25_models = bm25_models
@@ -73,6 +83,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     app.state.query_encoder = query_encoder
     app.state.cross_encoder = cross_encoder
     app.state.recommend_pipeline = pipeline
+    app.state.interactive_stream_fn = interactive_stream_fn
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
 

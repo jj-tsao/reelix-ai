@@ -71,7 +71,7 @@ def test_client():
 
     # Import after env is set to avoid pydantic settings errors
     from app.main import app  # type: ignore
-    from app.supabase_client import (  # type: ignore
+    from apps.api.app.repositories.supabase_client import (  # type: ignore
         get_current_user_id,
         get_supabase_client,
     )

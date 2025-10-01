@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from qdrant_client import QdrantClient
 
-from app.supabase_client import get_supabase_client, get_current_user_id
+from app.repositories.supabase_client import get_supabase_client, get_current_user_id
 from app.deps import get_qdrant
 from app.repositories.taste_profile_store import fetch as fetch_profile
 from services.taste_profile_service import rebuild_and_store
