@@ -28,7 +28,7 @@ def build_interactive_stream_fn(
         query_id=None,
         device_info: DeviceInfo,
         logging_creds: SupabaseCreds,
-        logging=True,
+        logging=False,
     ):
         full_t0 = time.time()
 
@@ -65,6 +65,7 @@ def build_interactive_stream_fn(
                 dense_depth=300,
                 sparse_depth=20,
                 meta_top_n=100,
+                ce_rerank=False,
                 meta_ce_top_n=30,
                 weights=dict(
                     dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0.00

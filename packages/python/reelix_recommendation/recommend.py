@@ -36,6 +36,7 @@ class RecommendPipeline:
         dense_depth: int = 300,
         sparse_depth: int = 20,
         meta_top_n: int = 100,
+        ce_rerank: bool = True,
         meta_ce_top_n: int = 30,
         weights: Dict[str, float] = dict(
             dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0.00
@@ -78,7 +79,7 @@ class RecommendPipeline:
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
 
         # 4.5) Fallback to metadata reranked results when CE reranker is not available
-        if self.ce is None:
+        if self.ce is None or ce_rerank is False:
             final = meta_sorted[:final_top_k]
 
             # Build traces (no ce_score, use metadata score as final score)

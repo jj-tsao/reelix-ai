@@ -5,7 +5,7 @@ from reelix_ranking.metadata import metadata_rerank
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_retrieval.base_retriever import BaseRetriever
 from reelix_retrieval.filter_builder import build_qfilter
-from reelix_user.types import UserTasteContext
+from reelix_core.types import UserTasteContext
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -50,8 +50,12 @@ class FirstRecommendPipeline:
         )
         # Parallelize Qdrant searches to reduce network latency
         with ThreadPoolExecutor(max_workers=2) as ex:
-            f_dense = ex.submit(self.ret.dense, dense_vec, media_type, qfilter, dense_depth)
-            f_sparse = ex.submit(self.ret.sparse, sparse_vec, media_type, qfilter, sparse_depth)
+            f_dense = ex.submit(
+                self.ret.dense, dense_vec, media_type, qfilter, dense_depth
+            )
+            f_sparse = ex.submit(
+                self.ret.sparse, sparse_vec, media_type, qfilter, sparse_depth
+            )
             dense = f_dense.result()
             sparse = f_sparse.result()
 
@@ -75,9 +79,9 @@ class FirstRecommendPipeline:
         )
         meta_sorted = [c for c, _ in meta_scored][:meta_top_n]
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
-        
+
         # 4.5) Fallback to metadata reranked results when no text query or CE reranker is not available
-        if (self.ce is None or query_text is None):
+        if self.ce is None or query_text is None:
             final = meta_sorted[:final_top_k]
 
             # Build traces (no ce_score, use metadata score as final score)
@@ -93,10 +97,11 @@ class FirstRecommendPipeline:
                     sparse_rank=sparse_rank_map.get(c.id),
                     meta_score=meta_score_map.get(c.id),
                     ce_score=None,
-                    final_rrf=meta_score_map.get(c.id),  # Fallback to use metadata reranking score as the final score
+                    final_rrf=meta_score_map.get(
+                        c.id
+                    ),  # Fallback to use metadata reranking score as the final score
                 )
             return final, traces
-
 
         # 5) CE over dense top-K2
         dense_top = dense[:meta_ce_top_n]
