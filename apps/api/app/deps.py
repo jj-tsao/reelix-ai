@@ -1,4 +1,5 @@
 from typing import Any, Callable, TYPE_CHECKING, cast
+from dataclasses import dataclass
 
 from fastapi import HTTPException, Request, status
 from qdrant_client import QdrantClient
@@ -44,6 +45,7 @@ def get_recommend_pipeline(request: Request) -> "RecommendPipeline":
         ),
     )
 
+
 def get_interactive_stream_fn(request: Request) -> Callable:
     fn = getattr(request.app.state, "interactive_stream_fn", None)
     if not callable(fn):
@@ -51,8 +53,13 @@ def get_interactive_stream_fn(request: Request) -> Callable:
     return fn
 
 
-# def get_chat_fn(request: Request) -> Callable[..., Any]:
-#     return cast(
-#         Callable[..., Any],
-#         _get_state_attr(request, "chat_fn", "Chat function not initialized"),
-#     )
+@dataclass(frozen=True)
+class SupabaseCreds:
+    url: str
+    api_key: str
+
+def get_supabase_creds(request: Request) -> SupabaseCreds:
+    return SupabaseCreds(
+        url=getattr(request.app.state, "supabase_url", ""),
+        api_key=getattr(request.app.state, "supabase_api_key", ""),
+    )

@@ -31,10 +31,7 @@ async def rebuild_my_profile(
     user_id: str = Depends(get_current_user_id),
     qdrant: QdrantClient = Depends(get_qdrant),
 ):
-    # from reelix_models.custom_models import load_sentence_model
-    # model = load_sentence_model()
-    # text_embedder = lambda texts: model.encode(list(texts), show_progress_bar=False).tolist()
-
+    
     vec, debug = await rebuild_and_store(
         sb,
         user_id,

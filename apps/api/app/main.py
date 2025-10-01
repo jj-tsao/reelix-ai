@@ -8,14 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from qdrant_client import QdrantClient
-from openai import OpenAI
-from reelix_models.llm_completion import OpenAIChatLLM
 
 from reelix_core.config import (
     NLTK_PATH,
     QDRANT_MOVIE_COLLECTION_NAME,
     QDRANT_TV_COLLECTION_NAME,
-    OPENAI_MODEL,
 )
 from .routers import all_routers
 
@@ -25,6 +22,8 @@ class Settings(BaseSettings):
     qdrant_endpoint: str | None = None
     qdrant_api_key: str | None = None
     openai_api_key: str | None = None
+    supabase_url: str | None = None
+    supabase_api_key: str | None = None
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -46,25 +45,34 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
     from services.recommend_service import build_interactive_stream_fn
+    from openai import OpenAI
+    from reelix_models.llm_completion import OpenAIChatLLM
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
-    
+
+    if (
+        not app.state.settings.qdrant_endpoint
+        or not app.state.settings.qdrant_api_key
+        or not app.state.settings.openai_api_key
+        or not app.state.settings.supabase_url
+        or not app.state.settings.supabase_api_key
+    ):
+        raise RuntimeError("Missing API keys in environment")
+
     nltk_data_path = str(NLTK_PATH)
     if nltk_data_path not in nltk.data.path:
         nltk.data.path.append(nltk_data_path)
 
-    if not app.state.settings.openai_api_key:
-        raise RuntimeError("Missing OPEN_AI_API_KEY in environment")
-    
-    openai_client = OpenAI(api_key=app.state.settings.openai_api_key)
-    chat_completion_llm = OpenAIChatLLM(openai_client, request_timeout=60.0, max_retries=2)
-    
     intent_classifier = setup_intent_classifier()
     embed_model = load_sentence_model()
     bm25_models, bm25_vocabs = load_bm25_files()
     query_encoder = Encoder(embed_model, bm25_models, bm25_vocabs)
     cross_encoder = load_cross_encoder()
+    openai_client = OpenAI(api_key=app.state.settings.openai_api_key)
+    chat_completion_llm = OpenAIChatLLM(
+        openai_client, request_timeout=60.0, max_retries=2
+    )
 
     base_retriever = BaseRetriever(
         app.state.qdrant,
@@ -74,7 +82,16 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         sparse_vector_name="sparse_vector",
     )
     pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
-    interactive_stream_fn = build_interactive_stream_fn(pipeline, intent_classifier, query_encoder, chat_completion_llm) 
+    interactive_stream_fn = build_interactive_stream_fn(
+        pipeline, intent_classifier, query_encoder, chat_completion_llm
+    )
+
+    app.state.qdrant = QdrantClient(
+        url=app.state.settings.qdrant_endpoint,
+        api_key=app.state.settings.qdrant_api_key,
+    )
+    app.state.supabase_url = app.state.settings.supabase_url
+    app.state.supabase_api_key = app.state.settings.supabase_api_key
     
     app.state.intent_classifier = intent_classifier
     app.state.embed_model = embed_model
@@ -95,14 +112,11 @@ async def lifespan(app: FastAPI):
     settings = Settings()
     app.state.settings = settings
 
-    if not settings.qdrant_endpoint or not settings.qdrant_api_key:
-        raise RuntimeError("Missing QDRANT_ENDPOINT or QDRANT_API_KEY")
-
-    # Eager init of external clients/models
     app.state.qdrant = QdrantClient(
         url=settings.qdrant_endpoint, api_key=settings.qdrant_api_key
     )
 
+    # Eager init of external clients/models
     if _should_init_recommendation():
         try:
             _init_recommendation_stack(app)
@@ -113,7 +127,9 @@ async def lifespan(app: FastAPI):
                 "Install it or set REELIX_SKIP_RECOMMENDER_INIT=1 to skip initialization."
             ) from exc
     else:
-        print("⚠️ Recommendation stack initialization skipped by REELIX_SKIP_RECOMMENDER_INIT")
+        print(
+            "⚠️ Recommendation stack initialization skipped by REELIX_SKIP_RECOMMENDER_INIT"
+        )
 
     try:
         yield

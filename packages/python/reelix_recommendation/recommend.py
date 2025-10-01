@@ -38,7 +38,7 @@ class RecommendPipeline:
         meta_top_n: int = 100,
         meta_ce_top_n: int = 30,
         weights: Dict[str, float] = dict(
-            dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0
+            dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0.00
         ),
         final_top_k: int = 20,
     ) -> Tuple[List[Candidate], Dict[str, ScoreTrace]]:

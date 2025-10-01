@@ -64,8 +64,8 @@ def genre_boost(user_genres: set[str], item_genres: set[str]) -> float:
 
 def metadata_rerank(
     candidates: List[Candidate],
-    user_context: Optional[UserTasteContext] = None,
     *,
+    user_context: Optional[UserTasteContext] = None,
     weights: Dict[str, float] = dict(
         dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0
     ),
@@ -96,15 +96,12 @@ def metadata_rerank(
         )
         q = norm_rating(raw_r, a.rating_floor, a.rating_ceil)
         p = norm_popularity(c.payload.get("popularity"), a.pop_anchor)
-        print(c.payload.get("title"))
-        print(c.payload.get("genres"))
         c_genres = c.payload.get("genres")
         g = (
             genre_boost(set(user_genres), set(c_genres))
             if c_genres and user_genres
             else 0
         )
-        print(g)
         score = (
             weights["dense"] * dense
             + weights["sparse"] * sparse

@@ -2,7 +2,8 @@ from __future__ import annotations
 import time
 from typing import List, Optional
 from app.schemas import MediaType, ChatMessage, UserTasteContext, DeviceInfo
-# from usage_logger import log_query_and_results
+from services.usage_logger import log_query_and_results
+from app.deps import SupabaseCreds
 
 
 def build_interactive_stream_fn(
@@ -26,7 +27,8 @@ def build_interactive_stream_fn(
         session_id=None,
         query_id=None,
         device_info: DeviceInfo,
-        logging=False,
+        logging_creds: SupabaseCreds,
+        logging=True,
     ):
         full_t0 = time.time()
 
@@ -103,11 +105,11 @@ def build_interactive_stream_fn(
                     }
                 )
 
-            # if logging:
-            #     try:
-            #         log_query_and_results(query_entry, result_entries)
-            #     except Exception as e:
-            #         print("⚠️ Failed to log query and entries:", e)
+            if logging:
+                try:
+                    log_query_and_results(query_entry, result_entries, logging_creds)
+                except Exception as e:
+                    print("⚠️ Failed to log query and entries:", e)
 
             # 4) build LLM context
             system_hint = "[[MODE:recommendation]]\n"

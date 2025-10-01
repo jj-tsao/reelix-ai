@@ -1,14 +1,15 @@
 from datetime import datetime
+from app.deps import SupabaseCreds
 
 import httpx
-from app.core.config import SUPABASE_API_KEY, SUPABASE_URL
 
 
 def log_query_and_results(
     query_entry: dict,
     result_entries: list[dict],
+    creds: SupabaseCreds,
 ):
-    if not SUPABASE_URL or not SUPABASE_API_KEY:
+    if not creds.url or not creds.api_key:
         print("⚠️ Missing Supabase config, skipping log.")
         return
 
@@ -18,15 +19,15 @@ def log_query_and_results(
         r.setdefault("created_at", timestamp)
 
     headers = {
-        "apikey": SUPABASE_API_KEY,
-        "Authorization": f"Bearer {SUPABASE_API_KEY}",
+        "apikey": creds.api_key,
+        "Authorization": f"Bearer {creds.api_key}",
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
     }
     
     try:
         query_resp = httpx.post(
-            f"{SUPABASE_URL}/rest/v1/query_logs",
+            f"{creds.url}/rest/v1/query_logs",
             headers=headers,
             json=[query_entry]
         )
@@ -36,7 +37,7 @@ def log_query_and_results(
 
         if result_entries:
             result_resp = httpx.post(
-                f"{SUPABASE_URL}/rest/v1/result_logs",
+                f"{creds.url}/rest/v1/result_logs",
                 headers=headers,
                 json=result_entries
             )
@@ -47,21 +48,21 @@ def log_query_and_results(
         print("❌ Logging error:", e)
 
 
-def log_final_results(result_entries: list[dict]):
-    if not SUPABASE_URL or not SUPABASE_API_KEY:
+def log_final_results(result_entries: list[dict], creds: SupabaseCreds):
+    if not creds.url or not creds.api_key:
         print("⚠️ Missing Supabase config, skipping log.")
         return
 
     headers = {
-        "apikey": SUPABASE_API_KEY,
-        "Authorization": f"Bearer {SUPABASE_API_KEY}",
+        "apikey": creds.api_key,
+        "Authorization": f"Bearer {creds.api_key}",
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
     }
 
     try:
         result_resp = httpx.post(
-            f"{SUPABASE_URL}/rest/v1/result_logs",
+            f"{creds.url}/rest/v1/result_logs",
             headers=headers,
             json=result_entries
         )
