@@ -44,6 +44,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
+    from recommendations.recipes import InteractiveRecipe
     from services.recommend_service import build_interactive_stream_fn
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
@@ -73,6 +74,11 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     chat_completion_llm = OpenAIChatLLM(
         openai_client, request_timeout=60.0, max_retries=2
     )
+    
+    app.state.qdrant = QdrantClient(
+        url=app.state.settings.qdrant_endpoint,
+        api_key=app.state.settings.qdrant_api_key,
+    )
 
     base_retriever = BaseRetriever(
         app.state.qdrant,
@@ -86,10 +92,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         pipeline, intent_classifier, query_encoder, chat_completion_llm
     )
 
-    app.state.qdrant = QdrantClient(
-        url=app.state.settings.qdrant_endpoint,
-        api_key=app.state.settings.qdrant_api_key,
-    )
     app.state.supabase_url = app.state.settings.supabase_url
     app.state.supabase_api_key = app.state.settings.supabase_api_key
     
@@ -100,6 +102,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     app.state.query_encoder = query_encoder
     app.state.cross_encoder = cross_encoder
     app.state.recommend_pipeline = pipeline
+    app.state.recipes = {"interactive": InteractiveRecipe(query_encoder=app.state.query_encoder)}
     app.state.interactive_stream_fn = interactive_stream_fn
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
@@ -111,10 +114,6 @@ async def lifespan(app: FastAPI):
 
     settings = Settings()
     app.state.settings = settings
-
-    app.state.qdrant = QdrantClient(
-        url=settings.qdrant_endpoint, api_key=settings.qdrant_api_key
-    )
 
     # Eager init of external clients/models
     if _should_init_recommendation():

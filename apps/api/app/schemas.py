@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-from typing import List, Optional, Tuple, Annotated
+from typing import List, Tuple, Annotated
 
 from pydantic import BaseModel, Field, field_validator, AfterValidator
 from reelix_core.types import MediaType, UserTasteContext
@@ -25,13 +25,13 @@ YearRange = Annotated[Tuple[int, int], AfterValidator(_validate_years)]
 
 
 class DeviceInfo(BaseModel):
-    device_type: Optional[str] = None
-    platform: Optional[str] = None
-    user_agent: Optional[str] = None
+    device_type: str|None = None
+    platform: str|None = None
+    user_agent: str|None = None
 
 
 class DiscoverRequest(BaseModel):
-    user_id: Optional[str]
+    user_id: str|None
     media_type: MediaType = MediaType.MOVIE
     user_context: UserTasteContext
     page: int = 1
@@ -39,22 +39,22 @@ class DiscoverRequest(BaseModel):
     include_llm_why: bool = False  # if true, returns markdown “why” in JSON
 
 
-class QueryFilters(BaseModel):
+class QueryFilter(BaseModel):
     genres: List[str] = Field(default_factory=list)
     providers: List[str] = Field(default_factory=list)
-    year_range: List[int] = [1970, 2025]
+    year_range: YearRange = (1970, 2025)
 
 
 class InteractiveRequest(BaseModel):
     media_type: MediaType = MediaType.MOVIE
     query_text: str
-    user_id: Optional[str] = None
-    user_context: Optional[UserTasteContext] = None
+    user_id: str|None = None
+    user_context: UserTasteContext|None = None
     history: List[ChatMessage] = Field(default_factory=list)
-    query_filters: QueryFilters
+    query_filters: QueryFilter
     session_id: str
     query_id: str
-    device_info: Optional[DeviceInfo] = None
+    device_info: DeviceInfo|None = None
 
     @field_validator("query_text")
     def validate_question(cls, v):

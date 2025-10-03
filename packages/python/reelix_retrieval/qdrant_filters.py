@@ -1,30 +1,30 @@
-
 from typing import List, Optional, Tuple
-from qdrant_client.models import Filter as QFilter, models as qmodels, FieldCondition, Range
+from qdrant_client.models import (
+    Filter as QFilter,
+    models as qmodels,
+    FieldCondition,
+    Range,
+)
 
 
 def build_qfilter(
     genres: Optional[List[str]] = None,
     providers: Optional[List[str]] = None,
-    year_range: Optional[Tuple[int, int]] = None,
+    year_range: Optional[Tuple[int, int]] = (1970, 2025),
     titles: Optional[List[str]] = None,
-    release_year: Optional[int] = None
-) -> Optional[QFilter]:
+    release_year: Optional[int] = None,
+) -> QFilter:
     must = []
 
     if genres:
         must.append(
-            FieldCondition(
-                key="genres",
-                match=qmodels.MatchAny(any=list(genres))
-            )
+            FieldCondition(key="genres", match=qmodels.MatchAny(any=list(genres)))
         )
 
     if providers:
         must.append(
             FieldCondition(
-                key="watch_providers",
-                match=qmodels.MatchAny(any=list(providers))
+                key="watch_providers", match=qmodels.MatchAny(any=list(providers))
             )
         )
 
@@ -41,18 +41,14 @@ def build_qfilter(
 
     if titles:
         must.append(
-            FieldCondition(
-                key="title",
-                match=qmodels.MatchAny(any=list(titles))
-            )
+            FieldCondition(key="title", match=qmodels.MatchAny(any=list(titles)))
         )
 
     if release_year:
         must.append(
             FieldCondition(
-                key="release_year",
-                match=qmodels.MatchValue(value=int(release_year))
+                key="release_year", match=qmodels.MatchValue(value=int(release_year))
             )
         )
 
-    return QFilter(must=must) if must else None
+    return QFilter(must=must)
