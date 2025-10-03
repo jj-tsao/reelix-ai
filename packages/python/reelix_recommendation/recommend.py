@@ -4,7 +4,7 @@ from reelix_ranking.rrf import rrf
 from reelix_ranking.metadata import metadata_rerank
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_retrieval.base_retriever import BaseRetriever
-from reelix_retrieval.filter_builder import build_qfilter
+from reelix_retrieval.qdrant_filter import build_qfilter
 from concurrent.futures import ThreadPoolExecutor
 
 

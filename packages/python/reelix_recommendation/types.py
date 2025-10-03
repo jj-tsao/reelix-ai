@@ -1,7 +1,7 @@
 from typing import Protocol, Tuple, Dict, Any, List, runtime_checkable
 from qdrant_client.models import Filter as QFilter
 from reelix_core.types import UserTasteContext
-from schemas import QueryFilter
+from reelix_core.types import QueryFilter
 
 SparseVec = Dict[str, List[float]]
 

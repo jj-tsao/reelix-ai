@@ -1,6 +1,6 @@
 from fastapi import Request
 from reelix_recommendation.recommend import RecommendPipeline
-from schemas import UserTasteContext, QueryFilter
+from reelix_core.types import UserTasteContext, QueryFilter
 
 
 def orchestrate(
@@ -16,7 +16,7 @@ def orchestrate(
 ):
     recipe = request.app.state.recipes[kind]
     dense_vec, sparse_vec, filters = recipe.build_inputs(
-        media_type=media_type, query_text=query_text, query_filters=query_filter, user_id=user_id, user_context=user_context
+        media_type=media_type, query_text=query_text, query_filter=query_filter, user_id=user_id, user_context=user_context
     )
     params = recipe.pipeline_params()
 

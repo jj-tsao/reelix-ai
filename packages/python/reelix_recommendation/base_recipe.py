@@ -1,4 +1,4 @@
-from schemas import QueryFilter
+from reelix_core.types import QueryFilter
 
 class BaseRecipe:
     def build_filter(self, query_filter: QueryFilter):

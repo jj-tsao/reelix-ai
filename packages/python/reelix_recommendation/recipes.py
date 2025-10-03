@@ -1,7 +1,7 @@
 from reelix_core.types import UserTasteContext
 from reelix_retrieval.query_encoder import Encoder as QueryEncoder
-from app.recommendations.base_recipe import BaseRecipe
-from schemas import QueryFilter
+from reelix_recommendation.base_recipe import BaseRecipe
+from reelix_core.types import QueryFilter
 
 
 class InteractiveRecipe(BaseRecipe):
@@ -14,9 +14,9 @@ class InteractiveRecipe(BaseRecipe):
         self,
         *,
         media_type: str,
-        query_text: str|None = None,
-        query_filter: QueryFilter|None = None,
-        user_context: UserTasteContext|None = None,
+        query_text: str|None,
+        query_filter: QueryFilter|None,
+        user_context: UserTasteContext|None,
     ):
         if not query_text or not query_filter:
             raise ValueError("InteractiveRecipe requires query_text and query_filter")

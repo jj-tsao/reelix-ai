@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import List, Iterable
-
+from typing import List, Iterable, Annotated, Tuple
+from pydantic import BaseModel, Field
 
 MediaId = int
 
@@ -10,6 +10,12 @@ MediaId = int
 class MediaType(str, Enum):
     MOVIE = "movie"
     TV = "tv"
+
+
+class QueryFilter(BaseModel):
+    genres: List[str] = Field(default_factory=list)
+    providers: List[str] = Field(default_factory=list)
+    year_range: Tuple[int, int] = (1970, 2025)
 
 
 @dataclass

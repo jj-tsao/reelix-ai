@@ -44,7 +44,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
-    from recommendations.recipes import InteractiveRecipe
+    from reelix_recommendation.recipes import InteractiveRecipe
     from services.recommend_service import build_interactive_stream_fn
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
