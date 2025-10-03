@@ -10,7 +10,13 @@ from qdrant_client import QdrantClient
 from app.repositories.taste_profile_store import upsert_taste_profile
 from reelix_retrieval.embedding_loader import load_embeddings_qdrant
 from reelix_user.taste_profile import build_taste_vector
-from reelix_core.types import BuildParams, Interaction, MediaId, UserSignals, UserTasteContext
+from reelix_core.types import (
+    BuildParams,
+    Interaction,
+    MediaId,
+    UserSignals,
+    UserTasteContext,
+)
 
 
 def _ensure_ts(value) -> datetime | None:
@@ -59,14 +65,10 @@ async def fetch_user_signals(
             .select("media_type, media_id, event_type, occurred_at")
             .eq("user_id", user_id)
         )
-        print (q)
+        print(q)
         if media_type:
             q = q.eq("media_type", media_type)
-        inter_res = (
-            q.order("occurred_at", desc=True)
-             .limit(interaction_limit)
-             .execute()
-        )
+        inter_res = q.order("occurred_at", desc=True).limit(interaction_limit).execute()
         rows = list(getattr(inter_res, "data", None) or [])
     except Exception:
         rows = []
@@ -79,7 +81,8 @@ async def fetch_user_signals(
             ts=ts,
         )
         for row in rows
-        if (ts := _ensure_ts(row.get("occurred_at") or row.get("created_at"))) is not None
+        if (ts := _ensure_ts(row.get("occurred_at") or row.get("created_at")))
+        is not None
     ]
 
     return UserSignals(
@@ -107,7 +110,11 @@ async def fetch_user_taste_context(
             .execute()
         )
         taste_data = getattr(taste_res, "data", None) or []
-        taste_row = taste_data if isinstance(taste_data, dict) else (taste_data[0] if taste_data else None)
+        taste_row = (
+            taste_data
+            if isinstance(taste_data, dict)
+            else (taste_data[0] if taste_data else None)
+        )
     except Exception:
         taste_row = None
 
@@ -159,7 +166,9 @@ async def fetch_user_taste_context(
         if isinstance(parsed, list):
             taste_vector = [float(v) for v in parsed]
 
-    def _toi(x): return int(x) if x is not None else None
+    def _toi(x):
+        return int(x) if x is not None else None
+
     positive_n = _toi((taste_row or {}).get("positive_n") if taste_row else None)
     negative_n = _toi((taste_row or {}).get("negative_n") if taste_row else None)
 
@@ -168,8 +177,12 @@ async def fetch_user_taste_context(
         taste_vector=taste_vector,
         positive_n=positive_n,
         negative_n=negative_n,
-        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at")) if taste_row else None,
-        active_subscriptions=[int(r["provider_id"]) for r in subs_rows if r.get("provider_id") is not None],
+        last_built_at=_ensure_ts((taste_row or {}).get("last_built_at"))
+        if taste_row
+        else None,
+        active_subscriptions=[
+            int(r["provider_id"]) for r in subs_rows if r.get("provider_id") is not None
+        ],
         provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
     )
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Optional
-from enum import Enum
 
-from pydantic import BaseModel, field_validator, model_validator
-from reelix_core.types import UserTasteContext
+from typing import List, Optional, Tuple, Annotated
+
+from pydantic import BaseModel, Field, field_validator, AfterValidator
+from reelix_core.types import MediaType, UserTasteContext
 
 
 class ChatMessage(BaseModel):
@@ -12,9 +12,16 @@ class ChatMessage(BaseModel):
     content: str
 
 
-class MediaType(str, Enum):
-    MOVIE = "movie"
-    TV = "tv"
+def _validate_years(t: Tuple[int, int]) -> Tuple[int, int]:
+    start, end = t
+    if start > end:
+        raise ValueError("year_range start must be <= end")
+    if start < 1878 or end > 2100:  # arbitrary sanity bounds
+        raise ValueError("year_range is out of reasonable bounds")
+    return t
+
+
+YearRange = Annotated[Tuple[int, int], AfterValidator(_validate_years)]
 
 
 class DeviceInfo(BaseModel):
@@ -31,15 +38,20 @@ class DiscoverRequest(BaseModel):
     page_size: int = 20
     include_llm_why: bool = False  # if true, returns markdown “why” in JSON
 
+
+class QueryFilters(BaseModel):
+    genres: List[str] = Field(default_factory=list)
+    providers: List[str] = Field(default_factory=list)
+    year_range: List[int] = [1970, 2025]
+
+
 class InteractiveRequest(BaseModel):
-    user_id: Optional[str] = None
     media_type: MediaType = MediaType.MOVIE
     query_text: str
+    user_id: Optional[str] = None
     user_context: Optional[UserTasteContext] = None
-    history: List[ChatMessage] = []
-    genres: List[str] = []
-    providers: List[str] = []
-    year_range: List[int] = [1970, 2025]
+    history: List[ChatMessage] = Field(default_factory=list)
+    query_filters: QueryFilters
     session_id: str
     query_id: str
     device_info: Optional[DeviceInfo] = None
@@ -50,12 +62,6 @@ class InteractiveRequest(BaseModel):
             raise ValueError("Query cannot be empty")
         return v
 
-    @model_validator(mode="after")
-    def validate_year_range(self) -> "InteractiveRequest":
-        if len(self.year_range) != 2:
-            raise ValueError("year_range must be a list of exactly two integers: [start, end]")
-        return self
-
 
 class FinalRec(BaseModel):
     media_id: int
@@ -65,7 +71,6 @@ class FinalRec(BaseModel):
 class FinalRecsRequest(BaseModel):
     query_id: str
     final_recs: List[FinalRec]
-
 
 
 # ===== User Taste Profile =====
