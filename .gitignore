@@ -24,3 +24,6 @@ __pycache__/
 
 # Turbo cache
 .turbo
+
+# Test files
+test_first_recommendation.py
