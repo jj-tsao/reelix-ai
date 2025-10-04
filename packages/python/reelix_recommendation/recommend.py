@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from reelix_ranking.rrf import rrf
 from reelix_ranking.metadata import metadata_rerank
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_retrieval.base_retriever import BaseRetriever
-from reelix_retrieval.qdrant_filter import build_qfilter
+from qdrant_client.models import Filter as QFilter
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -25,13 +25,11 @@ class RecommendPipeline:
     def run(
         self,
         *,
-        query_text: str,
         media_type: str,
         dense_vec: List[float],
         sparse_vec: Dict[str, List[float]],
-        genres: Optional[List[str]] = None,
-        providers: Optional[List[str]] = None,
-        year_range: Optional[Tuple[int, int]] = None,
+        query_text: str|None = None,
+        qfilter: QFilter | None = None,
         # Tunable variables
         dense_depth: int = 300,
         sparse_depth: int = 20,
@@ -43,14 +41,14 @@ class RecommendPipeline:
         ),
         final_top_k: int = 20,
     ) -> Tuple[List[Candidate], Dict[str, ScoreTrace]]:
-        # 1) retrieve
-        qfilter = build_qfilter(
-            genres=genres, providers=providers, year_range=year_range
-        )
-        # Parallelize Qdrant searches to reduce network latency
+        # 1) retrieve - parallelize Qdrant searches to reduce network latency
         with ThreadPoolExecutor(max_workers=2) as ex:
             f_dense = ex.submit(
-                self.ret.dense, dense_vec, media_type, qfilter, dense_depth
+                self.ret.dense,
+                dense_vec,
+                media_type,
+                qfilter,
+                dense_depth,
             )
             f_sparse = ex.submit(
                 self.ret.sparse, sparse_vec, media_type, qfilter, sparse_depth

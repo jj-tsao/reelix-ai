@@ -1,9 +1,20 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from app.schemas import FinalRecsRequest, InteractiveRequest
+from reelix_recommendation.ochestrator import orchestrate
 from services.usage_logger import log_final_results
-from app.deps import get_interactive_stream_fn, SupabaseCreds, get_supabase_creds
-
+from app.deps.deps import (
+    SupabaseCreds,
+    get_recipe_registry,
+    get_recommend_pipeline,
+    get_chat_completion_llm,
+    get_supabase_creds,
+)
+from app.deps.supabase_optional import (
+    get_optional_user_id,
+    get_supabase_client_optional,
+)
+from app.repositories.taste_profile_store import fetch_user_taste_context
+from app.schemas import FinalRecsRequest, InteractiveRequest
 
 router = APIRouter(prefix="/recommend", tags=["recommend"])
 
@@ -11,27 +22,40 @@ router = APIRouter(prefix="/recommend", tags=["recommend"])
 @router.post("/interactive")
 async def recommend_interactive(
     req: InteractiveRequest,
-    stream_fn=Depends(get_interactive_stream_fn),
+    sb=Depends(get_supabase_client_optional),
+    user_id: str | None = Depends(get_optional_user_id),
+    registry=Depends(get_recipe_registry),
+    pipeline=Depends(get_recommend_pipeline),
+    chat_completion_llm=Depends(get_chat_completion_llm),
     creds: SupabaseCreds = Depends(get_supabase_creds),
 ):
-    def response_stream():
-        generator = stream_fn(
+    recipe = registry.get(kind="interactive")
+    user_context = None
+
+    if user_id:
+        user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
+
+    def gen():
+        yield "[[MODE:recommendation]]\n"
+        final_candidates, traces = orchestrate(
+            recipe=recipe,
+            pipeline=pipeline,
+            media_type=req.media_type.value,
             query_text=req.query_text,
-            history=req.history,
-            media_type=req.media_type,
-            genres=req.query_filters.genres,
-            providers=req.query_filters.providers,
-            year_range=tuple(req.query_filters.year_range),
-            session_id=req.session_id,
-            query_id=req.query_id,
-            device_info=req.device_info,
-            logging_creds=creds,
-            logging=False,
+            query_filter=req.query_filters,
+            user_context=user_context,
         )
-        for chunk in generator:
+        context = "\n\n".join(
+            [c.payload.get("llm_context", "") for c in final_candidates]
+        )
+        user_message = f"Here is the user query: {req.query_text}\n\nHere are the candidate items:\n{context}"
+
+        for chunk in chat_completion_llm.stream_chat(
+            req.history, user_message, temperature=0.7
+        ):
             yield chunk
 
-    return StreamingResponse(response_stream(), media_type="text/plain")
+    return StreamingResponse(gen(), media_type="text/plain")
 
 
 @router.post("/log/final_recs")

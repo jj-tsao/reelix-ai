@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+from typing import List
 
-from typing import List, Tuple, Annotated
-
-from pydantic import BaseModel, Field, field_validator, AfterValidator
-from reelix_core.types import MediaType, UserTasteContext
+from pydantic import BaseModel, Field, field_validator
+from reelix_core.types import MediaType, QueryFilter, UserTasteContext
 
 
 class ChatMessage(BaseModel):
@@ -12,26 +11,14 @@ class ChatMessage(BaseModel):
     content: str
 
 
-def _validate_years(t: Tuple[int, int]) -> Tuple[int, int]:
-    start, end = t
-    if start > end:
-        raise ValueError("year_range start must be <= end")
-    if start < 1878 or end > 2100:  # arbitrary sanity bounds
-        raise ValueError("year_range is out of reasonable bounds")
-    return t
-
-
-YearRange = Annotated[Tuple[int, int], AfterValidator(_validate_years)]
-
-
 class DeviceInfo(BaseModel):
-    device_type: str|None = None
-    platform: str|None = None
-    user_agent: str|None = None
+    device_type: str | None = None
+    platform: str | None = None
+    user_agent: str | None = None
 
 
 class DiscoverRequest(BaseModel):
-    user_id: str|None
+    user_id: str | None
     media_type: MediaType = MediaType.MOVIE
     user_context: UserTasteContext
     page: int = 1
@@ -39,22 +26,14 @@ class DiscoverRequest(BaseModel):
     include_llm_why: bool = False  # if true, returns markdown “why” in JSON
 
 
-class QueryFilter(BaseModel):
-    genres: List[str] = Field(default_factory=list)
-    providers: List[str] = Field(default_factory=list)
-    year_range: YearRange = (1970, 2025)
-
-
 class InteractiveRequest(BaseModel):
     media_type: MediaType = MediaType.MOVIE
-    query_text: str
-    user_id: str|None = None
-    user_context: UserTasteContext|None = None
-    history: List[ChatMessage] = Field(default_factory=list)
-    query_filters: QueryFilter
+    query_text: str = Field(..., examples=["Mind-bending sci-fi with philosophical undertones and existential stakes"])
+    history: List[ChatMessage] | None = Field(default_factory=list, examples=[[]])
+    query_filters: QueryFilter = Field(default_factory=QueryFilter)
     session_id: str
     query_id: str
-    device_info: DeviceInfo|None = None
+    device_info: DeviceInfo | None = None
 
     @field_validator("query_text")
     def validate_question(cls, v):

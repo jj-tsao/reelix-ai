@@ -7,6 +7,7 @@ from qdrant_client import QdrantClient
 if TYPE_CHECKING:
     from reelix_recommendation.recommend import RecommendPipeline
 from reelix_retrieval.query_encoder import Encoder
+from reelix_models.llm_completion import OpenAIChatLLM
 
 
 def _get_state_attr(request: Request, name: str, error_detail: str) -> Any:
@@ -52,6 +53,31 @@ def get_recommend_pipeline(request: Request) -> "RecommendPipeline":
             "Recommendation pipeline not initialized",
         ),
     )
+
+
+class RecipeRegistry:
+    def __init__(self, data: dict):
+        self._data = data
+    def get(self, *, kind: str):
+        try:
+            return self._data[kind]
+        except KeyError:
+            raise HTTPException(status_code=400, detail=f"Unknown recipe kind: {kind}")
+
+def get_recipe_registry(request: Request) -> RecipeRegistry:
+    return RecipeRegistry(request.app.state.recipes)
+
+
+def get_chat_completion_llm(request: Request) -> OpenAIChatLLM:
+    return cast(
+        OpenAIChatLLM,
+        _get_state_attr(
+            request,
+            "chat_completion_llm",
+            "Chat completion llm not initialized",
+        ),
+    )
+
 
 
 def get_interactive_stream_fn(request: Request) -> Callable:

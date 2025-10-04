@@ -45,7 +45,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
     from reelix_recommendation.recipes import InteractiveRecipe
-    from services.recommend_service import build_interactive_stream_fn
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
 
@@ -88,9 +87,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         sparse_vector_name="sparse_vector",
     )
     pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
-    interactive_stream_fn = build_interactive_stream_fn(
-        pipeline, intent_classifier, query_encoder, chat_completion_llm
-    )
 
     app.state.supabase_url = app.state.settings.supabase_url
     app.state.supabase_api_key = app.state.settings.supabase_api_key
@@ -103,7 +99,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     app.state.cross_encoder = cross_encoder
     app.state.recommend_pipeline = pipeline
     app.state.recipes = {"interactive": InteractiveRecipe(query_encoder=app.state.query_encoder)}
-    app.state.interactive_stream_fn = interactive_stream_fn
+    app.state.chat_completion_llm = chat_completion_llm
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
 

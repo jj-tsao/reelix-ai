@@ -1,5 +1,5 @@
 from datetime import datetime
-from app.deps import SupabaseCreds
+from app.deps.deps import SupabaseCreds
 
 import httpx
 

@@ -27,3 +27,4 @@ __pycache__/
 
 # Test files
 test_first_recommendation.py
+build_user_profile_unit_test.py

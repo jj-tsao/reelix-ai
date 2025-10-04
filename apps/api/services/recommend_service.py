@@ -3,7 +3,7 @@ import time
 from typing import List, Optional
 from app.schemas import MediaType, ChatMessage, UserTasteContext, DeviceInfo
 from services.usage_logger import log_query_and_results
-from app.deps import SupabaseCreds
+from app.deps.deps import SupabaseCreds
 
 
 def build_interactive_stream_fn(

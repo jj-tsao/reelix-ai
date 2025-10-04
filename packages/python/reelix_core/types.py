@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import List, Iterable, Annotated, Tuple
-from pydantic import BaseModel, Field
+from typing import List, Iterable, Tuple, Annotated
+from pydantic import BaseModel, Field, AfterValidator
 
 MediaId = int
 
@@ -12,10 +12,22 @@ class MediaType(str, Enum):
     TV = "tv"
 
 
+def _validate_years(t: Tuple[int, int]) -> Tuple[int, int]:
+    start, end = t
+    if start > end:
+        raise ValueError("year_range start must be <= end")
+    if start < 1878 or end > 2100:  # arbitrary sanity bounds
+        raise ValueError("year_range is out of reasonable bounds")
+    return t
+
+
+YearRange = Annotated[Tuple[int, int], AfterValidator(_validate_years)]
+
+
 class QueryFilter(BaseModel):
-    genres: List[str] = Field(default_factory=list)
-    providers: List[str] = Field(default_factory=list)
-    year_range: Tuple[int, int] = (1970, 2025)
+    genres: list[str] = Field(default_factory=list, examples=[[]])
+    providers: list[str] = Field(default_factory=list, examples=[[]])
+    year_range: YearRange = (1970, 2025)
 
 
 @dataclass
