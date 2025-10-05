@@ -7,7 +7,7 @@ from ..schemas import (
     PreferencesUpdate,
     SubscriptionsPayload,
 )
-from ..repositories.supabase_client import get_current_user_id, get_supabase_client
+from ..deps.supabase_client import get_current_user_id, get_supabase_client
 
 
 router = APIRouter(prefix="/profile", tags=["profile"])

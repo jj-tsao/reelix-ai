@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from qdrant_client import QdrantClient
 
-from app.repositories.supabase_client import get_supabase_client, get_current_user_id
+from app.deps.supabase_client import get_supabase_client, get_current_user_id
 from app.deps.deps import get_qdrant
 from app.repositories.taste_profile_store import fetch as fetch_profile
 from services.taste_profile_service import rebuild_and_store
@@ -31,7 +31,6 @@ async def rebuild_my_profile(
     user_id: str = Depends(get_current_user_id),
     qdrant: QdrantClient = Depends(get_qdrant),
 ):
-    
     vec, debug = await rebuild_and_store(
         sb,
         user_id,

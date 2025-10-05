@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from reelix_recommendation.ochestrator import orchestrate
+from reelix_recommendation.orchestrator import orchestrate
 from services.usage_logger import log_final_results
 from app.deps.deps import (
-    SupabaseCreds,
     get_recipe_registry,
     get_recommend_pipeline,
     get_chat_completion_llm,
     get_supabase_creds,
+    SupabaseCreds,
 )
 from app.deps.supabase_optional import (
     get_optional_user_id,
@@ -37,7 +37,7 @@ async def recommend_interactive(
 
     def gen():
         yield "[[MODE:recommendation]]\n"
-        final_candidates, traces = orchestrate(
+        final_candidates, traces, llm_prompts = orchestrate(
             recipe=recipe,
             pipeline=pipeline,
             media_type=req.media_type.value,
@@ -45,13 +45,9 @@ async def recommend_interactive(
             query_filter=req.query_filters,
             user_context=user_context,
         )
-        context = "\n\n".join(
-            [c.payload.get("llm_context", "") for c in final_candidates]
-        )
-        user_message = f"Here is the user query: {req.query_text}\n\nHere are the candidate items:\n{context}"
 
         for chunk in chat_completion_llm.stream_chat(
-            req.history, user_message, temperature=0.7
+            req.history, llm_prompts.system, llm_prompts.user, temperature=0.7
         ):
             yield chunk
 

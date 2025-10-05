@@ -1,7 +1,6 @@
 from typing import Protocol, Tuple, Dict, Any, List, runtime_checkable
 from qdrant_client.models import Filter as QFilter
-from reelix_core.types import UserTasteContext
-from reelix_core.types import QueryFilter
+from reelix_core.types import UserTasteContext, QueryFilter, LLMPrompts
 
 SparseVec = Dict[str, List[float]]
 
@@ -14,17 +13,17 @@ class OrchestrationRecipe(Protocol):
         self,
         *,
         media_type: str,
-        query_text: str|None = None,
-        query_filter: QueryFilter|None = None,
-        user_context: UserTasteContext|None = None,
+        query_text: str | None = None,
+        query_filter: QueryFilter | None = None,
+        user_context: UserTasteContext | None = None,
     ) -> Tuple[List[float], SparseVec, QFilter]: ...
 
-    # def build_prompt(
-    #     self,
-    #     *,
-    #     query_text: Optional[str],
-    #     user_ctx: Optional[UserTasteContext],
-    #     candidates,
-    # ) -> str: ...
-
     def pipeline_params(self) -> Dict[str, Any]: ...
+
+    def build_prompt(
+        self,
+        *,
+        query_text: str | None = None,
+        user_context: UserTasteContext | None = None,
+        candidates,
+    ) -> LLMPrompts: ...

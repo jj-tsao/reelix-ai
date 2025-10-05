@@ -26,7 +26,7 @@ YearRange = Annotated[Tuple[int, int], AfterValidator(_validate_years)]
 
 class QueryFilter(BaseModel):
     genres: list[str] = Field(default_factory=list, examples=[[]])
-    providers: list[str] = Field(default_factory=list, examples=[[]])
+    providers: list[int] = Field(default_factory=list, examples=[[]])
     year_range: YearRange = (1970, 2025)
 
 
@@ -81,3 +81,9 @@ class UserTasteContext:
     signals: UserSignals
     active_subscriptions: list[int]
     provider_filter_mode: str | None
+
+
+@dataclass
+class LLMPrompts:
+    system: str
+    user: str

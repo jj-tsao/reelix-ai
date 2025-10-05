@@ -18,12 +18,12 @@ class DeviceInfo(BaseModel):
 
 
 class DiscoverRequest(BaseModel):
-    user_id: str | None
     media_type: MediaType = MediaType.MOVIE
-    user_context: UserTasteContext
     page: int = 1
     page_size: int = 20
     include_llm_why: bool = False  # if true, returns markdown “why” in JSON
+    session_id: str
+    device_info: DeviceInfo | None = None
 
 
 class InteractiveRequest(BaseModel):

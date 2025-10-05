@@ -28,7 +28,7 @@ class RecommendPipeline:
         media_type: str,
         dense_vec: List[float],
         sparse_vec: Dict[str, List[float]],
-        query_text: str|None = None,
+        query_text: str | None = None,
         qfilter: QFilter | None = None,
         # Tunable variables
         dense_depth: int = 300,
@@ -77,7 +77,7 @@ class RecommendPipeline:
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
 
         # 4.5) Fallback to metadata reranked results when CE reranker is not available
-        if self.ce is None or ce_rerank is False:
+        if query_text is None or ce_rerank is False:
             final = meta_sorted[:final_top_k]
 
             # Build traces (no ce_score, use metadata score as final score)

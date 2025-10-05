@@ -44,7 +44,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_retrieval.query_encoder import Encoder
-    from reelix_recommendation.recipes import InteractiveRecipe
+    from reelix_recommendation.recipes import InteractiveRecipe, ForYouFeedRecipe
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
 
@@ -73,7 +73,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     chat_completion_llm = OpenAIChatLLM(
         openai_client, request_timeout=60.0, max_retries=2
     )
-    
+
     app.state.qdrant = QdrantClient(
         url=app.state.settings.qdrant_endpoint,
         api_key=app.state.settings.qdrant_api_key,
@@ -90,7 +90,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
     app.state.supabase_url = app.state.settings.supabase_url
     app.state.supabase_api_key = app.state.settings.supabase_api_key
-    
+
     app.state.intent_classifier = intent_classifier
     app.state.embed_model = embed_model
     app.state.bm25_models = bm25_models
@@ -98,7 +98,10 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     app.state.query_encoder = query_encoder
     app.state.cross_encoder = cross_encoder
     app.state.recommend_pipeline = pipeline
-    app.state.recipes = {"interactive": InteractiveRecipe(query_encoder=app.state.query_encoder)}
+    app.state.recipes = {
+        "for_you_feed": ForYouFeedRecipe(query_encoder=app.state.query_encoder),
+        "interactive": InteractiveRecipe(query_encoder=app.state.query_encoder),
+    }
     app.state.chat_completion_llm = chat_completion_llm
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
