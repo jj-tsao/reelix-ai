@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator
-from reelix_core.types import MediaType, QueryFilter, UserTasteContext
+from reelix_core.types import MediaType, QueryFilter
 
 
 class ChatMessage(BaseModel):
@@ -23,12 +23,18 @@ class DiscoverRequest(BaseModel):
     page_size: int = 20
     include_llm_why: bool = False  # if true, returns markdown “why” in JSON
     session_id: str
+    query_id: str
     device_info: DeviceInfo | None = None
 
 
 class InteractiveRequest(BaseModel):
     media_type: MediaType = MediaType.MOVIE
-    query_text: str = Field(..., examples=["Mind-bending sci-fi with philosophical undertones and existential stakes"])
+    query_text: str = Field(
+        ...,
+        examples=[
+            "Mind-bending sci-fi with philosophical undertones and existential stakes"
+        ],
+    )
     history: List[ChatMessage] | None = Field(default_factory=list, examples=[[]])
     query_filters: QueryFilter = Field(default_factory=QueryFilter)
     session_id: str

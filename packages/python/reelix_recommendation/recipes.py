@@ -31,7 +31,7 @@ class ForYouFeedRecipe(BaseRecipe):
 
         if user_context.provider_filter_mode == "SELECTED":
             subs = user_context.active_subscriptions
-            filters = self.build_filter(QueryFilter(genres=[], providers=subs))
+            filters = self.build_filter(QueryFilter(providers=subs))
         else:
             filters = self.build_filter()
 
@@ -97,7 +97,7 @@ class InteractiveRecipe(BaseRecipe):
     ) -> LLMPrompts:
         system_prompt = get_system_prompt(recipe_name=self.name)
 
-        context = self.format_context(candidates)
-        user_message = f"Here is the user query: {query_text}\n\nHere are the candidate items:\n{context}"
+        # WIP
+        user_message = ""
 
         return LLMPrompts(system=system_prompt, user=user_message)
