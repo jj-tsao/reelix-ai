@@ -41,8 +41,6 @@ def orchestrate(
 
     summarize_ranking(final)
 
-    print(traces)
-
     llm_prompts = recipe.build_prompt(
         query_text=query_text, user_context=user_context, candidates=final
     )
