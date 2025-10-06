@@ -37,7 +37,9 @@ const EVENT_WEIGHT: Record<RatingValue, number> = {
   dismiss: 0.0,
 };
 
-async function upsertInteractionRow(row: TablesInsert<"user_interactions">) {
+type UserInteractionInsert = TablesInsert<"user_interactions"> & { title: string };
+
+async function upsertInteractionRow(row: UserInteractionInsert) {
   // Always migrate legacy rows to set the concrete source column
   const updatePayload = {
     event_type: row.event_type,
@@ -45,7 +47,8 @@ async function upsertInteractionRow(row: TablesInsert<"user_interactions">) {
     context_json: row.context_json,
     occurred_at: row.occurred_at,
     source: INTERACTION_SOURCE,
-  } satisfies Partial<TablesInsert<"user_interactions">>;
+    title: row.title,
+  } satisfies Partial<UserInteractionInsert>;
 
   // 1) Update rows that already have matching source in the column
   {
@@ -129,6 +132,7 @@ export function canonicalizeTag(s: string): string {
 // Note: For true idempotence, ensure a unique constraint exists on (user_id, media_id, media_type) or a matching materialized column for the context-based source.
 export async function upsertUserInteraction(item: {
   media_id: number | string
+  title: string
   vibes?: string[]
   rating: RatingValue
 }) {
@@ -143,7 +147,7 @@ export async function upsertUserInteraction(item: {
   const context: Json = {
     tags: (item.vibes ?? []).map(canonicalizeTag),
   };
-  const row: TablesInsert<"user_interactions"> = {
+  const row: UserInteractionInsert = {
     user_id: user.id,
     media_id: mediaId,
     media_type: "movie",
@@ -152,6 +156,7 @@ export async function upsertUserInteraction(item: {
     context_json: context,
     occurred_at: new Date().toISOString(),
     source: INTERACTION_SOURCE,
+    title: item.title,
   };
 
   await upsertInteractionRow(row);

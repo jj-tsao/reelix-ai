@@ -96,6 +96,7 @@ create table if not exists public.user_interactions (
   user_id        uuid not null references public.app_user(user_id) on delete cascade,
   media_type     text not null check (media_type in ('movie','tv')),
   media_id        bigint not null,
+  title           text not null,
   event_type     text not null check (event_type in (
                     'view','finish', 'love', 'like','dislike','save','dismiss',
                     'search','click','hover','trailer_view','provider_open')),

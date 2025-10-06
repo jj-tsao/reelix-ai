@@ -48,7 +48,6 @@ async def discover_for_you(
         media_type=req.media_type.value,
         user_context=user_context,
     )
-    print(final_candidates)
 
     return JSONResponse(
         {

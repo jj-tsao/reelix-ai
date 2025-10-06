@@ -215,7 +215,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     if (t) clearTimeout(t);
     if (!m.media_id) return;
     const timer = setTimeout(() => {
-      upsertUserInteraction({ media_id: m.media_id!, vibes: m.vibes, rating: r }).catch((err) => {
+      upsertUserInteraction({ media_id: m.media_id!, title: m.title, vibes: m.vibes, rating: r }).catch((err) => {
         console.error("upsertUserInteraction failed", err);
       });
       upsertTimers.current.delete(key);

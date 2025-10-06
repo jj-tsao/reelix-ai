@@ -49,9 +49,9 @@ class ForYouFeedRecipe(BaseRecipe):
         self, *, query_text: str, user_context: UserTasteContext, candidates
     ) -> LLMPrompts:
         system_prompt = get_system_prompt(recipe_name=self.name)
-
-        context = self.format_context(candidates)
-        user_message = f"Here is the user query: {query_text}\n\nHere are the candidate items:\n{context}"
+        
+        context = self.format_discover_context(user_context, candidates)
+        user_message = f"Here are the candidate items:\n{context}"
 
         return LLMPrompts(system=system_prompt, user=user_message)
 
@@ -97,7 +97,7 @@ class InteractiveRecipe(BaseRecipe):
     ) -> LLMPrompts:
         system_prompt = get_system_prompt(recipe_name=self.name)
 
-        # WIP
-        user_message = ""
+        context = self.format_rec_context(candidates)
+        user_message = f"Here is the user query: {query_text}\n\nHere are the candidate items:\n{context}"
 
         return LLMPrompts(system=system_prompt, user=user_message)
