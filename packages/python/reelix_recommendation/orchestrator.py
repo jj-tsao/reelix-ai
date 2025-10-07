@@ -45,6 +45,9 @@ def orchestrate(
         query_text=query_text, user_context=user_context, candidates=final
     )
 
+    print("\n\n")
+    print(llm_prompts.system)
+    print("\n\n")
     print(llm_prompts.user)
 
     return final, traces, llm_prompts

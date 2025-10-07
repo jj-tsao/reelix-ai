@@ -93,7 +93,7 @@ async def fetch_user_signals(
     try:
         q = (
             sb.postgrest.table("user_interactions")
-            .select("media_type, media_id, event_type, occurred_at")
+            .select("media_type, media_id, title, event_type, occurred_at")
             .eq("user_id", user_id)
         )
         if media_type:
@@ -107,6 +107,7 @@ async def fetch_user_signals(
         Interaction(
             media_type=str(row["media_type"]),
             media_id=int(row["media_id"]),
+            title=str(row["title"]),
             kind=row["event_type"],
             ts=ts,
         )

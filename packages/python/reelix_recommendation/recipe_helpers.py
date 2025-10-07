@@ -1,8 +1,8 @@
 import re
 from typing import Iterable, List
 from qdrant_client.models import Filter as QFilter
+from reelix_core.types import QueryFilter
 from reelix_retrieval.qdrant_filter import build_qfilter
-from reelix_core.types import QueryFilter, UserTasteContext
 
 
 def build_filter(query_filter: QueryFilter | None = None) -> QFilter:
@@ -15,21 +15,6 @@ def build_filter(query_filter: QueryFilter | None = None) -> QFilter:
     else:
         qfilter = build_qfilter()
     return qfilter
-
-
-def format_rec_context(candidates: list):
-    context = "\n\n".join([c.payload.get("llm_context", "") for c in candidates])
-    return context
-
-
-def format_discover_context(user_context: UserTasteContext, candidates: list):
-    genres = ", ".join([g for g in user_context.signals.genres_include])
-    keywords = ", ".join([k for k in user_context.signals.keywords_include])
-    pos = ", ".join([k for k in user_context.signals.keywords_include])
-    context = f"The user enjoyes {genres} genres, and themes of {keywords}"
-    
-    context += "\n\n".join([c.payload.get("embedding_text", "") for c in candidates])
-    return context
 
 
 def build_bm25_query(

@@ -32,8 +32,9 @@ class QueryFilter(BaseModel):
 
 @dataclass
 class Interaction:
-    media_type: MediaType  # 'movie' | 'tv'
+    media_type: str  # 'movie' | 'tv'
     media_id: MediaId  # tmdb id
+    title: str
     kind: str  # 'love' | 'like' | 'dislike'
     ts: datetime  # tz-aware
 
@@ -52,9 +53,28 @@ class UserSignals:
         """Interactions where kind is 'like' or 'love'."""
         return self._by_kind({"like", "love"})
 
-    def negative_interactions(self) -> List[Interaction]:
+    def loved_titles(self) -> List[Interaction]:
+        """Interactions where kind is 'love'."""
+        return self._by_kind({"love"})
+
+    def liked_titles(self) -> List[Interaction]:
+        """Interactions where kind is 'like'."""
+        return self._by_kind({"like"})
+
+    def disliked_titles(self) -> List[Interaction]:
         """Interactions where kind is 'dislike'."""
         return self._by_kind({"dislike"})
+
+
+@dataclass
+class UserTasteContext:
+    taste_vector: list[float] | None
+    positive_n: int | None
+    negative_n: int | None
+    last_built_at: datetime | None
+    signals: UserSignals
+    active_subscriptions: list[int]
+    provider_filter_mode: str | None
 
 
 @dataclass
@@ -70,17 +90,6 @@ class BuildParams:
     delta: float = 0.15  # keyword prior
     min_pos_for_profile: int = 1
     min_total_for_profile: int = 2
-
-
-@dataclass
-class UserTasteContext:
-    taste_vector: list[float] | None
-    positive_n: int | None
-    negative_n: int | None
-    last_built_at: datetime | None
-    signals: UserSignals
-    active_subscriptions: list[int]
-    provider_filter_mode: str | None
 
 
 @dataclass

@@ -2,7 +2,6 @@ from reelix_core.types import UserTasteContext
 from reelix_retrieval.query_encoder import Encoder as QueryEncoder
 from reelix_recommendation.base_recipe import BaseRecipe
 from reelix_core.types import QueryFilter, LLMPrompts
-from reelix_models.system_prompts import get_system_prompt
 
 
 class ForYouFeedRecipe(BaseRecipe):
@@ -39,19 +38,19 @@ class ForYouFeedRecipe(BaseRecipe):
 
     def pipeline_params(self):
         return dict(
-            final_top_k=20,
+            final_top_k=12,
             weights=dict(
-                dense=0.45, sparse=0.15, rating=0.18, popularity=0.08, genre=0.14
+                dense=0.45, sparse=0.10, rating=0.18, popularity=0.08, genre=0.14
             ),
         )
 
     def build_prompt(
         self, *, query_text: str, user_context: UserTasteContext, candidates
     ) -> LLMPrompts:
-        system_prompt = get_system_prompt(recipe_name=self.name)
-        
-        context = self.format_discover_context(user_context, candidates)
-        user_message = f"Here are the candidate items:\n{context}"
+        system_prompt = self.get_system_prompt(recipe_name=self.name)
+        user_message = self.build_for_you_user_prompt(
+            candidates=candidates, user_signals=user_context.signals
+        )
 
         return LLMPrompts(system=system_prompt, user=user_message)
 
@@ -95,9 +94,11 @@ class InteractiveRecipe(BaseRecipe):
     def build_prompt(
         self, *, query_text: str, user_context: UserTasteContext, candidates
     ) -> LLMPrompts:
-        system_prompt = get_system_prompt(recipe_name=self.name)
-
-        context = self.format_rec_context(candidates)
-        user_message = f"Here is the user query: {query_text}\n\nHere are the candidate items:\n{context}"
+        system_prompt = self.get_system_prompt(recipe_name=self.name)
+        user_message = self.build_interactive_user_prompt(
+            candidates=candidates,
+            query_text=query_text,
+            user_signals=user_context.signals,
+        )
 
         return LLMPrompts(system=system_prompt, user=user_message)

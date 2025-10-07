@@ -1,17 +1,20 @@
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+import json
+from typing import Iterator
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 from reelix_recommendation.orchestrator import orchestrate
-from app.schemas import DiscoverRequest
+
 from app.deps.deps import (
+    SupabaseCreds,
+    get_chat_completion_llm,
     get_recipe_registry,
     get_recommend_pipeline,
-    get_chat_completion_llm,
     get_supabase_creds,
-    SupabaseCreds,
 )
-from app.deps.supabase_client import get_supabase_client, get_current_user_id
+from app.deps.supabase_client import get_current_user_id, get_supabase_client
 from app.repositories.taste_profile_store import fetch_user_taste_context
-
+from app.schemas import DiscoverRequest
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
@@ -84,3 +87,31 @@ async def prepare_stream_payload(
     }
     return {"ok": True}
 
+
+@router.get("/for-you/why")
+async def stream_why(
+    query_id: str,
+    user_id: str = Depends(get_current_user_id),
+    chat_llm = Depends(get_chat_completion_llm),
+):
+    ticket = _TICKETS.get(query_id)
+    if not ticket: 
+        raise HTTPException(404, "Unknown or expired query_id")
+    if ticket["user_id"] != user_id: 
+        raise HTTPException(403, "Forbidden")
+    prompts = ticket["prompts"]
+
+    def sse() -> Iterator[bytes]:
+        yield b"event: started\ndata: {}\n\n"
+        for delta in chat_llm.stream(prompts):  
+            yield f"event: why_delta\ndata: {json.dumps({'text': delta})}\n\n".encode("utf-8")
+        # Alternative - per-title concurrency:
+        # for media_id, p in prompts_by_media.items():
+        #   for delta in chat_llm.stream(p):
+        #       yield f\"event: why_delta\\ndata: {json.dumps({'media_id': media_id,'text': delta})}\\n\\n\".encode()
+
+        yield b"event: done\ndata: {}\n\n"
+
+    # Optional: delete ticket now (or keep until TTL for retries)
+    # _TICKETS.pop(query_id, None)
+    return StreamingResponse(sse(), media_type="text/event-stream")
