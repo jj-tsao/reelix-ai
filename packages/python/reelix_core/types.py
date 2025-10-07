@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import List, Iterable, Tuple, Annotated
+from typing import List, Iterable, Tuple, Annotated, Dict, Any
 from pydantic import BaseModel, Field, AfterValidator
 
 MediaId = int
@@ -92,7 +92,25 @@ class BuildParams:
     min_total_for_profile: int = 2
 
 
-@dataclass
-class LLMPrompts:
-    system: str
-    user: str
+class PromptsEnvelope(BaseModel):
+    model: str
+    params: Dict[str, Any] = Field(
+        default_factory=dict
+    )  # temp/top_p/seed/max_tokens, etc.
+    recipe: Dict[str, Any] = Field(default_factory=dict)
+    output: Dict[str, Any] = Field(default_factory=lambda: {"format":"jsonl","schema_version":"1"})
+    calls: list["LLMCall"] = Field(
+        default_factory=list
+    )  # one or many calls with caching
+    prompt_hash: str  # sha256 of (mode, calls.messages, model, params)
+    created_at: float
+
+
+class LLMCall(BaseModel):
+    call_id: int | None
+    messages: List[
+        Dict[str, Any]
+    ]  # [{"role":"system","content":...}, {"role":"user","content":...}] pair
+    items_brief: List[Dict[str, Any]] = Field(
+        default_factory=list
+    )  # [{"media_id","title"}, ...] (for logs)

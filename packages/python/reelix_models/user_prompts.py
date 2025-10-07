@@ -23,7 +23,6 @@ def build_for_you_user_prompt(
     query_text: Optional[str] = None,
     limits: Mapping[str, int] = DEFAULT_LIMITS,
     can_per_call: int = 6,
-    num_calls: int = 2,
 ) -> str:
     """
     Build the User Prompt for the discover/for-you/why LLM call.

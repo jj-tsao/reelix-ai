@@ -5,7 +5,7 @@ from typing import List, cast
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageParam
-from reelix_core.config import OPENAI_MODEL
+from reelix_core.config import CHAT_COMPLETION_MODEL
 
 
 class OpenAIChatLLM:
@@ -45,7 +45,7 @@ class OpenAIChatLLM:
         for attempt in range(self.max_retries + 1):
             try:
                 response = self.client.chat.completions.create(
-                    model=OPENAI_MODEL,
+                    model=CHAT_COMPLETION_MODEL,
                     messages=messages,
                     stream=True,
                     temperature=temperature,

@@ -1,6 +1,6 @@
 from typing import Protocol, Tuple, Dict, Any, List, runtime_checkable
 from qdrant_client.models import Filter as QFilter
-from reelix_core.types import UserTasteContext, QueryFilter, LLMPrompts
+from reelix_core.types import UserTasteContext, QueryFilter, PromptsEnvelope
 
 SparseVec = Dict[str, List[float]]
 
@@ -26,4 +26,4 @@ class OrchestrationRecipe(Protocol):
         query_text: str | None = None,
         user_context: UserTasteContext | None = None,
         candidates,
-    ) -> LLMPrompts: ...
+    ) -> PromptsEnvelope: ...

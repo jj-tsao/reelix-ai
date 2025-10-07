@@ -1,4 +1,3 @@
-# ticket_store.py
 from __future__ import annotations
 
 import gzip
@@ -8,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional, Protocol
 
 try:
-    # Optional dependency: only needed if you use the Redis backend.
     import redis.asyncio as redis  # type: ignore
 except Exception:  # pragma: no cover
     redis = None  # Lazy import guard for environments without redis
@@ -63,17 +61,18 @@ class TicketStore(Protocol):
 class MemoryTicketStore(TicketStore):
     """
     Simple process-local store for single-worker deployments.
-    Not shared across workers/pods. Use RedisTicketStore when you scale.
     """
     def __init__(self) -> None:
         # key -> (ticket, expires_at_epoch)
         self._m: dict[str, tuple[Ticket, float]] = {}
 
     async def put(self, key: str, ticket: Ticket, ttl_sec: int) -> None:
-        ticket.ensure_created()
-        self._m[key] = (ticket, time.time() + float(ttl_sec))
+        ticket.ensure_created() 
+        # Use Reelix query_id as key
+        self._m[key] = (ticket, time.time() + float(ttl_sec)) 
 
     async def get(self, key: str) -> Optional[Ticket]:
+        # Use Reelix query_id as key
         t = self._m.get(key)
         if not t:
             return None

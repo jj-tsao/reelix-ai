@@ -1,7 +1,7 @@
 from reelix_core.types import UserTasteContext
 from reelix_retrieval.query_encoder import Encoder as QueryEncoder
 from reelix_recommendation.base_recipe import BaseRecipe
-from reelix_core.types import QueryFilter, LLMPrompts
+from reelix_core.types import QueryFilter, PromptsEnvelope
 
 
 class ForYouFeedRecipe(BaseRecipe):
@@ -45,14 +45,26 @@ class ForYouFeedRecipe(BaseRecipe):
         )
 
     def build_prompt(
-        self, *, query_text: str, user_context: UserTasteContext, candidates
-    ) -> LLMPrompts:
+        self,
+        *,
+        query_text: str,
+        user_context: UserTasteContext,
+        candidates: list,
+        llm_model: str | None = None,
+        llm_params: dict | None = None,
+    ) -> PromptsEnvelope:
         system_prompt = self.get_system_prompt(recipe_name=self.name)
-        user_message = self.build_for_you_user_prompt(
-            candidates=candidates, user_signals=user_context.signals
+        user_prompt = self.build_user_prompt(
+            recipe_name=self.name,
+            candidates=candidates,
+            user_signals=user_context.signals,
         )
 
-        return LLMPrompts(system=system_prompt, user=user_message)
+        envelope = self.build_prompt_envelope(
+            self.name, system_prompt, user_prompt, candidates
+        )
+
+        return envelope
 
 
 class InteractiveRecipe(BaseRecipe):
@@ -93,12 +105,17 @@ class InteractiveRecipe(BaseRecipe):
 
     def build_prompt(
         self, *, query_text: str, user_context: UserTasteContext, candidates
-    ) -> LLMPrompts:
+    ) -> PromptsEnvelope:
         system_prompt = self.get_system_prompt(recipe_name=self.name)
-        user_message = self.build_interactive_user_prompt(
+        user_prompt = self.build_user_prompt(
+            recipe_name=self.name,
             candidates=candidates,
             query_text=query_text,
             user_signals=user_context.signals,
         )
 
-        return LLMPrompts(system=system_prompt, user=user_message)
+        envelope = self.build_prompt_envelope(
+            self.name, system_prompt, user_prompt, candidates
+        )
+
+        return envelope

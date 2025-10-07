@@ -14,16 +14,24 @@ from reelix_core.config import (
     QDRANT_MOVIE_COLLECTION_NAME,
     QDRANT_TV_COLLECTION_NAME,
 )
+from app.infrastructure.cache.ticket_store import make_ticket_store
 from .routers import all_routers
 
 
 class Settings(BaseSettings):
     app_name: str = "Reelix Discovery Agent API"
+    # credentials
     qdrant_endpoint: str | None = None
     qdrant_api_key: str | None = None
     supabase_url: str | None = None
     supabase_api_key: str | None = None
     openai_api_key: str | None = None
+    # ticket_store config
+    use_redis_ticket_store: bool = False
+    redis_url: str | None = None
+    ticket_namespace: str = "disc:ticket:"
+    ticket_ttl_abs: int = 3600  # 60 min absolute cap
+    # env conifg
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -103,6 +111,19 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         "interactive": InteractiveRecipe(query_encoder=app.state.query_encoder),
     }
     app.state.chat_completion_llm = chat_completion_llm
+
+    # create the ticket store
+    # use_redis_env = os.getenv("USE_REDIS_TICKET_STORE", "").lower() in {"1", "true", "yes"}
+    # redis_url = os.getenv("REDIS_URL") or (app.state.settings.redis_url or "")
+
+    app.state.ticket_store = make_ticket_store(
+        use_redis=app.state.settings.use_redis_ticket_store,
+        redis_url=app.state.settings.redis_url,
+        namespace=app.state.settings.ticket_namespace,
+        absolute_ttl_sec=app.state.settings.ticket_ttl_abs,
+        # Optional redis client kwargs for timeouts:
+        # client_kwargs={"socket_connect_timeout": 2, "socket_timeout": 3} if use_redis else None,
+    )
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
 
