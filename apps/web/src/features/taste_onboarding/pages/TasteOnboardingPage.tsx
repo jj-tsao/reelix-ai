@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import GenresStep from "../components/GenresStep";
 import RateSeedMoviesStep from "../components/RateSeedMoviesStep";
 import ProvidersStep from "../components/ProvidersStep";
@@ -13,6 +14,11 @@ export default function TasteOnboardingPage() {
   const [step, setStep] = useState<"genres" | "rate" | "providers">("genres");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
+  const navigate = useNavigate();
+
+  function goToDiscover(firstRun = false) {
+    navigate(firstRun ? "/discover?first_run=1" : "/discover");
+  }
 
   async function handleGenresSubmit({
     genres,
@@ -85,12 +91,12 @@ export default function TasteOnboardingPage() {
       onBack={() => setStep("rate")}
       onShowAll={() => {
         toast({ title: "Showing everything", description: "We won't filter by services." });
-        // Next: navigate or finish onboarding
+        goToDiscover(true);
       }}
       onContinue={(providers) => {
         console.log("Selected providers:", providers);
         toast({ title: "Preferences noted", description: `We'll prioritize ${providers.length} services.` });
-        // Next: navigate or finish onboarding
+        goToDiscover(true);
       }}
     />
   );

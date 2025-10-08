@@ -38,7 +38,7 @@ class ForYouFeedRecipe(BaseRecipe):
 
     def pipeline_params(self):
         return dict(
-            final_top_k=12,
+            final_top_k=6,
             weights=dict(
                 dense=0.45, sparse=0.10, rating=0.18, popularity=0.08, genre=0.14
             ),

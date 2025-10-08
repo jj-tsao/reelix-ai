@@ -27,7 +27,7 @@ export async function upsertUserPreferences(row: TablesInsert<"user_preferences"
 // ---------- Taste Onboarding → user_interactions ----------
 export type RatingValue = "love" | "like" | "dislike" | "dismiss";
 
-const INTERACTION_SOURCE = "taste_onboarding";
+const DEFAULT_INTERACTION_SOURCE = "taste_onboarding";
 
 // Canonical event names match DB check constraint exactly; map only weights.
 const EVENT_WEIGHT: Record<RatingValue, number> = {
@@ -39,14 +39,14 @@ const EVENT_WEIGHT: Record<RatingValue, number> = {
 
 type UserInteractionInsert = TablesInsert<"user_interactions"> & { title: string };
 
-async function upsertInteractionRow(row: UserInteractionInsert) {
+async function upsertInteractionRow(row: UserInteractionInsert, source: string) {
   // Always migrate legacy rows to set the concrete source column
   const updatePayload = {
     event_type: row.event_type,
     weight: row.weight,
     context_json: row.context_json,
     occurred_at: row.occurred_at,
-    source: INTERACTION_SOURCE,
+    source,
     title: row.title,
   } satisfies Partial<UserInteractionInsert>;
 
@@ -58,7 +58,7 @@ async function upsertInteractionRow(row: UserInteractionInsert) {
       .eq("user_id", row.user_id)
       .eq("media_id", row.media_id)
       .eq("media_type", row.media_type)
-      .eq("source", INTERACTION_SOURCE)
+      .eq("source", source)
       .select("interaction_id");
     if (error) throw new Error(error.message);
     if ((data?.length ?? 0) > 0) return;
@@ -72,7 +72,7 @@ async function upsertInteractionRow(row: UserInteractionInsert) {
       .eq("user_id", row.user_id)
       .eq("media_id", row.media_id)
       .eq("media_type", row.media_type)
-      .eq("context_json->>source", INTERACTION_SOURCE)
+      .eq("context_json->>source", source)
       .select("interaction_id");
     if (error) throw new Error(error.message);
     if ((data?.length ?? 0) > 0) return;
@@ -113,7 +113,7 @@ async function upsertInteractionRow(row: UserInteractionInsert) {
       .eq("user_id", row.user_id)
       .eq("media_id", row.media_id)
       .eq("media_type", row.media_type)
-      .eq("source", INTERACTION_SOURCE);
+      .eq("source", source);
     if (retryUpdErr) throw new Error(upsertErr.message);
   }
 }
@@ -130,12 +130,18 @@ export function canonicalizeTag(s: string): string {
 
 // Upsert a single interaction on each rating click.
 // Note: For true idempotence, ensure a unique constraint exists on (user_id, media_id, media_type) or a matching materialized column for the context-based source.
-export async function upsertUserInteraction(item: {
-  media_id: number | string
-  title: string
-  vibes?: string[]
-  rating: RatingValue
-}) {
+export async function upsertUserInteraction(
+  item: {
+    media_id: number | string;
+    title: string;
+    vibes?: string[];
+    rating: RatingValue;
+  },
+  options?: {
+    source?: string;
+    mediaType?: "movie" | "tv";
+  },
+) {
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user;
   if (!user) throw new Error("Not signed in");
@@ -147,19 +153,21 @@ export async function upsertUserInteraction(item: {
   const context: Json = {
     tags: (item.vibes ?? []).map(canonicalizeTag),
   };
+  const source = options?.source ?? DEFAULT_INTERACTION_SOURCE;
+  const mediaType = options?.mediaType ?? "movie";
   const row: UserInteractionInsert = {
     user_id: user.id,
     media_id: mediaId,
-    media_type: "movie",
+    media_type: mediaType,
     event_type: item.rating,
     weight,
     context_json: context,
     occurred_at: new Date().toISOString(),
-    source: INTERACTION_SOURCE,
+    source,
     title: item.title,
   };
 
-  await upsertInteractionRow(row);
+  await upsertInteractionRow(row, source);
 }
 
 // ---------- Streaming providers (user_subscriptions) ----------

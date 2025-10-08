@@ -71,7 +71,7 @@ async def discover_for_you(
                         "media_id": (c.payload or {}).get("media_id"),
                         "title": (c.payload or {}).get("title"),
                     }
-                    for c in final_candidates[:12]
+                    for c in final_candidates[:6]
                 ],
             },
         ),
@@ -197,80 +197,7 @@ async def stream_why(
         },
     )
 
-    # def gen():
-    #     for chunk in chat_llm.stream(
-    #         messages=messages,
-    #         temperature=0.7,
-    #     ):
-    #         yield chunk
-
-    # return StreamingResponse(gen(), media_type="text/plain")
-
-    # def gen_fake_jsonl():
-    #     import time
-    #     import json
-
-    #     rows = [
-    #         {"media_id": "m1", "why_md": "Test line 1\n\n"},
-    #         {"media_id": "m2", "why_md": "Test line 2\n\n"},
-    #     ]
-    #     for r in rows:
-    #         yield json.dumps(r) + "\n"
-    #         time.sleep(0.3)
-
-    # def gen() -> Iterator[bytes]:
-    #     last_hb = time.time()
-    #     yield _sse(
-    #         "started",
-    #         {
-    #             "query_id": query_id,
-    #             "batch_id": batch_id,
-    #         },
-    #     )
-
-    #     # Global JSONL: buffer by newline and emit per-item deltas
-    #     buffer = ""
-    #     try:
-    #         for delta in gen_fake_jsonl():
-    #             # Heartbeat
-    #             now = time.time()
-    #             if now - last_hb >= HEARTBEAT_SEC:
-    #                 yield b":\n\n"  # comment frame
-    #                 last_hb = now
-
-    #             buffer += delta
-    #             while "\n" in buffer:
-    #                 line, buffer = buffer.split("\n", 1)
-    #                 line = line.strip()
-    #                 if not line:
-    #                     continue
-    #                 try:
-    #                     obj = json.loads(line)
-    #                     media_id = obj.get("media_id")
-    #                     why_md = obj.get("why_md")
-    #                     if not media_id or not isinstance(why_md, str):
-    #                         continue
-    #                     yield _sse("why_delta", {"media_id": media_id, "text": why_md})
-    #                 except json.JSONDecodeError:
-    #                     # Incomplete JSON line; keep buffering
-    #                     buffer = line + "\n" + buffer
-    #                     break
-    #         # Flush a trailing JSON line if complete
-    #         tail = buffer.strip()
-    #         if tail:
-    #             try:
-    #                 obj = json.loads(tail)
-    #                 media_id = obj.get("media_id")
-    #                 why_md = obj.get("why_md")
-    #                 if media_id and isinstance(why_md, str):
-    #                     yield _sse("why_delta", {"media_id": media_id, "text": why_md})
-    #             except Exception:
-    #                 pass
-
-    #         yield _sse("done", {"ok": True})
-    #     except Exception as e:
-    #         yield _sse("error", {"message": str(e)})
-
+    # === TEST - Simple Streaming ===
     # return StreamingResponse(
     #     gen(),
     #     media_type="text/event-stream",
