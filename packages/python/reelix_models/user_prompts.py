@@ -111,8 +111,10 @@ def build_for_you_user_prompt(
     )
 
     for idx, c in enumerate(candidates[:can_per_call], start=1):
-        media_id = f"Media ID: {(c.payload.get('media_id', ''))}"
-        ctx = _sanitize_code_block(str(c.payload.get("embedding_text", "")).strip())
+        media_id = f"Media ID: {((c.payload or {}).get('media_id', ''))}"
+        ctx = _sanitize_code_block(
+            str((c.payload or {}).get("embedding_text", "")).strip()
+        )
         # Guardrail: empty context → still emit fenced empty block to preserve count/order
         parts.append("```")
         parts.append(media_id)
@@ -122,8 +124,7 @@ def build_for_you_user_prompt(
 
     # explicit instructions (verbatim from template expectations)
     parts.append("\n**Instructions:**")
-    parts.append("- Output six recommendation blocks using the specified format.")
-    parts.append("- After each block, append <!-- END_MOVIE -->.")
+    parts.append("- Output six recommendation lines using the specified format.")
 
     return "\n".join(parts)
 

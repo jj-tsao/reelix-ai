@@ -74,7 +74,7 @@ class BaseRecipe:
                 }
             )
 
-        params = {"temperature": 0.6, "top_p": 1.0}
+        params = {"temperature": 0.7, "top_p": 1.0}
         if llm_params:
             params.update(llm_params)
 

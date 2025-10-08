@@ -26,7 +26,7 @@ async def recommend_interactive(
     user_id: str | None = Depends(get_optional_user_id),
     registry=Depends(get_recipe_registry),
     pipeline=Depends(get_recommend_pipeline),
-    chat_completion_llm=Depends(get_chat_completion_llm),
+    chat_llm=Depends(get_chat_completion_llm),
     creds: SupabaseCreds = Depends(get_supabase_creds),
 ):
     recipe = registry.get(kind="interactive")
@@ -45,9 +45,11 @@ async def recommend_interactive(
             query_filter=req.query_filters,
             user_context=user_context,
         )
-
-        for chunk in chat_completion_llm.stream_chat(
-            req.history, llm_prompts.system, llm_prompts.user, temperature=0.7
+        
+        messages = llm_prompts.calls[0].messages
+        for chunk in chat_llm.stream(
+            messages=messages,
+            temperature=0.7,
         ):
             yield chunk
 

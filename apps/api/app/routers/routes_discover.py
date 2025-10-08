@@ -1,8 +1,10 @@
 import json
+import time
 from typing import Iterator
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from reelix_core.types import PromptsEnvelope
 from reelix_recommendation.orchestrator import orchestrate
 
 from app.deps.deps import (
@@ -12,8 +14,8 @@ from app.deps.deps import (
     get_recommend_pipeline,
     get_supabase_creds,
 )
-from app.deps.supabase_client import get_current_user_id, get_supabase_client
 from app.deps.deps_ticket_store import get_ticket_store
+from app.deps.supabase_client import get_current_user_id, get_supabase_client
 from app.infrastructure.cache.ticket_store import Ticket
 from app.repositories.taste_profile_store import fetch_user_taste_context
 from app.schemas import DiscoverRequest
@@ -21,10 +23,11 @@ from app.schemas import DiscoverRequest
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
 IDLE_TTL_SEC = 15 * 60
+HEARTBEAT_SEC = 15
 
 
 def _item_view(c):
-    p = c.payload
+    p = c.payload or {}
     return {
         "id": c.id,
         "media_id": p.get("media_id"),
@@ -55,6 +58,7 @@ async def discover_for_you(
         media_type=req.media_type.value,
         user_context=user_context,
     )
+
     await store.put(
         req.query_id,  # ticket key
         Ticket(
@@ -63,7 +67,10 @@ async def discover_for_you(
             meta={
                 "recipe": "for_you_feed@v1",
                 "items_brief": [
-                    {"media_id": c.payload["media_id"], "title": c.payload["title"]}
+                    {
+                        "media_id": (c.payload or {}).get("media_id"),
+                        "title": (c.payload or {}).get("title"),
+                    }
                     for c in final_candidates[:12]
                 ],
             },
@@ -83,6 +90,7 @@ async def discover_for_you(
 @router.get("/for-you/why")
 async def stream_why(
     query_id: str,
+    batch: int = 1,
     user_id: str = Depends(get_current_user_id),
     store=Depends(get_ticket_store),
     chat_llm=Depends(get_chat_completion_llm),
@@ -94,44 +102,211 @@ async def stream_why(
         raise HTTPException(403, "Forbidden")
     await store.touch(query_id, IDLE_TTL_SEC)
 
-    print(f"ticket: {ticket.prompts.calls[0].messages}")
+    try:
+        env = PromptsEnvelope.model_validate(ticket.prompts)
+    except Exception as e:
+        raise HTTPException(500, f"Invalid prompt envelope: {e}")
 
-    # def sse() -> Iterator[bytes]:
-    #      yield b"event: started\ndata: {}\n\n"
-    #     for chunk in chat_llm.stream_chat(
-    #         [], system_prompt, user_prompt, temperature=0.7
+    picked = _pick_call(env, batch)
+    messages = picked["messages"]
+    batch_id = picked["batch_id"]
+
+    model = env.model
+    params = dict(env.params or {})
+
+    def gen() -> Iterator[bytes]:
+        last_hb = time.time()
+        yield _sse(
+            "started",
+            {
+                "query_id": query_id,
+                "batch_id": batch_id,
+            },
+        )
+
+        # Global JSONL: buffer by newline and emit per-item deltas
+        buffer = ""
+        try:
+            stream_iter = chat_llm.stream(messages, model=model, **params)
+            for delta in stream_iter:
+                # Heartbeat
+                now = time.time()
+                if now - last_hb >= HEARTBEAT_SEC:
+                    yield b":\n\n"  # comment frame
+                    last_hb = now
+
+                buffer += delta
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        media_id = obj.get("media_id")
+                        imdb_rating = obj.get("imdb_rating")
+                        rotten_tomatoes_rating = obj.get("rotten_tomatoes_rating")
+                        why_md = obj.get("why_md")
+                        if not media_id or not isinstance(why_md, str):
+                            continue
+                        yield _sse(
+                            "why_delta",
+                            {
+                                "media_id": media_id,
+                                "imdb_rating": imdb_rating,
+                                "rotten_tomatoes_rating": rotten_tomatoes_rating,
+                                "why_you_might_enjoy_it": why_md,
+                            },
+                        )
+                    except json.JSONDecodeError:
+                        # Incomplete JSON line; keep buffering
+                        buffer = line + "\n" + buffer
+                        break
+            # Flush a trailing JSON line if complete
+            tail = buffer.strip()
+            if tail:
+                try:
+                    obj = json.loads(tail)
+                    media_id = obj.get("media_id")
+                    imdb_rating = obj.get("imdb_rating")
+                    rotten_tomatoes_rating = obj.get("rotten_tomatoes_rating")
+                    why_md = obj.get("why_md")
+                    if media_id and isinstance(why_md, str):
+                        yield _sse(
+                            "why_delta",
+                            {
+                                "media_id": media_id,
+                                "imdb_rating": imdb_rating,
+                                "rotten_tomatoes_rating": rotten_tomatoes_rating,
+                                "why_you_might_enjoy_it": why_md,
+                            },
+                        )
+                except Exception:
+                    pass
+
+            yield _sse("done", {"ok": True})
+        except Exception as e:
+            yield _sse("error", {"message": str(e)})
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+        },
+    )
+
+    # def gen():
+    #     for chunk in chat_llm.stream(
+    #         messages=messages,
+    #         temperature=0.7,
     #     ):
     #         yield chunk
 
     # return StreamingResponse(gen(), media_type="text/plain")
 
+    # def gen_fake_jsonl():
+    #     import time
+    #     import json
 
-@router.get("/for-you/why/old")
-async def stream_why_old(
-    query_id: str,
-    user_id: str = Depends(get_current_user_id),
-    chat_llm=Depends(get_chat_completion_llm),
-):
-    ticket = store.get(query_id)
-    if not ticket:
-        raise HTTPException(404, "Unknown or expired query_id")
-    if ticket["user_id"] != user_id:
-        raise HTTPException(403, "Forbidden")
-    prompts = ticket["prompts"]
+    #     rows = [
+    #         {"media_id": "m1", "why_md": "Test line 1\n\n"},
+    #         {"media_id": "m2", "why_md": "Test line 2\n\n"},
+    #     ]
+    #     for r in rows:
+    #         yield json.dumps(r) + "\n"
+    #         time.sleep(0.3)
 
-    def sse() -> Iterator[bytes]:
-        yield b"event: started\ndata: {}\n\n"
-        for delta in chat_llm.stream(prompts):
-            yield f"event: why_delta\ndata: {json.dumps({'text': delta})}\n\n".encode(
-                "utf-8"
-            )
-        # Alternative - per-title concurrency:
-        # for media_id, p in prompts_by_media.items():
-        #   for delta in chat_llm.stream(p):
-        #       yield f\"event: why_delta\\ndata: {json.dumps({'media_id': media_id,'text': delta})}\\n\\n\".encode()
+    # def gen() -> Iterator[bytes]:
+    #     last_hb = time.time()
+    #     yield _sse(
+    #         "started",
+    #         {
+    #             "query_id": query_id,
+    #             "batch_id": batch_id,
+    #         },
+    #     )
 
-        yield b"event: done\ndata: {}\n\n"
+    #     # Global JSONL: buffer by newline and emit per-item deltas
+    #     buffer = ""
+    #     try:
+    #         for delta in gen_fake_jsonl():
+    #             # Heartbeat
+    #             now = time.time()
+    #             if now - last_hb >= HEARTBEAT_SEC:
+    #                 yield b":\n\n"  # comment frame
+    #                 last_hb = now
 
-    # delete ticket
-    # _TICKETS.pop(query_id, None)
-    return StreamingResponse(sse(), media_type="text/event-stream")
+    #             buffer += delta
+    #             while "\n" in buffer:
+    #                 line, buffer = buffer.split("\n", 1)
+    #                 line = line.strip()
+    #                 if not line:
+    #                     continue
+    #                 try:
+    #                     obj = json.loads(line)
+    #                     media_id = obj.get("media_id")
+    #                     why_md = obj.get("why_md")
+    #                     if not media_id or not isinstance(why_md, str):
+    #                         continue
+    #                     yield _sse("why_delta", {"media_id": media_id, "text": why_md})
+    #                 except json.JSONDecodeError:
+    #                     # Incomplete JSON line; keep buffering
+    #                     buffer = line + "\n" + buffer
+    #                     break
+    #         # Flush a trailing JSON line if complete
+    #         tail = buffer.strip()
+    #         if tail:
+    #             try:
+    #                 obj = json.loads(tail)
+    #                 media_id = obj.get("media_id")
+    #                 why_md = obj.get("why_md")
+    #                 if media_id and isinstance(why_md, str):
+    #                     yield _sse("why_delta", {"media_id": media_id, "text": why_md})
+    #             except Exception:
+    #                 pass
+
+    #         yield _sse("done", {"ok": True})
+    #     except Exception as e:
+    #         yield _sse("error", {"message": str(e)})
+
+    # return StreamingResponse(
+    #     gen(),
+    #     media_type="text/event-stream",
+    #     headers={
+    #         "Cache-Control": "no-cache, no-transform",
+    #         "Connection": "keep-alive",
+    #     },
+    # )
+
+
+def _pick_call(env: PromptsEnvelope, batch: int | None) -> dict:
+    if not env.calls:
+        raise HTTPException(500, "Envelope has no calls")
+
+    call = None
+    if batch is not None:
+        for c in env.calls:
+            if getattr(c, "call_id", None) == batch:
+                call = c
+                break
+        if call is None:
+            raise HTTPException(404, f"Batch {batch} not found")
+    else:
+        call = env.calls[0]
+
+    return {
+        "messages": call.messages,
+        "items_brief": getattr(call, "items_brief", []),
+        "media_id": getattr(call, "media_id", None),
+        "batch_id": getattr(call, "call_id", None),
+    }
+
+
+def _sse(event: str, data: dict | str) -> bytes:
+    if isinstance(data, dict):
+        payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    else:
+        payload = data
+    return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
