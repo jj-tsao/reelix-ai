@@ -33,13 +33,8 @@ def orchestrate(
         **params,
     )
 
-    def summarize_ranking(ranking: List[Candidate], top_k: int = 20):
-        for idx, r in enumerate(ranking[:top_k], start=1):
-            print(
-                f"#{idx}: Title: {r.payload['title']} | Dense Score: {r.dense_score} | Sparse Score: {r.sparse_score} | Rating: {r.payload['vote_average']} | Popularity: {r.payload['popularity']}"
-            )
-
-    summarize_ranking(final)
+    # optional debug print
+    pipeline.summarize_ranking(final)
 
     llm_prompts = recipe.build_prompt(
         query_text=query_text, user_context=user_context, candidates=final

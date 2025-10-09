@@ -1,7 +1,8 @@
 from __future__ import annotations
 import time
 from typing import List, Optional
-from app.schemas import MediaType, ChatMessage, UserTasteContext, DeviceInfo
+from reelix_core.types import UserTasteContext
+from app.schemas import MediaType, ChatMessage, DeviceInfo
 from services.usage_logger import log_query_and_results
 from app.deps.deps import SupabaseCreds
 
@@ -150,7 +151,9 @@ def build_interactive_stream_fn(
                 f"✨ Total chat() prep time before streaming: {time.time() - full_t0:.3f}s"
             )
             yield "[[MODE:chat]]\n"
-            for chunk in chat_completion_llm.stream_chat(history, user_message, temperature=0.7):
+            for chunk in chat_completion_llm.stream_chat(
+                history, user_message, temperature=0.7
+            ):
                 yield chunk
 
     return stream_interactive

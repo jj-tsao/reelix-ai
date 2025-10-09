@@ -2,6 +2,7 @@ import React from "react";
 import type { FilterSettings } from "../types/types";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 import YearRangeSlider from "./YearRangeSlider";
+import { getProviderIdByName } from "@/data/watchProviders";
 
 type Props = {
   filters: FilterSettings;
@@ -51,10 +52,10 @@ export default function Filters({ filters, setFilters }: Props) {
   const providers = [
     "Netflix",
     "Hulu",
-    "Max",
-    "Amazon Prime Video",
+    "HBO Max",
     "Disney Plus",
     "Apple TV+",
+    "Amazon Prime Video",
     "Paramount Plus",
     "Paramount+ with Showtime",
     "Peacock Premium",
@@ -63,10 +64,13 @@ export default function Filters({ filters, setFilters }: Props) {
     "fuboTV",
     "Starz",
     "AMC+",
+    "BritBox",
+    "Acorn TV",
+    "Criterion Channel",
     "Tubi TV",
-    "Philo",
-    "Sling TV",
-  ];
+    "Pluto TV",
+    "The Roku Channel",
+  ].filter((name) => getProviderIdByName(name) !== undefined);
 
   return (
     <div className="flex flex-wrap gap-4">

@@ -86,11 +86,8 @@ class InteractiveRecipe(BaseRecipe):
             text=query_text, media_type=media_type
         )
 
-        # if user_context:
-        #     c_sparse = self.ctx_to_sparse(user_ctx, media_type) if user_ctx else None
-        #     sparse = merge_sparse(q_sparse, c_sparse, alpha=0.3) if c_sparse else q_sparse
-
         filters = self.build_filter(query_filter)
+
         return dense_vec, sparse_vec, filters
 
     def pipeline_params(self):
@@ -109,7 +106,7 @@ class InteractiveRecipe(BaseRecipe):
             recipe_name=self.name,
             candidates=candidates,
             query_text=query_text,
-            user_signals=user_context.signals,
+            user_signals=user_context.signals if user_context else None,
         )
 
         envelope = self.build_prompt_envelope(

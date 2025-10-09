@@ -1,18 +1,29 @@
-import type { ChatRequest } from "./types/types";
+import type { InteractiveRequestPayload } from "./types/types";
 import { supabase } from "./lib/supabase";
 
 // const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 export const BASE_URL = "http://127.0.0.1:8000";
 
 export async function streamChatResponse(
-  request: ChatRequest,
+  request: InteractiveRequestPayload,
   onChunk: (text: string) => void
 ): Promise<void> {
-  const response = await fetch(`${BASE_URL}/chat`, {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const token = session?.access_token;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${BASE_URL}/recommend/interactive`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(request),
   });
 
@@ -39,7 +50,7 @@ export async function logFinalRecs({
   queryId: string;
   finalRecs: { media_id: number; why: string }[];
 }) {
-  const res = await fetch(`${BASE_URL}/log/final_recs`, {
+  const res = await fetch(`${BASE_URL}/recommend/log/final_recs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

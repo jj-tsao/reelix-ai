@@ -1,9 +1,9 @@
-import ChatBox from "./ChatBox";
-import Filters from "./Filters";
-import FloatingActionButton from "./FloatingActionButton";
-import type { FilterSettings } from "../types/types";
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import ChatBox from "@/components/ChatBox";
+import Filters from "@/components/Filters";
+import FloatingActionButton from "@/components/FloatingActionButton";
+import type { FilterSettings } from "@/types/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,7 +36,7 @@ function ActiveFilterPill({
 }
 
 
-export default function Home() {
+export default function QueryRecommendationPage() {
   const [filters, setFilters] = useState<FilterSettings>({
     media_type: "movie",
     genres: [],
@@ -66,7 +66,7 @@ export default function Home() {
   ];
 
   useEffect(() => {
-    if (location.pathname === "/") {
+    if (location.pathname === "/query") {
       setQuestion("");
       setSubmittedQuestion("");
       setSubmissionId(0);

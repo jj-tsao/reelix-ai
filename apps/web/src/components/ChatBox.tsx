@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import MovieCard from "./MovieCard";
 import { parseMarkdown } from "../utils/parseMarkdown";
 import type { ParsedMovie } from "../utils/parseMarkdown";
+import { getProviderIdByName } from "@/data/watchProviders";
 
 interface Props {
   question: string;
@@ -70,10 +71,21 @@ export default function ChatBox({
 
     onStreamingStatusChangeRef.current?.(true);
 
+    const filterSnapshot = filtersRef.current;
+    const providerIds = filterSnapshot.providers
+      .map((name) => getProviderIdByName(name))
+      .filter((id): id is number => typeof id === "number");
+
     streamChatResponse(
       {
-        question: questionRef.current,
-        ...filtersRef.current,
+        query_text: questionRef.current,
+        media_type: filterSnapshot.media_type,
+        history: [],
+        query_filters: {
+          genres: filterSnapshot.genres,
+          providers: providerIds,
+          year_range: filterSnapshot.year_range,
+        },
         session_id: getSessionId(),
         query_id: queryIdRef.current,
         device_info: deviceInfo,

@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import clsx from "clsx";
-import { WATCH_PROVIDERS } from "../data/watch_providers";
+import { WATCH_PROVIDERS } from "@/data/watchProviders";
 import { getActiveSubscriptionIds, upsertUserSubscriptions, setProviderFilterMode } from "../api";
 
 type Props = {

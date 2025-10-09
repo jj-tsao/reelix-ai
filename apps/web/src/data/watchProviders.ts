@@ -1,3 +1,9 @@
+export type WatchProvider = {
+  provider_id: number;
+  provider_name: string;
+  logo_path: string;
+};
+
 export const WATCH_PROVIDERS = [{'provider_id': 8,
   'provider_name': 'Netflix',
   'logo_path': 'https://media.themoviedb.org/t/p/original//pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg'},
@@ -829,4 +835,33 @@ export const WATCH_PROVIDERS = [{'provider_id': 8,
  {'provider_id': 1746,
   'provider_name': 'Hallmark TV Amazon Channel',
   'logo_path': 'https://media.themoviedb.org/t/p/original//x2cjJAyU8CLwyYHaIxzzEjXJFU8.jpg'}
-]  as const;
+] as WatchProvider[];
+
+function normalizeProviderName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+const NAME_TO_ID = new Map<string, number>();
+const ID_TO_NAME = new Map<number, string>();
+
+for (const provider of WATCH_PROVIDERS) {
+  const normalized = normalizeProviderName(provider.provider_name);
+  if (!NAME_TO_ID.has(normalized)) {
+    NAME_TO_ID.set(normalized, provider.provider_id);
+  }
+  if (!ID_TO_NAME.has(provider.provider_id)) {
+    ID_TO_NAME.set(provider.provider_id, provider.provider_name);
+  }
+}
+
+export function getProviderIdByName(name: string): number | undefined {
+  return NAME_TO_ID.get(normalizeProviderName(name));
+}
+
+export function getProviderNameById(id: number): string | undefined {
+  return ID_TO_NAME.get(id);
+}
+
+export function listProviderNames(): string[] {
+  return WATCH_PROVIDERS.map((provider) => provider.provider_name);
+}

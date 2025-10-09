@@ -102,7 +102,7 @@ class RecommendPipeline:
         # 5) CE over dense top-K2
         dense_top = dense[:meta_ce_top_n]
         if self.ce:
-            docs = [c.payload.get("embedding_text") or "" for c in dense_top]
+            docs = [(c.payload or {}).get("embedding_text") or "" for c in dense_top]
             ce_scores = self.ce.score(query_text, docs)
             ce_order = [
                 cid
@@ -143,3 +143,9 @@ class RecommendPipeline:
                 final_rrf=final_rrf_map.get(cid),
             )
         return final, traces
+
+    def summarize_ranking(self, ranking: List[Candidate], top_k: int = 20):
+        for idx, r in enumerate(ranking[:top_k], start=1):
+            print(
+                f"#{idx}: Title: {r.payload['title']} | Dense Score: {r.dense_score} | Sparse Score: {r.sparse_score} | Rating: {r.payload['vote_average']} | Popularity: {r.payload['popularity']}"
+            )

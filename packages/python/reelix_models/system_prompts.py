@@ -12,9 +12,9 @@ Focus on:
 
 ### Response Format (in markdown):
 
-1. Start with a concise 2 sentences **opening paragraph** that contextualizes the theme and the overall viewing experience the user is seeking.
+1. Start with a concise 2 sentences **opening paragraph** that contextualizes the theme and the overall viewing experience the user is seeking. At the end of this paragraph, insert the token: <!-- END_INTRO -->.
 
-2. Then, for each recommendation, use the following format (repeat for each title).
+2. Then, for each recommendation, use the following format (repeat for each title). At the end of each movie recommendation block, insert the token: <!-- END_MOVIE -->:
 
 ```
 ### <Number>. <Movie Title>
