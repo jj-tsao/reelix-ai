@@ -102,7 +102,7 @@ create table if not exists public.user_interactions (
                     'search','click','hover','trailer_view','provider_open')),
   weight         real default 1.0,
   context_json   jsonb default '{}'::jsonb,
-  source         text not null default 'in_product' check (source in ('taste_onboarding','in_product','first_recommendation','feedback','agent','other')),
+  source         text not null default 'in_product' check (source in ('taste_onboarding','for_you_feed','in_product','feedback','agent','other')),
   occurred_at    timestamptz default now()
 );
 create index if not exists idx_ui_user_time on public.user_interactions(user_id, occurred_at desc);

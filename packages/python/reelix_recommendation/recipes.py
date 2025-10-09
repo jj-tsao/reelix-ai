@@ -21,6 +21,8 @@ class ForYouFeedRecipe(BaseRecipe):
         if not user_context:
             raise ValueError("ForYouFeedRecipe requires user_context")
 
+        print(user_context.signals.exclude_media_ids)
+
         dense_vec = user_context.taste_vector
         bm25_bag = self.build_bm25_query(
             genres=user_context.signals.genres_include,
@@ -28,11 +30,7 @@ class ForYouFeedRecipe(BaseRecipe):
         )
         sparse_vec = self.query_encoder.encode_sparse(bm25_bag, media_type)
 
-        if user_context.provider_filter_mode == "SELECTED":
-            subs = user_context.active_subscriptions
-            filters = self.build_filter(QueryFilter(providers=subs))
-        else:
-            filters = self.build_filter()
+        filters = self.build_discover_filter(user_context)
 
         return dense_vec, sparse_vec, filters
 

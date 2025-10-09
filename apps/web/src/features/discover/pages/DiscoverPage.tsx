@@ -293,6 +293,26 @@ export default function DiscoverPage() {
     [feedbackById, toast],
   );
 
+  const handleTrailerClick = useCallback(
+    (card: DiscoverCardData) => {
+      if (!card.mediaId) return;
+      void upsertUserInteraction(
+        {
+          media_id: card.mediaId,
+          title: card.title,
+          vibes: card.genres,
+          eventType: "trailer_view",
+          weightOverride: 0.35,
+        },
+        { source: "for_you_feed" },
+      ).catch((error) => {
+        const message = error instanceof Error ? error.message : "Could not log trailer view";
+        toast({ title: "Logging failed", description: message, variant: "destructive" });
+      });
+    },
+    [toast],
+  );
+
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-24 pt-8">
       <header className="flex flex-col gap-2">
@@ -345,6 +365,7 @@ export default function DiscoverPage() {
                 disabled: pendingFeedback[mediaId] ?? false,
                 onChange: (value) => handleFeedback({ mediaId, ...card }, value),
               }}
+              onTrailerClick={() => handleTrailerClick({ mediaId, ...card })}
               layout="wide"
             />
           ))}

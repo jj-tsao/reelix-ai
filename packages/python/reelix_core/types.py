@@ -44,6 +44,7 @@ class UserSignals:
     genres_include: list[str]
     keywords_include: list[str]
     interactions: list[Interaction]
+    exclude_media_ids: list[int]
 
     def _by_kind(self, kinds: Iterable[str]) -> List[Interaction]:
         kinds_norm = {k.lower() for k in kinds}

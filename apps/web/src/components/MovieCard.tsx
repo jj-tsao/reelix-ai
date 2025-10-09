@@ -32,9 +32,10 @@ interface Props {
     disabled?: boolean;
     onChange: (value: "love" | "like" | "dislike") => void;
   };
+  onTrailerClick?: () => void;
 }
 
-export default function MovieCard({ movie, layout = "grid", feedback }: Props) {
+export default function MovieCard({ movie, layout = "grid", feedback, onTrailerClick }: Props) {
   const posterUrl = movie.posterUrl ?? undefined;
   const backdropUrl = movie.backdropUrl ?? undefined;
   const providers = movie.providers ?? [];
@@ -208,6 +209,7 @@ export default function MovieCard({ movie, layout = "grid", feedback }: Props) {
                 href={`https://www.youtube.com/watch?v=${movie.trailerKey}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => onTrailerClick?.()}
                 className={isWide ? "inline-flex items-center gap-2 text-sm font-medium text-white hover:text-white/80" : "inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"}
               >
                 <img src="/icons/play_icon.png" alt="Play" className="h-5 w-5" />

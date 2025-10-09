@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from reelix_core.config import EMBEDDING_MODEL
 from reelix_core.types import (
@@ -14,7 +14,8 @@ from reelix_core.types import (
 )
 
 TABLE = "user_taste_profile"
-
+_RELEVANT_EVENTS = {"love", "like", "dislike", "trailer_view"}
+_RATING_EVENTS = {"love", "like", "dislike"}
 
 async def upsert_taste_profile(
     sb: Any,
@@ -69,6 +70,21 @@ def _ensure_ts(value) -> datetime | None:
     return None
 
 
+# recent rating event helpers
+def _within(ts, *, hours: int) -> bool:
+    return ts and ts >= (datetime.now(timezone.utc) - timedelta(hours=hours))
+
+async def _build_exclusions_from_signals(
+    interactions, cooldown_hours: int = 48
+) -> list[int]:
+    ids = {
+        i.media_id
+        for i in interactions
+        if i.kind in _RATING_EVENTS and _within(i.ts, hours=cooldown_hours)
+    }
+    return list(ids)
+
+
 # Fetch user gernes, keywords, interactions
 async def fetch_user_signals(
     sb,
@@ -95,6 +111,7 @@ async def fetch_user_signals(
             sb.postgrest.table("user_interactions")
             .select("media_type, media_id, title, event_type, occurred_at")
             .eq("user_id", user_id)
+            .in_("event_type", list(_RELEVANT_EVENTS))
         )
         if media_type:
             q = q.eq("media_type", media_type)
@@ -115,11 +132,14 @@ async def fetch_user_signals(
         if (ts := _ensure_ts(row.get("occurred_at") or row.get("created_at")))
         is not None
     ]
-
+    
+    exclude_media_ids = await _build_exclusions_from_signals(interactions, 48)
+    
     return UserSignals(
         genres_include=list(prefs.get("genres_include") or []),
         keywords_include=list(prefs.get("keywords_include") or []),
         interactions=interactions,
+        exclude_media_ids=exclude_media_ids,
     )
 
 
@@ -216,3 +236,4 @@ async def fetch_user_taste_context(
         ],
         provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
     )
+

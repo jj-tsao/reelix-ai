@@ -30,11 +30,12 @@ export type RatingValue = "love" | "like" | "dislike" | "dismiss";
 const DEFAULT_INTERACTION_SOURCE = "taste_onboarding";
 
 // Canonical event names match DB check constraint exactly; map only weights.
-const EVENT_WEIGHT: Record<RatingValue, number> = {
+const EVENT_WEIGHT: Record<string, number> = {
   love: 2.0,
   like: 1.0,
   dislike: -1.5,
   dismiss: 0.0,
+  trailer_view: 0.35,
 };
 
 type UserInteractionInsert = TablesInsert<"user_interactions"> & { title: string };
@@ -135,7 +136,9 @@ export async function upsertUserInteraction(
     media_id: number | string;
     title: string;
     vibes?: string[];
-    rating: RatingValue;
+    rating?: RatingValue;
+    eventType?: string;
+    weightOverride?: number;
   },
   options?: {
     source?: string;
@@ -149,25 +152,27 @@ export async function upsertUserInteraction(
   const mediaId = Number(item.media_id);
   if (!Number.isFinite(mediaId)) throw new Error("Invalid media_id");
 
-  const weight = EVENT_WEIGHT[item.rating];
+  const eventType = item.eventType ?? item.rating ?? "feedback";
+  const weight = item.weightOverride ?? EVENT_WEIGHT[item.rating ?? eventType] ?? 0;
+  const supabaseSource = options?.source ?? DEFAULT_INTERACTION_SOURCE;
   const context: Json = {
     tags: (item.vibes ?? []).map(canonicalizeTag),
+    source: supabaseSource,
   };
-  const source = options?.source ?? DEFAULT_INTERACTION_SOURCE;
   const mediaType = options?.mediaType ?? "movie";
   const row: UserInteractionInsert = {
     user_id: user.id,
     media_id: mediaId,
     media_type: mediaType,
-    event_type: item.rating,
+    event_type: eventType,
     weight,
     context_json: context,
     occurred_at: new Date().toISOString(),
-    source,
+    source: supabaseSource,
     title: item.title,
   };
 
-  await upsertInteractionRow(row, source);
+  await upsertInteractionRow(row, supabaseSource);
 }
 
 // ---------- Streaming providers (user_subscriptions) ----------

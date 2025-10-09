@@ -1,7 +1,7 @@
 import re
 from typing import Iterable, List
 from qdrant_client.models import Filter as QFilter
-from reelix_core.types import QueryFilter
+from reelix_core.types import QueryFilter, UserTasteContext
 from reelix_retrieval.qdrant_filter import build_qfilter
 
 
@@ -15,6 +15,18 @@ def build_filter(query_filter: QueryFilter | None = None) -> QFilter:
     else:
         qfilter = build_qfilter()
     return qfilter
+
+
+def build_discover_filter(user_context: UserTasteContext) -> QFilter:
+    exclude_ids = user_context.signals.exclude_media_ids
+
+    provider_mode = user_context.provider_filter_mode
+    user_subs = user_context.active_subscriptions
+
+    return build_qfilter(
+        exclude_ids=exclude_ids if exclude_ids else [],
+        providers=user_subs if provider_mode == "SELECTED" else [],
+    )
 
 
 def build_bm25_query(

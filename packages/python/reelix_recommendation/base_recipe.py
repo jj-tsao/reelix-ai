@@ -2,7 +2,7 @@ import time
 import json
 import hashlib
 from typing import Dict, Any, List
-from reelix_core.types import QueryFilter, UserSignals, PromptsEnvelope, LLMCall
+from reelix_core.types import QueryFilter, UserTasteContext, UserSignals, PromptsEnvelope, LLMCall
 from reelix_core.config import CHAT_COMPLETION_MODEL
 
 
@@ -12,6 +12,11 @@ class BaseRecipe:
         from reelix_recommendation.recipe_helpers import build_filter
 
         return build_filter(query_filter)
+    
+    def build_discover_filter(self, user_context: UserTasteContext):
+        from reelix_recommendation.recipe_helpers import build_discover_filter
+        
+        return build_discover_filter(user_context)
 
     def build_bm25_query(self, genres, keywords):
         from reelix_recommendation.recipe_helpers import build_bm25_query
