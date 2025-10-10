@@ -21,7 +21,7 @@ $$;
 -- ========== 1) Core tables ==========
 create table if not exists public.app_user (
   user_id      uuid primary key references auth.users(id) on delete cascade,
-  email        citext unique not null,
+  email        citext unique,
   display_name text,
   locale       text default 'en-US',
   tz           text  default 'America/Los_Angeles',
@@ -35,13 +35,29 @@ for each row execute procedure public.tg_set_updated_at();
 
 -- Auto-provision app_user row on signup
 create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer set search_path = public as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public as $$
+declare
+  v_display_name text;
+  v_email citext;
 begin
+  v_email := nullif(new.email::citext, '');
+  v_display_name := nullif(trim((new.raw_user_meta_data->>'display_name')), '');
+
   insert into public.app_user (user_id, email, display_name)
-  values (new.id, new.email, split_part(new.email, '@', 1))
+  values (
+    new.id,
+    v_email,  -- can be null for anonymous users
+    coalesce(v_display_name, case when v_email is not null then split_part(v_email, '@', 1)
+                                  else 'Guest-' || left(new.id::text, 8) end)
+  )
   on conflict (user_id) do nothing;
+
   return new;
 end $$;
+
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
