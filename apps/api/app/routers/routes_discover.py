@@ -32,6 +32,7 @@ def _item_view(c):
         "id": c.id,
         "media_id": p.get("media_id"),
         "title": p.get("title"),
+        "release_year": p.get("release_year"),
         "genres": p.get("genres", []),
         "poster_url": p.get("poster_url"),
         "backdrop_url": p.get("backdrop_url"),

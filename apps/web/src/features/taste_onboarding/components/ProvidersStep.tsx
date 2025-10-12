@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import clsx from "clsx";
 import { WATCH_PROVIDERS } from "@/data/watchProviders";
-import { getActiveSubscriptionIds, upsertUserSubscriptions, setProviderFilterMode } from "../api";
+import {
+  getActiveSubscriptionIds,
+  upsertUserSubscriptions,
+  setProviderFilterMode,
+} from "../api";
 
 type Props = {
   onBack?: () => void;
@@ -167,19 +171,24 @@ export default function ProvidersStep({
   }
 
   const selectedArr = Array.from(selected);
+  const helperMessage =
+    selectedArr.length === 0
+      ? "Pick at least one service or choose Show me everything."
+      : "Looks good. Continue or show the full catalog.";
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">
-          Tell us where you usually watch
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Pick your streaming services to prioritize recommendations available there. Or choose <strong>Show me everything</strong> if you want the full catalog.
+    <div className="mx-auto max-w-5xl px-4 pb-16 pt-4 sm:pt-6">
+      <h2 className="mb-2 text-2xl font-semibold">
+        Tell us where you usually watch
+      </h2>
+      <div className="sticky top-[3.5rem] z-20 mb-6 border-b border-border/60 bg-background shadow-sm sm:top-[4.25rem]">
+        <p className="py-3 text-sm text-muted-foreground">
+          Pick your streaming services to prioritize results, or choose{" "}
+          <strong>Show me everything</strong> for the full catalog.
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 pb-24">
         {renderGrid(topProviders)}
 
         <div>
@@ -201,62 +210,94 @@ export default function ProvidersStep({
           </button>
         </div>
 
-  {showMore && (
-    <Card>
-      <CardContent className="p-3">
-        {renderGrid(moreProviders)}
-      </CardContent>
-    </Card>
-  )}
-</div>
+        {showMore && (
+          <Card>
+            <CardContent className="p-3">{renderGrid(moreProviders)}</CardContent>
+          </Card>
+        )}
+      </div>
 
-<div className="flex items-center justify-between mt-8">
-  <div className="flex items-center gap-2">
-    <Button variant="outline" onClick={onBack} disabled={saving} aria-disabled={saving}>
-      Back
-    </Button>
-  </div>
-  <div className="flex items-center gap-2">
-    <Button
-      variant="outline"
-      disabled={saving}
-      aria-disabled={saving}
-      onClick={async () => {
-        setSaving(true);
-        try {
-          await upsertUserSubscriptions(selectedArr);
-          await setProviderFilterMode("ALL");
-        } catch (e) {
-          console.warn("Failed to save subscriptions/settings", e);
-        } finally {
-          setSaving(false);
-          onShowAll?.();
-        }
-      }}
-    >
-      Show me everything
-    </Button>
-    <Button
-      onClick={async () => {
-        setSaving(true);
-        try {
-          await upsertUserSubscriptions(selectedArr);
-          await setProviderFilterMode("SELECTED");
-          onContinue?.(selectedArr);
-        } catch (e) {
-          console.warn("Failed to save subscriptions/settings", e);
-        } finally {
-          setSaving(false);
-        }
-      }}
-      disabled={selectedArr.length === 0 || saving}
-      aria-disabled={selectedArr.length === 0 || saving}
-    >
-      Continue
-    </Button>
-  </div>
-</div>
-
+      <div className="sticky bottom-0 z-20 border-t border-border/60 bg-background shadow-md relative overflow-hidden">
+        <div
+          className="absolute left-[-999px] right-[-999px] -top-6 h-6 bg-background z-10"
+          aria-hidden
+        />
+        <div className="relative z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-0 py-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Button
+              variant="outline"
+              onClick={onBack}
+              disabled={saving}
+              aria-disabled={saving}
+            >
+              Back
+            </Button>
+            <span className="flex items-center gap-2">
+              <span>
+                Selected:{" "}
+                <span className="font-medium">{selectedArr.length}</span>{" "}
+                provider{selectedArr.length === 1 ? "" : "s"}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={selectedArr.length === 0 || saving}
+                aria-disabled={selectedArr.length === 0 || saving}
+                onClick={() => {
+                  if (saving) return;
+                  setSelected(new Set());
+                }}
+                className="px-2 text-xs"
+              >
+                Clear all
+              </Button>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={saving}
+              aria-disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  await upsertUserSubscriptions(selectedArr);
+                  await setProviderFilterMode("ALL");
+                } catch (e) {
+                  console.warn("Failed to save subscriptions/settings", e);
+                } finally {
+                  setSaving(false);
+                  onShowAll?.();
+                }
+              }}
+            >
+              Show me everything
+            </Button>
+            <Button
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  await upsertUserSubscriptions(selectedArr);
+                  await setProviderFilterMode("SELECTED");
+                  onContinue?.(selectedArr);
+                } catch (e) {
+                  console.warn("Failed to save subscriptions/settings", e);
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={selectedArr.length === 0 || saving}
+              aria-disabled={selectedArr.length === 0 || saving}
+            >
+              See my recommendations
+            </Button>
+          </div>
+          <span className="mt-1 w-full text-right text-sm text-muted-foreground">
+            {helperMessage}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

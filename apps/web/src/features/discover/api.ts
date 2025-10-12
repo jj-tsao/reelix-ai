@@ -1,5 +1,5 @@
 import { BASE_URL } from "@/api";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseAccessToken } from "@/lib/session";
 
 export interface DiscoverInitialItem {
   id?: string;
@@ -44,10 +44,7 @@ export type DiscoverStreamEvent =
   | { type: "error"; data: Record<string, unknown> | null };
 
 export async function getAccessToken(): Promise<string | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
+  return getSupabaseAccessToken();
 }
 
 export async function fetchDiscoverInitial(

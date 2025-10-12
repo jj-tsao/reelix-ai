@@ -1,5 +1,5 @@
 import type { InteractiveRequestPayload } from "./types/types";
-import { supabase } from "./lib/supabase";
+import { getSupabaseAccessToken } from "./lib/session";
 
 // const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 export const BASE_URL = "http://127.0.0.1:8000";
@@ -8,15 +8,11 @@ export async function streamChatResponse(
   request: InteractiveRequestPayload,
   onChunk: (text: string) => void
 ): Promise<void> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
-  const token = session?.access_token;
+  const token = await getSupabaseAccessToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -50,10 +46,12 @@ export async function logFinalRecs({
   queryId: string;
   finalRecs: { media_id: number; why: string }[];
 }) {
+  const token = await getSupabaseAccessToken();
   const res = await fetch(`${BASE_URL}/recommend/log/final_recs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({
       query_id: queryId,
@@ -67,10 +65,7 @@ export async function logFinalRecs({
 }
 
 export async function rebuildTasteProfile(): Promise<void> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  const token = await getSupabaseAccessToken();
   if (!token) {
     throw new Error("Not signed in");
   }

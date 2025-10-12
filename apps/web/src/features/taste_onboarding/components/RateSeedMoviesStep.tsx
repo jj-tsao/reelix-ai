@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { upsertUserInteraction } from "../api";
 import { rebuildTasteProfile } from "@/api";
 import type { PropsWithChildren } from "react";
@@ -36,6 +36,7 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) {
   const [ratings, setRatings] = useState<Record<string, Rating>>({});
   const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
 
   // Cards displayed and remaining pools per genre to support "skip" swaps
   const [cards, setCards] = useState<{ genre: string; movie: SeedMovie }[]>([]);
@@ -93,6 +94,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     setCards(nextCards);
     setRemainingByGenre(nextRemaining);
     setRatings({});
+    setSubmitting(false);
   }, [genres]);
 
   // Track responsive breakpoint for how many to load
@@ -231,6 +233,19 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     };
   }, []);
 
+  const ratedCount = useMemo(
+    () =>
+      Object.values(ratings).filter(
+        (value) => value === "love" || value === "like" || value === "dislike"
+      ).length,
+    [ratings]
+  );
+  const needsMoreRatings = ratedCount < 3;
+  const helperMessage = useMemo(() => {
+    if (ratedCount < 3) return "Rate 3+ to personalize better.";
+    if (ratedCount < 6) return "Great! Aim for 6+ for a sharper feed.";
+    return "All set. Finish now or keep rating.";
+  }, [ratedCount]);
   function AnimatedSwap({ token, active, children }: PropsWithChildren<{ token: string; active: boolean }>) {
     const [visible, setVisible] = useState(true);
     useLayoutEffect(() => {
@@ -255,12 +270,25 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
 
   // (Inline per-card availability messaging; no global banner)
 
+  async function handleContinue() {
+    if (submitting || needsMoreRatings) return;
+    try {
+      setSubmitting(true);
+      await rebuildTasteProfile();
+    } catch (err) {
+      console.warn("Failed to rebuild taste profile", err);
+    } finally {
+      setSubmitting(false);
+      onFinish?.(ratings);
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Rate a few picks</h2>
+    <div className="mx-auto max-w-5xl px-4 pb-10 pt-4 sm:pt-4">
+      <h2 className="mb-1 text-2xl font-semibold text-foreground">Rate a few picks</h2>
+      <div className="sticky top-[3.5rem] z-20 mb-6 border-b border-border/60 bg-background/95 py-3 shadow-sm backdrop-blur sm:top-[4.25rem]">
         <p className="text-sm text-muted-foreground">
-          We selected a few titles per genre you chose. Tap Love, Like, Not for me, or Skip.
+          Rate a few you’ve seen. Tap Love, Like, Not for me, or Haven't seen.
         </p>
       </div>
 
@@ -371,7 +399,7 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
                         aria-pressed={r === "dismiss"}
                         aria-disabled={!canShuffle}
                         disabled={!canShuffle}
-                        title={canShuffle ? "See a different title" : undefined}
+                        title={canShuffle ? "Haven't seen" : undefined}
                       >
                         {canShuffle ? (
                           <Shuffle className="h-4 w-4" />
@@ -422,21 +450,31 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
         );
       })()}
 
-      <div className="flex items-center justify-between mt-8">
-        <Button variant="outline" onClick={onBack}>Back</Button>
-        <Button
-          onClick={async () => {
-            try {
-              await rebuildTasteProfile();
-            } catch (err) {
-              console.warn("Failed to rebuild taste profile", err);
-            } finally {
-              onFinish?.(ratings);
-            }
-          }}
-        >
-          Continue
-        </Button>
+      <div className="sticky bottom-0 z-20 mt-10 border-t border-border/60 bg-background/95 py-4 shadow-md backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <Button variant="outline" onClick={onBack}>
+              Back
+            </Button>
+            <span>
+              Rated: <span className="font-medium">{ratedCount}</span> title
+              {ratedCount === 1 ? "" : "s"}
+            </span>
+          </div>
+          <Button
+            onClick={handleContinue}
+            disabled={submitting || needsMoreRatings}
+            className={clsx(
+              "transition-opacity",
+              needsMoreRatings && !submitting ? "opacity-60" : "opacity-100"
+            )}
+          >
+            {submitting ? "Saving..." : "See my recommendations"}
+          </Button>
+        </div>
+        <div className="mt-1 w-full text-right text-sm text-muted-foreground">
+          {helperMessage}
+        </div>
       </div>
     </div>
   );

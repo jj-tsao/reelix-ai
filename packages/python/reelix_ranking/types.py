@@ -1,13 +1,13 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any, Optional
 from qdrant_client.models import ExtendedPointId
 
 
 @dataclass
 class Candidate:
     id: ExtendedPointId
-    payload: Optional[Mapping[str, Any]]
+    payload: dict[str, Any]
     dense_score: Optional[float] = None
     sparse_score: Optional[float] = None
 

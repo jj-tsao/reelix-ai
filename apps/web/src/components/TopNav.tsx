@@ -5,10 +5,12 @@ import { useToast } from "@/components/ui/useToast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useProfile } from "@/features/auth/hooks/useProfile";
 import { signOut } from "@/features/auth/api";
+import { isAnonymousUser } from "@/lib/session";
 
 export default function TopNav() {
   const { user, loading } = useAuth();
-  const { displayName } = useProfile(user?.id);
+  const isAnonymous = isAnonymousUser(user);
+  const { displayName } = useProfile(isAnonymous ? undefined : user?.id);
   const metaName = (() => {
     const meta = user?.user_metadata as Record<string, unknown> | undefined;
     const v = meta && (meta as Record<string, unknown>)["display_name"];
@@ -36,7 +38,7 @@ export default function TopNav() {
         />
       </Link>
       <div className="flex items-center gap-3 relative">
-        {!loading && user ? (
+        {!loading && user && !isAnonymous ? (
           <UserMenu
             label={displayName || metaName || user.email || "Account"}
             onSignOut={handleSignOut}

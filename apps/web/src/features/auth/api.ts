@@ -1,3 +1,4 @@
+import { ensureSupabaseSession } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { Tables, TablesInsert } from "@/types/supabase";
@@ -40,12 +41,12 @@ export async function signInWithPassword(email: string, password: string): Promi
 export async function signOut(): Promise<AuthResult> {
   const { error } = await supabase.auth.signOut();
   if (error) return { ok: false, error: error.message };
+  await ensureSupabaseSession();
   return { ok: true };
 }
 
 export async function getCurrentSession() {
-  const { data } = await supabase.auth.getSession();
-  return data.session ?? null;
+  return ensureSupabaseSession();
 }
 
 export function onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {

@@ -21,8 +21,6 @@ class ForYouFeedRecipe(BaseRecipe):
         if not user_context:
             raise ValueError("ForYouFeedRecipe requires user_context")
 
-        print(user_context.signals.exclude_media_ids)
-
         dense_vec = user_context.taste_vector
         bm25_bag = self.build_bm25_query(
             genres=user_context.signals.genres_include,
@@ -38,7 +36,12 @@ class ForYouFeedRecipe(BaseRecipe):
         return dict(
             final_top_k=6,
             weights=dict(
-                dense=0.45, sparse=0.10, rating=0.18, popularity=0.08, genre=0.14
+                # dense=0.45, sparse=0.10, rating=0.18, popularity=0.08, genre=0.14
+                dense=0.56,
+                sparse=0.13,
+                rating=0.15,
+                popularity=0.04,
+                genre=0.12,
             ),
         )
 
@@ -94,7 +97,7 @@ class InteractiveRecipe(BaseRecipe):
         return dict(
             final_top_k=20,
             weights=dict(
-                dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0.00
+                dense=0.60, sparse=0.10, rating=0.18, popularity=0.12, genre=0.00
             ),
         )
 

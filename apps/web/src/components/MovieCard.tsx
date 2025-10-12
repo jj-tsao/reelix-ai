@@ -49,68 +49,42 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
   const hasWhyContent = !isWhyLoading && typeof whySource === "string" && whySource.trim().length > 0;
   const isWide = layout === "wide";
 
-  const containerClass =
-    isWide
-      ? "group relative flex h-full flex-col overflow-hidden border border-border/70 bg-background/95 text-foreground transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-2xl"
-      : "group relative flex h-full flex-col overflow-hidden border border-border/70 bg-background/95 text-foreground transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-xl";
+  const containerClass = clsx(
+    "group relative flex h-full flex-col overflow-hidden rounded-xl border border-white/10 bg-background/95 text-white transition-all duration-200 hover:shadow-[0_8px_30px_rgba(0,0,0,0.4)] hover:scale-[1.01]",
+    isWide ? "md:hover:-translate-y-0.5" : "hover:-translate-y-1",
+  );
 
-  const contentClass = isWide ? "relative z-10 flex flex-col gap-6 p-6 md:flex-row" : "relative z-10 flex flex-col gap-4 p-4 md:flex-row";
-  const posterWrapperClass =
-    isWide
-      ? "mx-auto flex w-full max-w-[12rem] flex-shrink-0 overflow-hidden rounded-lg bg-muted md:mx-0 md:w-48"
-      : "mx-auto flex w-full max-w-[10.5rem] flex-shrink-0 overflow-hidden rounded-lg bg-muted md:mx-0 md:w-44";
-  const titleClass = isWide
-    ? "text-2xl md:text-[26px] font-semibold leading-tight text-white"
-    : "text-xl font-semibold leading-tight text-foreground";
-  const metaClass = isWide ? "text-sm text-white/80" : "text-xs text-muted-foreground";
-  const bulletClass = isWide ? "text-white/60" : "text-muted-foreground/60";
-  const ratingContainerClass = isWide
-    ? "flex flex-wrap items-center gap-2 text-sm text-white/85"
-    : "flex flex-wrap items-center gap-2 text-sm text-muted-foreground";
-  const whyHeaderClass = isWide
-    ? "text-sm font-semibold uppercase tracking-wide text-white/70"
-    : "text-xs font-semibold uppercase tracking-wide text-muted-foreground/80";
-  const emptyWhyClass = isWide ? "text-sm italic text-white/60" : "text-xs italic text-muted-foreground/70";
-  const providerBadgeClass = isWide
-    ? "rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-white/90 backdrop-blur"
-    : "rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary";
+  const contentClass = clsx(
+    "relative z-10 flex flex-col gap-4 p-4 md:flex-row",
+    isWide && "gap-6 p-6",
+  );
+
+  const posterWrapperClass = clsx(
+    "mx-auto flex w-full max-w-[11rem] flex-shrink-0 overflow-hidden rounded-lg bg-black/30 md:mx-0 md:w-44",
+    isWide && "max-w-[12rem] md:w-48",
+  );
+
+  const titleClass = "text-2xl font-semibold leading-tight text-white";
+  const metaClass = "text-sm text-zinc-300";
+  const bulletClass = "text-zinc-500";
+  const ratingContainerClass = "flex flex-wrap items-center gap-2 text-sm text-zinc-300";
+  const whyHeaderClass = "text-xs font-semibold uppercase tracking-wide text-zinc-400";
+  const emptyWhyClass = "text-sm italic text-zinc-400";
+  const providerBadgeClass = "rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium text-zinc-100 backdrop-blur";
   const feedbackValue = feedback?.value;
   const feedbackDisabled = feedback?.disabled ?? false;
-  const feedbackLabelClass = isWide
-    ? "text-xs font-semibold uppercase tracking-wide text-white/60"
-    : "text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70";
+  const feedbackLabelClass = "text-xs font-semibold uppercase tracking-wide text-zinc-400";
 
   return (
     <Card className={containerClass}>
       {backdropUrl ? (
-        <div
-          className={
-            isWide
-              ? "pointer-events-none absolute inset-0 z-0 opacity-80 transition-opacity duration-300 group-hover:opacity-100"
-              : "pointer-events-none absolute inset-0 z-0 opacity-60 transition-opacity duration-300 group-hover:opacity-90"
-          }
-        >
+        <div className="pointer-events-none absolute inset-0 z-0">
+          {/* Backdrop image with consistent opacity across /query and /discover */}
           <div
-            className={
-              isWide
-                ? "h-full w-full bg-cover bg-center opacity-30 blur-[2px]"
-                : "h-full w-full bg-cover bg-center opacity-40 blur-sm"
-            }
+            className="h-full w-full bg-cover bg-center blur-[1px] opacity-15 transition-opacity duration-300 group-hover:opacity-20"
             style={{ backgroundImage: `url(${backdropUrl})` }}
           />
-          <div
-            className={
-              isWide
-                ? "absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-950/65 to-slate-900/10"
-                : "absolute inset-0 bg-gradient-to-br from-background via-background/95 to-background/85"
-            }
-          />
-          {isWide ? (
-            <div className="absolute inset-0 bg-gradient-radial from-white/8 via-transparent to-transparent mix-blend-soft-light opacity-70" />
-          ) : null}
-          {isWide ? (
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-transparent" />
-          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-800/80 via-black/40 to-transparent" />
         </div>
       ) : null}
 
@@ -135,7 +109,7 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
             <div className="flex flex-wrap items-baseline gap-3">
               <h2 className={titleClass}>{movie.title}</h2>
               {movie.releaseYear ? (
-                <span className={isWide ? "rounded-full border border-white/20 px-3 py-0.5 text-xs text-white/70" : "rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"}>
+                <span className="rounded-full border border-white/20 px-3 py-0.5 text-xs text-white/70">
                   {movie.releaseYear}
                 </span>
               ) : null}
@@ -156,11 +130,11 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
 
             {genres.length > 0 ? (
               <div className={metaClass}>
-                <span className={isWide ? "font-medium text-white" : "font-semibold text-foreground/80"}>Genres:</span> {genres.join(", ")}
+                <span className="font-medium text-white">Genres:</span> {genres.join(", ")}
               </div>
             ) : null}
 
-            <div className={isWide ? "min-h-[1.25rem]" : "min-h-[1.25rem] text-xs text-muted-foreground"}>
+            <div className="min-h-[1.25rem]">
               {isRatingsLoading ? (
                 <div className="flex items-center gap-2 animate-pulse">
                   <span className="h-3 w-16 rounded bg-muted/80" />
@@ -175,13 +149,13 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
                   {hasValidScore(rtRaw) ? <span>🍅 {formatRating(rtRaw)}%</span> : null}
                 </p>
               ) : (
-                <span className={isWide ? "text-sm italic text-white/60" : "text-xs italic text-muted-foreground/70"}>Ratings pending</span>
+                <span className="text-sm italic text-zinc-400">Ratings pending</span>
               )}
             </div>
           </div>
 
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <div className={whyHeaderClass}>Why you might enjoy it</div>
+          <div className="space-y-2 text-sm text-zinc-300">
+            <div className={whyHeaderClass}>Why this fits your taste</div>
             {isWhyLoading ? (
               <div className="space-y-2 animate-pulse">
                 <div className="h-3 w-full rounded bg-muted/80" />
@@ -189,15 +163,9 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
                 <div className="h-3 w-4/6 rounded bg-muted/60" />
               </div>
             ) : hasWhyContent ? (
-              isWide ? (
-                <div className="text-base leading-relaxed text-white/90">
-                  <ReactMarkdown>{whySource}</ReactMarkdown>
-                </div>
-              ) : (
-                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none leading-relaxed">
-                  <ReactMarkdown>{whySource}</ReactMarkdown>
-                </div>
-              )
+              <div className="prose prose-invert prose-sm max-w-none text-base leading-relaxed text-zinc-200">
+                <ReactMarkdown>{whySource}</ReactMarkdown>
+              </div>
             ) : (
               <p className={emptyWhyClass}>We're still working on a personalized reason for this pick.</p>
             )}
@@ -210,7 +178,7 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => onTrailerClick?.()}
-                className={isWide ? "inline-flex items-center gap-2 text-sm font-medium text-white hover:text-white/80" : "inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"}
+                className="inline-flex items-center gap-2 text-base font-medium text-blue-300 hover:underline"
               >
                 <img src="/icons/play_icon.png" alt="Play" className="h-5 w-5" />
                 Watch trailer
@@ -228,7 +196,7 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
                   active={feedbackValue === "love"}
                   disabled={feedbackDisabled}
                   onClick={() => feedback.onChange("love")}
-                  activeClass={isWide ? "bg-pink-500/20 text-pink-200 border-pink-400/50" : "bg-pink-100 text-pink-700 border-pink-300"}
+                  activeClass="bg-pink-500/20 text-pink-200 border-pink-400/50"
                 />
                 <FeedbackButton
                   icon={ThumbsUp}
@@ -236,7 +204,7 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
                   active={feedbackValue === "like"}
                   disabled={feedbackDisabled}
                   onClick={() => feedback.onChange("like")}
-                  activeClass={isWide ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/50" : "bg-green-100 text-green-700 border-green-300"}
+                  activeClass="bg-emerald-500/15 text-emerald-200 border-emerald-400/50"
                 />
                 <FeedbackButton
                   icon={ThumbsDown}
@@ -244,7 +212,7 @@ export default function MovieCard({ movie, layout = "grid", feedback, onTrailerC
                   active={feedbackValue === "dislike"}
                   disabled={feedbackDisabled}
                   onClick={() => feedback.onChange("dislike")}
-                  activeClass={isWide ? "bg-amber-500/15 text-amber-200 border-amber-400/50" : "bg-amber-100 text-amber-800 border-amber-300"}
+                  activeClass="bg-amber-500/15 text-amber-200 border-amber-400/50"
                 />
               </div>
             </div>
@@ -282,7 +250,7 @@ function FeedbackButton({
       aria-pressed={active}
       onClick={onClick}
       className={clsx(
-        "h-9 w-9 rounded-full border border-transparent px-0 text-muted-foreground transition-colors",
+        "h-9 w-9 rounded-full border border-white/20 bg-black/40 px-0 text-zinc-200 transition-colors hover:bg-white/10",
         active && activeClass,
         disabled && "opacity-60",
       )}

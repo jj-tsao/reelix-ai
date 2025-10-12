@@ -30,6 +30,7 @@ def orchestrate(
         sparse_vec=sparse_vec,
         query_text=query_text,
         qfilter=qfilter,
+        user_context=user_context,
         **params,
     )
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple
+from reelix_core.types import UserTasteContext
 from reelix_ranking.rrf import rrf
 from reelix_ranking.metadata import metadata_rerank
 from reelix_ranking.types import Candidate, ScoreTrace
@@ -30,11 +31,12 @@ class RecommendPipeline:
         sparse_vec: Dict[str, List[float]],
         query_text: str | None = None,
         qfilter: QFilter | None = None,
+        user_context: UserTasteContext | None = None,
         # Tunable variables
         dense_depth: int = 300,
         sparse_depth: int = 20,
         meta_top_n: int = 100,
-        ce_rerank: bool = True,
+        ce_rerank: bool = False,
         meta_ce_top_n: int = 30,
         weights: Dict[str, float] = dict(
             dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0.00
@@ -69,11 +71,12 @@ class RecommendPipeline:
 
         # 4) metadata rerank
         meta_scored = metadata_rerank(
-            pool,
-            weights=weights,
+            candidates=pool,
             media_type=media_type,
+            user_context=user_context,
+            weights=weights,
         )
-        meta_sorted = [c for c, _ in meta_scored][:meta_top_n]
+        meta_sorted = [c for c, _, _ in meta_scored][:meta_top_n]
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
 
         # 4.5) Fallback to metadata reranked results when CE reranker is not available
@@ -84,7 +87,7 @@ class RecommendPipeline:
             traces: Dict[str, ScoreTrace] = {}
             dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
             sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
-            meta_score_map = {c.id: s for (c, s) in meta_scored}
+            meta_score_map = {c.id: s for (c, s, t) in meta_scored}
 
             for c in final:
                 traces[c.id] = ScoreTrace(
@@ -130,7 +133,7 @@ class RecommendPipeline:
         traces: Dict[str, ScoreTrace] = {}
         dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
         sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
-        meta_score_map = {c.id: s for (c, s) in meta_scored}
+        meta_score_map = {c.id: s for (c, s, t) in meta_scored}
         final_rrf_map = dict(final_rrf)
 
         for cid in final_ids:

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import ChatBox from "@/components/ChatBox";
 import Filters from "@/components/Filters";
@@ -52,6 +52,7 @@ export default function QueryRecommendationPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [inputVisible, setInputVisible] = useState(true);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const lastAutoSubmitSignatureRef = useRef<string | null>(null);
   const inputPanelRef = useRef<HTMLDivElement | null>(null);
   const location = useLocation();
 
@@ -65,22 +66,63 @@ export default function QueryRecommendationPage() {
     "Like: 🎵 Visually lush musical dramas that blend artistic ambition with emotional resonance",
   ];
 
+  const submitQuestion = useCallback(
+    (
+      value: string,
+      options: { clearInput?: boolean; bypassStreamingGuard?: boolean } = {}
+    ) => {
+      const trimmed = value.trim();
+      if (!trimmed) return false;
+
+      if (!options.bypassStreamingGuard && isStreaming) return false;
+
+      setSubmittedQuestion(trimmed);
+      setSubmissionId((id) => id + 1);
+      setQuestion(options.clearInput === false ? trimmed : "");
+      setResponseFinished(false);
+      setShowFilters(false);
+      return true;
+    },
+    [isStreaming]
+  );
+  const submitQuestionRef = useRef(submitQuestion);
+
   useEffect(() => {
-    if (location.pathname === "/query") {
-      setQuestion("");
+    submitQuestionRef.current = submitQuestion;
+  }, [submitQuestion]);
+
+  useEffect(() => {
+    if (location.pathname !== "/query") return;
+
+    const params = new URLSearchParams(location.search);
+    const incomingQuery = params.get("q")?.trim() ?? "";
+
+    setQuestion(incomingQuery);
+    setResponseFinished(false);
+    setIsStreaming(false);
+    setShowFilters(false);
+    setFilters({
+      media_type: "movie",
+      genres: [],
+      providers: [],
+      year_range: [1970, 2025],
+    });
+
+    const signature = `${location.key ?? "root"}|${incomingQuery}`;
+    if (incomingQuery) {
+      if (lastAutoSubmitSignatureRef.current !== signature) {
+        lastAutoSubmitSignatureRef.current = signature;
+        submitQuestionRef.current(incomingQuery, {
+          clearInput: false,
+          bypassStreamingGuard: true,
+        });
+      }
+    } else {
+      lastAutoSubmitSignatureRef.current = null;
       setSubmittedQuestion("");
       setSubmissionId(0);
-      setResponseFinished(false);
-      setIsStreaming(false);
-      setShowFilters(false);
-      setFilters({
-        media_type: "movie",
-        genres: [],
-        providers: [],
-        year_range: [1970, 2025],
-      });
     }
-  }, [location.pathname]);
+  }, [location.key, location.pathname, location.search]);
 
   useEffect(() => {
     setFilters((prev) => ({ ...prev, genres: [] }));
@@ -107,12 +149,7 @@ export default function QueryRecommendationPage() {
   const dynamicPlaceholder = `${placeholderExamples[placeholderIndex]}`;
 
   const handleSubmit = () => {
-    if (isStreaming || !question.trim()) return;
-    setSubmittedQuestion(question);
-    setSubmissionId((id) => id + 1);
-    setQuestion("");
-    setResponseFinished(false);
-    setShowFilters(false);
+    submitQuestion(question);
   };
 
   const showActiveFilters =

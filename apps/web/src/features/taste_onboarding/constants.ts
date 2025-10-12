@@ -14,19 +14,23 @@ export const ALL_GENRES = [
 export type Genre = (typeof ALL_GENRES)[number];
 
 export const VIBE_TAGS: Record<Genre, string[]> = {
-  Action: ["Fast-Paced", "High-Stakes", "Action-Packed", "Espionage"],
-  Adventure: ["Epic Scale", "Whimsical", "Visually-Stunning", "Grand Journey"],
-  Comedy: ["Quirky", "Satirical", "Feel-Good", "Light-Hearted"],
-  Crime: ["Gritty", "Plot-Twisty", "Slow-burn", "Neo-Noir"],
-  Drama: ["Character-Driven", "Emotional", "Social Commentary", "Coming-of-Age"],
-  Fantasy: ["Dreamlike", "Magical", "Mythic", "High Fantasy"],
-  Horror: ["Supernatural", "Slasher", "Body Horror", "Twisted"],
-  Romance: ["Heartwarming", "Romantic Comedy", "Tragic Love", "Bittersweet"],
+  Action: ["Fast Paced", "High Stakes", "Espionage", "Revenge", "Heist", "Superhero", "One-Man Army", "Martial Arts"],
+  Adventure: ["Epic Scale", "Grand Journey", "Exploration", "Visually Stunning", "Whimsical", "Swashbuckling", "Survival", "Treasure Hunt"],
+  Comedy: ["Feel-Good", "Quirky", "Satirical", "Rom-Com", "Dark Comedy", "Mockumentary", "Raunchy", "Absurd"],
+  Crime: ["Gritty", "Detective", "Neo-Noir", "Plot-Twisty", "Slow Burn", "Heist/Caper","Procedural",  "Mob/Mafia"],
+  Drama: ["Character-Driven", "Coming-of-Age", "Nonlinear", "Period Piece", "Social Issue","True Story", "Family Saga", "Indie Drama"],
+  Fantasy: ["High Fantasy", "Urban Fantasy", "Dark Fantasy", "Sword & Sorcery", "Magical Realism", "Mythic", "Dreamlike", "Fairy Tale"],
+  Horror: ["Supernatural", "Slasher", "Body Horror", "Monster Horror", "Gore", "Psychological", "Folk Horror", "Cosmic Horror"],
+  Romance: ["Heartwarming", "Rom-Com", "Tragic Love", "Bittersweet", "Enemies to Lovers", "Steamy", "Period Romance", "Slow Burn"],
   "Science Fiction": [
     "Mind-Bending",
     "Dystopian",
-    "Thought-Provoking",
+    "Time Travel",
     "Cyberpunk",
+    "Space Opera",
+    "Post-Apocalyptic",
+    "AI / Robotics",
+    "Hard Sci-Fi",
   ],
-  Thriller: ["Psychological", "Suspenseful", "Intense", "Dark"],
+  Thriller: ["Psychological", "Suspenseful", "Twist Ending", "Mystery", "Neo-Noir", "Conspiracy", "Cat-and-Mouse", "Nonlinear"],
 };

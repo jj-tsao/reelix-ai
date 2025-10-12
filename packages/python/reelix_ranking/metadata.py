@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 import math
 from reelix_ranking.types import Candidate
 from reelix_core.types import UserTasteContext
@@ -39,13 +39,13 @@ def bayes_quality(avg, cnt, mu=7.0, m=2000):
     return (mu * m + avg * cnt) / (m + cnt)
 
 
-def norm_rating(x: Optional[float], floor_: float, ceil_: float) -> float:
+def norm_rating(x: float | None, floor_: float, ceil_: float) -> float:
     if x is None:
         return 0.0
     return _clamp01((float(x) - floor_) / max(1e-6, (ceil_ - floor_)))
 
 
-def norm_popularity(pop: float, anchor: float, alpha: float = 0.6) -> float:
+def norm_popularity(pop, anchor: float, alpha: float = 0.6) -> float:
     if pop is None:
         return 0.0
     return (math.log1p(pop) / math.log1p(anchor)) ** alpha
@@ -63,15 +63,15 @@ def genre_boost(user_genres: set[str], item_genres: set[str]) -> float:
 
 
 def metadata_rerank(
-    candidates: List[Candidate],
     *,
-    user_context: Optional[UserTasteContext] = None,
+    candidates: List[Candidate],
+    media_type: str,
+    user_context: UserTasteContext | None = None,
     weights: Dict[str, float] = dict(
         dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0
     ),
-    media_type: str,
-    anchors: Optional[NormAnchors] = None,
-) -> List[Tuple[Candidate, float]]:
+    anchors: NormAnchors | None = None,
+) -> List[Tuple[Candidate, float, str]]:
     mt = media_type.lower()
     a = anchors or DEFAULT_ANCHORS.get(mt, DEFAULT_ANCHORS["movie"])
 
@@ -86,17 +86,17 @@ def metadata_rerank(
     den = math.log1p(p95)
     user_genres = user_context.signals.genres_include if user_context else []
 
-    out: List[Tuple[Candidate, float]] = []
+    out: List[Tuple[Candidate, float, str]] = []
     for c in candidates:
         dense = float(c.dense_score or 0.0)
         raw_s = float(c.sparse_score or 0.0)
         sparse = _clamp01(math.log1p(max(0.0, raw_s)) / max(1e-6, den))
         raw_r = bayes_quality(
-            c.payload.get("vote_average"), c.payload.get("vote_count")
+            (c.payload or {}).get("vote_average"), (c.payload or {}).get("vote_count")
         )
         q = norm_rating(raw_r, a.rating_floor, a.rating_ceil)
-        p = norm_popularity(c.payload.get("popularity"), a.pop_anchor)
-        c_genres = c.payload.get("genres")
+        p = norm_popularity((c.payload or {}).get("popularity"), a.pop_anchor)
+        c_genres = (c.payload or {}).get("genres")
         g = (
             genre_boost(set(user_genres), set(c_genres))
             if c_genres and user_genres
@@ -109,7 +109,12 @@ def metadata_rerank(
             + weights["popularity"] * p
             + weights["genre"] * g
         )
-        out.append((c, score))
+
+        m_trace = f"{(c.payload or {}).get('title', '')} | Final Score: {score} | Weighted Parts: Dense={weights['dense'] * dense}, Sparse={weights['sparse'] * sparse}, Rating: {weights['rating'] * q}, Pop={weights['popularity'] * p}, Genres={weights['genre'] * g}"
+
+        out.append((c, score, m_trace))
 
     out.sort(key=lambda t: t[1], reverse=True)
+    for c, s, t in out[:30]:
+        print(t)
     return out
