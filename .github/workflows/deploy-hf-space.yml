@@ -55,6 +55,10 @@ jobs:
           find "${SPACE_DIR}" -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
 
           # Copy required assets into the Space checkout
+          mkdir -p "${SPACE_DIR}/apps/api" \
+                   "${SPACE_DIR}/packages/python" \
+                   "${SPACE_DIR}/packages/py-sdk"
+
           rsync -a --delete --exclude "__pycache__" apps/api/ "${SPACE_DIR}/apps/api/"
           rsync -a --delete --exclude "__pycache__" packages/python/ "${SPACE_DIR}/packages/python/"
           rsync -a --delete --exclude "__pycache__" packages/py-sdk/ "${SPACE_DIR}/packages/py-sdk/"
