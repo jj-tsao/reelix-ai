@@ -66,7 +66,9 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         "SUPABASE_API_KEY": app.state.settings.supabase_api_key,
         "OPENAI_API_KEY": app.state.settings.openai_api_key,
     }
-    missing = [name for name, value in required.items() if not (value and value.strip())]
+    missing = [
+        name for name, value in required.items() if not (value and value.strip())
+    ]
     if missing:
         raise RuntimeError(
             "Missing API keys in environment: " + ", ".join(sorted(missing))
@@ -201,6 +203,11 @@ app.openapi = _custom_openapi
 def health():
     s = app.state.settings
     return {"status": "ok", "service": s.app_name}
+
+
+@app.get("/")
+def read_root():
+    return {"status": "ok"}
 
 
 for r in all_routers:
