@@ -59,14 +59,18 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
 
-    if (
-        not app.state.settings.qdrant_endpoint
-        or not app.state.settings.qdrant_api_key
-        or not app.state.settings.openai_api_key
-        or not app.state.settings.supabase_url
-        or not app.state.settings.supabase_api_key
-    ):
-        raise RuntimeError("Missing API keys in environment")
+    required = {
+        "QDRANT_ENDPOINT": app.state.settings.qdrant_endpoint,
+        "QDRANT_API_KEY": app.state.settings.qdrant_api_key,
+        "SUPABASE_URL": app.state.settings.supabase_url,
+        "SUPABASE_API_KEY": app.state.settings.supabase_api_key,
+        "OPENAI_API_KEY": app.state.settings.openai_api_key,
+    }
+    missing = [name for name, value in required.items() if not (value and value.strip())]
+    if missing:
+        raise RuntimeError(
+            "Missing API keys in environment: " + ", ".join(sorted(missing))
+        )
 
     nltk_data_path = str(NLTK_PATH)
     if nltk_data_path not in nltk.data.path:
