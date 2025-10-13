@@ -43,6 +43,7 @@ def _item_view(c):
 @router.post("/for-you")
 async def discover_for_you(
     req: DiscoverRequest,
+    batch_size: int = 6,
     sb=Depends(get_supabase_client),
     user_id: str = Depends(get_current_user_id),
     registry=Depends(get_recipe_registry),
@@ -72,7 +73,7 @@ async def discover_for_you(
                         "media_id": (c.payload or {}).get("media_id"),
                         "title": (c.payload or {}).get("title"),
                     }
-                    for c in final_candidates[:6]
+                    for c in final_candidates[:batch_size]
                 ],
             },
         ),
@@ -82,7 +83,7 @@ async def discover_for_you(
     return JSONResponse(
         {
             "query_id": req.query_id,
-            "items": [_item_view(c) for c in final_candidates],
+            "items": [_item_view(c) for c in final_candidates[:batch_size]],
             "stream_url": f"/discovery/for-you/why?query_id={req.query_id}",
         }
     )
