@@ -65,17 +65,17 @@ jobs:
 
           # Provide a lightweight README for the Space (optional to edit later)
           cat <<'EOF' > "${SPACE_DIR}/README.md"
-# Reelix Discovery Agent API (Space)
+          # Reelix Discovery Agent API (Space)
 
-This Hugging Face Space mirrors the `apps/api` FastAPI backend and its shared python packages from the Reelix monorepo.
+          This Hugging Face Space mirrors the `apps/api` FastAPI backend and its shared python packages from the Reelix monorepo.
 
-It is deployed as a Docker Space; see the root `Dockerfile` for build instructions.
+          It is deployed as a Docker Space; see the root `Dockerfile` for build instructions.
 
-Secrets required at runtime (set in the Space settings):
-- `QDRANT_ENDPOINT`, `QDRANT_API_KEY`
-- `SUPABASE_URL`, `SUPABASE_API_KEY`
-- `OPENAI_API_KEY`
-EOF
+          Secrets required at runtime (set in the Space settings):
+          - `QDRANT_ENDPOINT`, `QDRANT_API_KEY`
+          - `SUPABASE_URL`, `SUPABASE_API_KEY`
+          - `OPENAI_API_KEY`
+          EOF
 
       - name: Commit and push to Hugging Face
         run: |
