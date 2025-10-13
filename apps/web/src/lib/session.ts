@@ -1,14 +1,18 @@
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 
 let bootstrapPromise: Promise<Session | null> | null = null;
 let listenerInitialized = false;
 
+// Supabase may emit USER_DELETED although the AuthChangeEvent union omits it today.
+const isSignedOutLikeEvent = (event: AuthChangeEvent) =>
+  event === "SIGNED_OUT" || (event as string) === "USER_DELETED";
+
 function initAuthListener() {
   if (listenerInitialized) return;
   listenerInitialized = true;
   supabase.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+    if (isSignedOutLikeEvent(event)) {
       // After a full sign out, fall back to an anonymous session.
       void ensureSupabaseSession();
     }
