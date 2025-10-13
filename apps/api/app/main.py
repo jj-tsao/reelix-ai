@@ -207,7 +207,8 @@ def health():
 
 @app.get("/")
 def read_root():
-    return {"status": "ok"}
+    s = app.state.settings
+    return {"status": "ok", "service": s.app_name}
 
 
 for r in all_routers:

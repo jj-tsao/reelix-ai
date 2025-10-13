@@ -127,10 +127,7 @@ export function canonicalizeTag(s: string): string {
     .replace(/_{2,}/g, "_");
 }
 
-// (Removed bulk insert helper used by the old Continue button)
-
 // Upsert a single interaction on each rating click.
-// Note: For true idempotence, ensure a unique constraint exists on (user_id, media_id, media_type) or a matching materialized column for the context-based source.
 export async function upsertUserInteraction(
   item: {
     media_id: number | string;
