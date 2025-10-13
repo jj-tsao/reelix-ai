@@ -74,19 +74,42 @@ jobs:
           install -D Dockerfile "${SPACE_DIR}/Dockerfile"
           install -D .dockerignore "${SPACE_DIR}/.dockerignore"
 
-          # Provide a lightweight README for the Space (optional to edit later)
-          cat <<'EOF' > "${SPACE_DIR}/README.md"
-          # Reelix Discovery Agent API (Space)
+          python - <<'PY'
+          from pathlib import Path
 
-          This Hugging Face Space mirrors the `apps/api` FastAPI backend and its shared python packages from the Reelix monorepo.
+          space_dir = Path("hf-space")
+          readme = space_dir / "README.md"
+          readme.write_text(
+              """---
+          title: Reelix Discovery Agent API
+          emoji: 🎬
+          colorFrom: blue
+          colorTo: indigo
+          sdk: docker
+          sdk_version: "0.0.1"
+          app_file: Dockerfile
+          pinned: false
+          ---
 
-          It is deployed as a Docker Space; see the root `Dockerfile` for build instructions.
+          ## Overview
+          This Space mirrors the Reelix Discovery Agent FastAPI backend (`apps/api`) along with its shared Python packages.
+          It builds via the repository `Dockerfile` and exposes the API on port 7860.
 
-          Secrets required at runtime (set in the Space settings):
-          - `QDRANT_ENDPOINT`, `QDRANT_API_KEY`
-          - `SUPABASE_URL`, `SUPABASE_API_KEY`
+          ## Required Secrets
+          Configure these environment variables in the Space settings before launching:
+          - `QDRANT_ENDPOINT`
+          - `QDRANT_API_KEY`
+          - `SUPABASE_URL`
+          - `SUPABASE_API_KEY`
           - `OPENAI_API_KEY`
-          EOF
+
+          ## Notes
+          - Model assets (`*.joblib`, `*.pickle`) are tracked with Git LFS.
+          - Set `REELIX_SKIP_RECOMMENDER_INIT=1` if you need to start without model downloads.
+          """.strip()
+              + "\n"
+          )
+          PY
 
       - name: Configure Git LFS tracking
         run: |
