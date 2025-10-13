@@ -23,6 +23,7 @@ jobs:
     env:
       HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_DEPLOY_SKIP_RECOMMENDER_INIT: ${{ vars.REELIX_SKIP_RECOMMENDER_INIT }}
     steps:
       - name: Check required secrets
         run: |
@@ -106,10 +107,21 @@ jobs:
           ## Notes
           - Model assets (`*.joblib`, `*.pickle`) are tracked with Git LFS.
           - Set `REELIX_SKIP_RECOMMENDER_INIT=1` if you need to start without model downloads.
+          - Provide all API credentials and set `REELIX_SKIP_RECOMMENDER_INIT=0` to enable the full recommendation stack.
           """.strip()
               + "\n"
           )
           PY
+
+          cat <<'EOF' > "${SPACE_DIR}/.env.example"
+          # Copy to .env (or set via Space secrets) and fill with your credentials.
+          REELIX_SKIP_RECOMMENDER_INIT=1
+          QDRANT_ENDPOINT=
+          QDRANT_API_KEY=
+          SUPABASE_URL=
+          SUPABASE_API_KEY=
+          OPENAI_API_KEY=
+          EOF
 
       - name: Configure Git LFS tracking
         run: |
