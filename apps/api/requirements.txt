@@ -1,0 +1,25 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core API dependencies
+fastapi
+uvicorn[standard]
+pydantic-settings
+qdrant-client
+supabase>=2.7.4
+httpx>=0.27.0
+python-dotenv
+openai>=1.0.0
+
+# Recommendation stack dependencies
+nltk
+joblib
+rank-bm25
+sentence-transformers
+transformers
+torch
+tqdm
+numpy
+
+# Local packages
+-e ../../packages/python
+-e ../../packages/py-sdk
