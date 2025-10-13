@@ -22,7 +22,7 @@ def build_for_you_user_prompt(
     user_signals: UserSignals,
     query_text: Optional[str] = None,
     limits: Mapping[str, int] = DEFAULT_LIMITS,
-    can_per_call: int = 6,
+    batch_size: int = 6,
 ) -> str:
     """
     Build the User Prompt for the discover/for-you/why LLM call.
@@ -110,7 +110,7 @@ def build_for_you_user_prompt(
         "Each block below contains the full context for one title. Do not combine fields across titles.\n"
     )
 
-    for idx, c in enumerate(candidates[:can_per_call], start=1):
+    for idx, c in enumerate(candidates[:batch_size], start=1):
         media_id = f"Media ID: {((c.payload or {}).get('media_id', ''))}"
         ctx = _sanitize_code_block(
             str((c.payload or {}).get("embedding_text", "")).strip()
