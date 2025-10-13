@@ -59,7 +59,12 @@ jobs:
                    "${SPACE_DIR}/packages/python" \
                    "${SPACE_DIR}/packages/py-sdk"
 
-          RSYNC_FLAGS=(-a --delete --exclude "__pycache__" --exclude "*.zip")
+          RSYNC_FLAGS=(
+            -a
+            --delete
+            --exclude "__pycache__"
+            --exclude "*.zip"
+          )
 
           rsync "${RSYNC_FLAGS[@]}" apps/api/ "${SPACE_DIR}/apps/api/"
           rsync "${RSYNC_FLAGS[@]}" packages/python/ "${SPACE_DIR}/packages/python/"
@@ -82,6 +87,13 @@ jobs:
           - `SUPABASE_URL`, `SUPABASE_API_KEY`
           - `OPENAI_API_KEY`
           EOF
+
+      - name: Configure Git LFS tracking
+        run: |
+          set -euo pipefail
+          SPACE_DIR="hf-space"
+          git -C "${SPACE_DIR}" lfs install --local
+          git -C "${SPACE_DIR}" lfs track "*.joblib" "*.pickle"
 
       - name: Commit and push to Hugging Face
         run: |
