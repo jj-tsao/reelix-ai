@@ -6,8 +6,12 @@ from qdrant_client import QdrantClient
 
 if TYPE_CHECKING:
     from reelix_recommendation.recommend import RecommendPipeline
-from reelix_retrieval.query_encoder import Encoder
-from reelix_models.llm_completion import OpenAIChatLLM
+    from reelix_retrieval.query_encoder import Encoder
+    from reelix_models.llm_completion import OpenAIChatLLM
+else:
+    RecommendPipeline = Any  # type: ignore
+    Encoder = Any  # type: ignore
+    OpenAIChatLLM = Any  # type: ignore
 
 
 def _get_state_attr(request: Request, name: str, error_detail: str) -> Any:
