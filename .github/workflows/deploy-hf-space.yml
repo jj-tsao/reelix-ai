@@ -59,9 +59,11 @@ jobs:
                    "${SPACE_DIR}/packages/python" \
                    "${SPACE_DIR}/packages/py-sdk"
 
-          rsync -a --delete --exclude "__pycache__" apps/api/ "${SPACE_DIR}/apps/api/"
-          rsync -a --delete --exclude "__pycache__" packages/python/ "${SPACE_DIR}/packages/python/"
-          rsync -a --delete --exclude "__pycache__" packages/py-sdk/ "${SPACE_DIR}/packages/py-sdk/"
+          RSYNC_FLAGS=(-a --delete --exclude "__pycache__" --exclude "*.zip")
+
+          rsync "${RSYNC_FLAGS[@]}" apps/api/ "${SPACE_DIR}/apps/api/"
+          rsync "${RSYNC_FLAGS[@]}" packages/python/ "${SPACE_DIR}/packages/python/"
+          rsync "${RSYNC_FLAGS[@]}" packages/py-sdk/ "${SPACE_DIR}/packages/py-sdk/"
 
           # Copy top-level files needed for Docker build
           install -D Dockerfile "${SPACE_DIR}/Dockerfile"
