@@ -3,6 +3,7 @@
 [![Netlify](https://img.shields.io/badge/Live%20Site-Netlify-42b883?logo=netlify)](https://reelixai.netlify.app/)
 [![Retriever Model](https://img.shields.io/badge/Retriever%20Model-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/fine-tuned_movie_retriever-bge-base-en-v1.5)
 [![Intent Classifier](https://img.shields.io/badge/Intent%20Classifier-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/intent-classifier-distilbert-moviebot)
+[![CE Reranker](https://img.shields.io/badge/CE%20Reranker-HuggingFace-blue?logo=huggingface)]([https://huggingface.co/JJTsao/intent-classifier-distilbert-moviebot](https://huggingface.co/JJTsao/movietv-reranker-cross-encoder-base-v1))
 [![Made with FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)](https://jjtsao-rag-movie-api.hf.space/docs#/)
 [![Built with React](https://img.shields.io/badge/Frontend-React-61dafb?logo=react)](https://reelixai.netlify.app/)
 ![License](https://img.shields.io/github/license/jj-tsao/rag-movie-recommender-app)
@@ -11,17 +12,24 @@
 
 ---
 
+## 🌐 Live Product
+👉 Try it here: [**Reelix AI**](https://reelixai.netlify.app/)
+
+---
+
 ## 🔥 What’s New
 
 ### 1) Taste Onboarding (`/taste`)
-Create a personal taste vector from your likes/dislikes and lightweight signals. The service builds and stores a dense taste profile, with endpoints to **inspect** and **rebuild** your profile:
-- `GET /taste_profile/me` → returns last build metadata & vector dim
-- `POST /taste_profile/rebuild` → rebuilds from interactions and persists to Supabase
+Create a personal taste vector from your likes/dislikes and genre/vibe signals. The service builds and stores a dense taste profile, with endpoints to **inspect** and **rebuild** your profile:
+1) `POST /taste_profile/rebuild`
+   Rebuilds from interactions and persists to Supabase
+3) `GET /taste_profile/me`
+   Returns last build metadata & vector dim
 
 Under the hood, the rebuild process fetches user signals, loads item embeddings from Qdrant, and calls `build_taste_vector(...)`, then upserts the profile.
 
 ### 2) For-You Feed (`/discover`)
-Your **For-You** page streams personalized reasons (and ratings) per item in real-time. The flow is a two-step ticketed orchestration:
+Your **For-You** page streams personalized reasons (and markdown rich movie/tv profile) per item in real-time. The flow is a two-step ticketed orchestration:
 
 1) `POST /discovery/for-you`  
    Returns the candidate list plus a `stream_url` for reasons.
@@ -31,19 +39,40 @@ Your **For-You** page streams personalized reasons (and ratings) per item in rea
 
 The endpoint uses a **ticket store** (memory or Redis) with idle and absolute TTLs to hold LLM prompts and guard access by user id.
 
-**Frontend details**
+### 3) Vibe Query (`/query`)
+Explore by vibe with free-form natural language and optional filters (providers, genres, release years, media type). The request → stream flow mirrors the For-You feed:
+
+1) `POST /recommendations/interactive`
+- Runs the interactive recipe (dense + BM25 + metadata + CE reranker) to fetch ~20 top candidates.
+- Builds an LLM prompt with those candidates and user taste context if signed in.
+- Streams the final recommendations and their “why” write-ups as the response body (text stream).
+
+This flow uses the same ticket store (memory or Redis) with idle and absolute TTLs to hold LLM prompts and guard access by user id.
+
+
+### **Frontend details**
 - `/discover` loads a grid of picks, then begins SSE streaming of “why” and ratings, updating each card live.
 - Users can **Love / Like / Not for me** or **watch trailer**; feedback is logged and triggers controlled taste rebuilds.
 - **Smart rebuild controller**: after any rating, start/refresh a 10s timer; if ≥2 ratings when the timer fires, rebuild—**max 1 rebuild per 2 minutes**; queue one pending rebuild during cooldown.
 
+
+
 ---
 
-## 🌐 Live Product
-👉 Try it here: **Reelix AI** (Netlify)
+## 🏗️ Architecture (High-Level)
 
-- **Explore by vibe** (`/query`): free-form text + advanced filters (providers/genres/year).
-- **Taste onboarding** (`/taste`): build your taste profile from quick feedback; we persist and reuse it for personalized retrieval.
-- **For-You feed** (`/discover`): your daily feed with streamed reasons and ratings; feedback continually sharpens your profile.
+```
+Taste signals → Taste Vector ──┐
+                               │
+User query ──▶ Dense+BM25 ──► Candidate Pool (RRF#1) ─► Metadata Rerank ─► CE Rerank ─► Final Fusion (RRF#2) ─► LLM "Why"
+                                   ▲                                                             │
+                                   │                                                             ▼
+                               Filters (providers/genres/year)                           SSE stream to UI
+```
+
+- **Bootstrap & Lifespan**: loads intent classifier, embedder, BM25, CE reranker, Qdrant client, and configures ticket store.
+- **Orchestrator**: Recipes (`interactive`, `for_you_feed`) define inputs (query vs taste), retrieval params, and LLM prompt envelopes.
+
 
 ---
 
@@ -68,21 +97,6 @@ The endpoint uses a **ticket store** (memory or Redis) with idle and absolute TT
   - `/query` page: rotating vibe placeholders, media-type tabs, collapsible advanced filters, streaming card grid.
   - `/discover` page: wide cards, live reason/rating deltas, built-in feedback & trailer actions.
 
----
-
-## 🏗️ Architecture (High-Level)
-
-```
-Taste signals → Taste Vector ──┐
-                               │
-User query ──▶ Dense+BM25 ──► Candidate Pool (RRF#1) ─► Metadata Rerank ─► CE Rerank ─► Final Fusion (RRF#2) ─► LLM "Why"
-                                   ▲                                                             │
-                                   │                                                             ▼
-                               Filters (providers/genres/year)                           SSE stream to UI
-```
-
-- **Bootstrap & Lifespan**: loads intent classifier, embedder, BM25, CE reranker, Qdrant client, and configures ticket store.
-- **Orchestrator**: Recipes (`interactive`, `for_you_feed`) define inputs (query vs taste), retrieval params, and LLM prompt envelopes.
 
 ---
 
@@ -100,19 +114,24 @@ User query ──▶ Dense+BM25 ──► Candidate Pool (RRF#1) ─► Metadata
 - Your `/query` page posts a vibe description + filters; back end runs **interactive recipe** (query-conditioned) and streams markdown cards.
 
 ---
-
 ## 🚀 Tech Stack
 
-| Layer        | Tech |
-|-------------|------|
-| Frontend | React + Vite + Tailwind + ShadCN UI |
-| Backend | FastAPI (Python), Docker |
-| Retrieval | SentenceTransformers (`bge-base-en-v1.5`) + BM25 |
-| Reranker | Cross-Encoder (BERT) + metadata + RRF |
-| Vector DB | Qdrant |
-| LLM | OpenAI Chat Completions (streamed JSONL/SSE) |
-| Storage | Supabase (profiles, interactions, logs) |
-| Ticket Store | In-memory or Redis (gzip) |
+| Layer        | Tech                     |
+|-------------|--------------------------|
+| Frontend               | React + Vite + Tailwind CSS + ShadCN UI              |
+| Backend                | FastAPI (Python) + Docker                            |
+| Embedding/ Retrieval   | SentenceTransformers (fine-tuned `bge-base-en-v1.5`) + BM25 |
+| Reranking              | **Cross‑Encoder (fine-tuned `bert-base-uncased`)** + Metadata + **RRF** |
+| Intent Classification  | DistilBERT (fine-tuned `distilbert-base-uncased`)    |
+| Sparse Search          | BM25 (Best Match 25) via `rank_bm25`                 |
+| Tokenization           | NLTK (Natural Language Toolkit)                      |
+| Vector DB              | Qdrant (hybrid search)                               |
+| Storage                | Supabase (profiles, interactions, logs)              |
+| Ticket Store           | In-memory or Redis (gzip)                            |
+| Chat Completion        | OpenAI API (streamed JSONL/SSE)                      |
+| Movie Metadata         | TMDB (The Movie Database) API                        |
+| Model Hosting          | Hugging Face Hub                                     |
+| Deployment             | Frontend: Netlify, Backend: Hugging Face Spaces      |
 
 ---
 
@@ -121,6 +140,43 @@ User query ──▶ Dense+BM25 ──► Candidate Pool (RRF#1) ─► Metadata
 - “Slow-burn thrillers with morally complex characters and rich atmosphere”
 - “Visually stunning sci-fi with existential undertones”
 - “Playful rom-coms with quirky characters and heartfelt moments”
+
+---
+
+## 📈 Metrics
+
+**Sentence Transformer Retriever Model:**
+
+| Metric     | Fine-Tuned `bge-base-en-v1.5` | Base `bge-base-en-v1.5` |
+| ---------- | :---------------------------: | :---------------------: |
+| Recall\@1  |           **0.456**           |          0.214          |
+| Recall\@3  |           **0.693**           |          0.361          |
+| Recall\@5  |           **0.758**           |          0.422          |
+| Recall\@10 |           **0.836**           |          0.500          |
+| MRR        |           **0.595**           |          0.315          |
+
+**Model Details**: [JJTsao/fine-tuned_movie_retriever-bge-base-en-v1.5](https://huggingface.co/JJTsao/fine-tuned_movie_retriever-bge-base-en-v1.5)
+
+<br />
+
+**Alternative Light-Weight Model:**
+  
+| Metric      | Fine-Tuned `all-minilm-l6-v2` | Base `all-minilm-l6-v2` |
+|-------------|:-----------------------------:|:-----------------------:|
+| Recall@1    |           **0.428**           |          0.149          |
+| Recall@3    |           **0.657**           |          0.258          |
+| Recall@5    |           **0.720**           |          0.309          |
+| Recall@10   |           **0.795**           |          0.382          |
+| MRR         |           **0.563**           |          0.230          |
+
+**Model Details**: [JJTsao/fine-tuned_movie_retriever-all-minilm-l6-v2](https://huggingface.co/JJTsao/fine-tuned_movie_retriever-all-minilm-l6-v2)
+
+<br />
+
+**Evaluation setup**:
+- Dataset: 3,598 held-out metadata and vibe-style natural queries
+- Method: Top-k ranking using cosine similarity between query and positive documents
+- Goal: Assess top-k retrieval quality in recommendation-like settings
 
 ---
 
