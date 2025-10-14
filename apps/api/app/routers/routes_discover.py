@@ -50,7 +50,6 @@ async def discover_for_you(
     store=Depends(get_ticket_store),
     logger=Depends(get_logger)
 ):
-    print (req)
     recipe = registry.get(kind="for_you_feed")
     user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
 

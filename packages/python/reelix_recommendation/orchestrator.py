@@ -34,7 +34,7 @@ def orchestrate(
         **params,
     )
 
-    # optional debug print
+    # server side debug print
     pipeline.summarize_ranking(final)
 
     llm_prompts = recipe.build_prompt(

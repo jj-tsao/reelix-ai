@@ -95,6 +95,7 @@ class TelemetryLogger:
         user_id: str | None = None,
         session_id: str | None = None,
         media_type: str,
+        query_text: str | None = None,
         pipeline_version: str | None,
         batch_size: int,
         device_info: DeviceInfo | None = None,
@@ -119,6 +120,9 @@ class TelemetryLogger:
             "batch_size": int(batch_size),
             "request_meta": meta,
         }
+        if query_text:
+            row["query_text"] = query_text
+
         async with httpx.AsyncClient() as client:
             await self._post(client, "rec_queries", [row])
 

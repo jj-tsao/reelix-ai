@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from functools import partial
+from anyio import from_thread
 from reelix_recommendation.orchestrator import orchestrate
+
 
 # from reelix_logging.logger import log_final_results
 from app.deps.deps import (
     get_recipe_registry,
     get_recommend_pipeline,
     get_chat_completion_llm,
+    get_logger,
 )
 from app.deps.supabase_optional import (
     get_optional_user_id,
@@ -26,6 +30,7 @@ async def recommend_interactive(
     registry=Depends(get_recipe_registry),
     pipeline=Depends(get_recommend_pipeline),
     chat_llm=Depends(get_chat_completion_llm),
+    logger=Depends(get_logger)
 ):
     recipe = registry.get(kind="interactive")
     user_context = None
@@ -43,6 +48,31 @@ async def recommend_interactive(
             query_filter=req.query_filters,
             user_context=user_context,
         )
+        
+        meta={
+            "recipe": "interactive@v1",
+            "items_brief": [
+                {
+                    "media_id": (c.payload or {}).get("media_id"),
+                    "title": (c.payload or {}).get("title"),
+                }
+                for c in final_candidates
+            ]
+        }
+
+        log_fn = partial(logger.log_query_intake,
+            endpoint="recommendations/interactive",
+            query_id=req.query_id,
+            user_id=user_id,
+            session_id=req.session_id,
+            media_type=req.media_type,
+            query_text=req.query_text,
+            pipeline_version="RecommendPipeline@v2",
+            batch_size=20,
+            device_info=req.device_info,
+            request_meta=meta,
+        )
+        from_thread.run(log_fn)
 
         messages = llm_prompts.calls[0].messages
         for chunk in chat_llm.stream(
