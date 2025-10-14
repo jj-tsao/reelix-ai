@@ -1,11 +1,15 @@
 from __future__ import annotations
+
+import hashlib
+import hmac
 import os
 import time
-import hmac
-import hashlib
 from typing import Any, Iterable, Literal
+
 import httpx
 from pydantic import BaseModel
+
+from reelix_ranking.types import Candidate
 
 Endpoint = Literal["discovery", "recommendations"]
 

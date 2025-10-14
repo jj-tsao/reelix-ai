@@ -7,6 +7,7 @@ create table if not exists rec_queries (
   user_id uuid,
   session_id text not null,
   media_type text not null,
+  query_text text,
   pipeline_version text,
   batch_size int not null,
   request_meta jsonb
@@ -19,14 +20,13 @@ create index if not exists idx_rec_queries_qid on rec_queries (query_id);
 create table if not exists rec_results (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
-  endpoint text not null check (endpoint in ('discover','recommendations')),
+  endpoint text not null check (endpoint in ('discovery/for-you','recommendations/interactive')),
   query_id text not null,
   media_id text not null,
   rank int not null,
   title text,
   release_year int,
   genres text[],
-  poster_url text,
   score_final double precision,
   score_parts jsonb,
   source_meta jsonb

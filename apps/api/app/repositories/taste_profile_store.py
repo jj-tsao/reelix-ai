@@ -43,9 +43,15 @@ async def upsert_taste_profile(
 
 async def fetch(sb: Any, user_id: str) -> Optional[dict[str, Any]]:
     res = (
-        sb.postgrest.table(TABLE).select("*").eq("user_id", user_id).single().execute()
+        sb.postgrest.table(TABLE)
+        .select("*")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
     )
     data = getattr(res, "data", None)
+    if isinstance(data, list):
+        return data[0] if data else None
     return data if data else None
 
 
@@ -236,4 +242,3 @@ async def fetch_user_taste_context(
         ],
         provider_filter_mode=settings_row.get("provider_filter_mode") or "SELECTED",
     )
-

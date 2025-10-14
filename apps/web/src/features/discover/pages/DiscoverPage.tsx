@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import MovieCard from "@/components/MovieCard";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/useToast";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getSessionId } from "@/utils/session";
 import type { DiscoverCardData } from "../types";
 import type { DiscoverStreamEvent } from "../api";
@@ -9,7 +11,7 @@ import { fetchDiscoverInitial, getAccessToken, streamDiscoverWhy } from "../api"
 import DiscoverGridSkeleton from "../components/DiscoverGridSkeleton";
 import StreamStatusBar, { type StreamStatusState } from "../components/StreamStatusBar";
 import { upsertUserInteraction, type RatingValue } from "@/features/taste_onboarding/api";
-import { rebuildTasteProfile } from "@/api";
+import { BASE_URL, rebuildTasteProfile } from "@/api";
 
 type DiscoverRating = Exclude<RatingValue, "dismiss">;
 
@@ -80,7 +82,7 @@ function toStringArray(value: unknown): string[] {
 
 type CardMap = Record<string, DiscoverCardData>;
 
-type PageState = "idle" | "loading" | "ready" | "error" | "unauthorized";
+type PageState = "idle" | "loading" | "ready" | "error" | "unauthorized" | "missingTasteProfile";
 
 type StreamPhase = StreamStatusState["status"];
 
@@ -228,6 +230,43 @@ class DiscoverRebuildController {
   }
 }
 
+interface HttpError extends Error {
+  status?: number;
+}
+
+async function hasTasteProfile(token: string): Promise<boolean> {
+  const response = await fetch(`${BASE_URL}/taste_profile/me`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 404) {
+    return false;
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    const error: HttpError = new Error("Unauthorized");
+    error.status = response.status;
+    throw error;
+  }
+
+  if (!response.ok) {
+    let detail: string | null = null;
+    try {
+      detail = await response.text();
+    } catch (error) {
+      void error;
+    }
+    const error: HttpError = new Error(detail || `Taste profile check failed (${response.status})`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return true;
+}
+
 export default function DiscoverPage() {
   const [pageState, setPageState] = useState<PageState>("idle");
   const [cards, setCards] = useState<CardMap>({});
@@ -240,6 +279,8 @@ export default function DiscoverPage() {
   const queryIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const rebuildControllerRef = useRef<DiscoverRebuildController | null>(null);
 
   if (!rebuildControllerRef.current) {
@@ -329,6 +370,35 @@ export default function DiscoverPage() {
           if (!cancelled) {
             setPageState("unauthorized");
             setErrorMessage("Sign in to view your discovery feed.");
+            setCards({});
+            setOrder([]);
+          }
+          return;
+        }
+
+        let profileExists = false;
+        try {
+          profileExists = await hasTasteProfile(token);
+        } catch (profileError) {
+          if (cancelled) return;
+          const status = (profileError as HttpError | undefined)?.status;
+          if (status === 401 || status === 403) {
+            setPageState("unauthorized");
+            setErrorMessage("Sign in to view your discovery feed.");
+            setCards({});
+            setOrder([]);
+            return;
+          }
+          throw profileError;
+        }
+
+        if (!profileExists) {
+          if (!cancelled) {
+            setCards({});
+            setOrder([]);
+            abortRef.current = null;
+            setStreamState({ status: "idle" });
+            setPageState("missingTasteProfile");
           }
           return;
         }
@@ -475,6 +545,11 @@ export default function DiscoverPage() {
     [toast],
   );
 
+  const handleStartTasteOnboarding = useCallback(() => {
+    const target = user ? "/taste" : "/taste?first_run=1";
+    navigate(target);
+  }, [navigate, user]);
+
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-24 pt-8">
       <header className="flex flex-col gap-2">
@@ -512,6 +587,21 @@ export default function DiscoverPage() {
         </div>
       )}
 
+      {pageState === "missingTasteProfile" && (
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-background/60 px-8 py-12 text-center">
+          <h2 className="text-xl font-semibold text-foreground">Build your taste profile</h2>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Take a minute to share what you enjoy watching so we can personalize your discovery feed.
+          </p>
+          <div className="flex flex-col items-center gap-2">
+            <Button className="rounded-full px-6" size="lg" onClick={handleStartTasteOnboarding}>
+              Personalize my feed
+            </Button>
+            <span className="text-xs text-muted-foreground">Takes under a minute. No sign-up needed.</span>
+          </div>
+        </div>
+      )}
+
       {orderedCards.length > 0 && (
         <div className="flex flex-col gap-4">
           {orderedCards.map(({ mediaId, ...card }) => (
@@ -534,7 +624,9 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      <StreamStatusBar state={streamState} onCancel={canCancel ? handleCancel : undefined} />
+      {pageState !== "missingTasteProfile" && (
+        <StreamStatusBar state={streamState} onCancel={canCancel ? handleCancel : undefined} />
+      )}
     </section>
   );
 }

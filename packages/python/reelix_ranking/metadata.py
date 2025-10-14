@@ -1,9 +1,11 @@
 from __future__ import annotations
+
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
-import math
-from reelix_ranking.types import Candidate
+
 from reelix_core.types import UserTasteContext
+from reelix_ranking.types import Candidate, FeatureContribution, ScoreBreakdown
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,7 @@ def metadata_rerank(
             if c_genres and user_genres
             else 0
         )
+
         score = (
             weights["dense"] * dense
             + weights["sparse"] * sparse
@@ -115,7 +118,5 @@ def metadata_rerank(
         out.append((c, score, m_trace))
 
     out.sort(key=lambda t: t[1], reverse=True)
-    # ranking debug print
-    # for c, s, t in out[:30]:
-    #     print(t)
+
     return out

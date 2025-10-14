@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from qdrant_client.models import ExtendedPointId
 
 
@@ -16,9 +16,27 @@ class Candidate:
 class ScoreTrace:
     id: str
     # Stage ranks (lower is better)
-    dense_rank: Optional[int] = None
-    sparse_rank: Optional[int] = None
+    dense_rank: int | None = None
+    sparse_rank: int | None = None
     # Scalar / model scores
-    meta_score: Optional[float] = None
-    ce_score: Optional[float] = None
-    final_rrf: Optional[float] = None
+    meta_score: float | None = None
+    meta_contribution: FeatureContribution | None = None
+    ce_score: float | None = None
+    final_rrf: float | None = None
+
+
+@dataclass(frozen=True)
+class FeatureContribution:
+    feature: str                 # "dense", "sparse", "rating", "popularity", "genre"
+    value: float                 # feature value (pre-weight, posr-normalization)
+    weight: float                # weight used in this run
+    contribution: float          # weight * value
+
+@dataclass(frozen=True)
+class ScoreBreakdown:
+    features: Dict[str, FeatureContribution]  # keyed by feature name
+
+    @property
+    def total(self) -> float:
+        return sum(fc.contribution for fc in self.features.values())
+

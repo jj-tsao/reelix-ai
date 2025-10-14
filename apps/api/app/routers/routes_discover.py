@@ -51,6 +51,7 @@ async def discover_for_you(
     store=Depends(get_ticket_store),
     logger=Depends(get_logger),
 ):
+    endpoint = "discovery/for-you"
     recipe = registry.get(kind="for_you_feed")
     user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
 
@@ -84,7 +85,7 @@ async def discover_for_you(
 
     asyncio.create_task(
         logger.log_query_intake(
-            endpoint="discovery/for-you",
+            endpoint=endpoint,
             query_id=req.query_id,
             user_id=user_id,
             session_id=req.session_id,
@@ -95,6 +96,7 @@ async def discover_for_you(
             request_meta=ticket.meta,
         )
     )
+
 
     return JSONResponse(
         {
