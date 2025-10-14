@@ -1,5 +1,6 @@
 import os
 import time
+import httpx
 from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
@@ -14,6 +15,7 @@ from reelix_core.config import (
     QDRANT_MOVIE_COLLECTION_NAME,
     QDRANT_TV_COLLECTION_NAME,
 )
+from reelix_logging.logger import TelemetryLogger
 from app.infrastructure.cache.ticket_store import make_ticket_store
 from .routers import all_routers
 
@@ -62,8 +64,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     required = {
         "QDRANT_ENDPOINT": app.state.settings.qdrant_endpoint,
         "QDRANT_API_KEY": app.state.settings.qdrant_api_key,
-        "SUPABASE_URL": app.state.settings.supabase_url,
-        "SUPABASE_API_KEY": app.state.settings.supabase_api_key,
         "OPENAI_API_KEY": app.state.settings.openai_api_key,
     }
     missing = [
@@ -102,9 +102,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     )
     pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
 
-    app.state.supabase_url = app.state.settings.supabase_url
-    app.state.supabase_api_key = app.state.settings.supabase_api_key
-
     app.state.intent_classifier = intent_classifier
     app.state.embed_model = embed_model
     app.state.bm25_models = bm25_models
@@ -140,7 +137,24 @@ async def lifespan(app: FastAPI):
 
     settings = Settings()
     app.state.settings = settings
-
+    
+    supabase_url = app.state.settings.supabase_url
+    supabase_api_key = app.state.settings.supabase_api_key
+    
+    if not supabase_url or not supabase_api_key:
+        raise RuntimeError("Missing Supabase credits")
+    
+    http_client = httpx.AsyncClient(timeout=5.0)
+    
+    logger = TelemetryLogger(
+        supabase_url,
+        supabase_api_key,
+        client=http_client,
+        timeout_s=5.0, 
+    )
+    
+    app.state.logger = logger
+    
     # Eager init of external clients/models
     if _should_init_recommendation():
         try:
@@ -159,9 +173,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        # Place for cleanup if needed in future
-        pass
-
+        await http_client.aclose()
 
 app = FastAPI(title="Reelix Discovery Agent API", lifespan=lifespan)
 

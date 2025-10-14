@@ -1,5 +1,5 @@
-from typing import Any, Callable, TYPE_CHECKING, cast
 from dataclasses import dataclass
+from typing import Any, Callable, TYPE_CHECKING, cast
 
 from fastapi import HTTPException, Request, status
 from qdrant_client import QdrantClient
@@ -8,10 +8,12 @@ if TYPE_CHECKING:
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.query_encoder import Encoder
     from reelix_models.llm_completion import OpenAIChatLLM
+    from reelix_logging.logger import TelemetryLogger
 else:
     RecommendPipeline = Any  # type: ignore
     Encoder = Any  # type: ignore
     OpenAIChatLLM = Any  # type: ignore
+    TelemetryLogger = Any  # type: ignore
 
 
 def _get_state_attr(request: Request, name: str, error_detail: str) -> Any:
@@ -62,11 +64,13 @@ def get_recommend_pipeline(request: Request) -> "RecommendPipeline":
 class RecipeRegistry:
     def __init__(self, data: dict):
         self._data = data
+
     def get(self, *, kind: str):
         try:
             return self._data[kind]
         except KeyError:
             raise HTTPException(status_code=400, detail=f"Unknown recipe kind: {kind}")
+
 
 def get_recipe_registry(request: Request) -> RecipeRegistry:
     return RecipeRegistry(request.app.state.recipes)
@@ -83,7 +87,6 @@ def get_chat_completion_llm(request: Request) -> OpenAIChatLLM:
     )
 
 
-
 def get_interactive_stream_fn(request: Request) -> Callable:
     fn = getattr(request.app.state, "interactive_stream_fn", None)
     if not callable(fn):
@@ -92,7 +95,6 @@ def get_interactive_stream_fn(request: Request) -> Callable:
         )
     return fn
 
-
 @dataclass(frozen=True)
 class SupabaseCreds:
     url: str
@@ -100,7 +102,14 @@ class SupabaseCreds:
 
 
 def get_supabase_creds(request: Request) -> SupabaseCreds:
+    settings = get_settings(request)
     return SupabaseCreds(
-        url=getattr(request.app.state, "supabase_url", ""),
-        api_key=getattr(request.app.state, "supabase_api_key", ""),
+        url=settings.supabase_url,
+        api_key=settings.supabase_api_key,
+    )
+
+def get_logger(request: Request) -> TelemetryLogger:
+    return cast(
+        TelemetryLogger,
+        _get_state_attr(request, "logger", "Telemetry logger not initialized"),
     )

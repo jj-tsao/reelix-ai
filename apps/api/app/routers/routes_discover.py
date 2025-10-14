@@ -8,11 +8,10 @@ from reelix_core.types import PromptsEnvelope
 from reelix_recommendation.orchestrator import orchestrate
 
 from app.deps.deps import (
-    SupabaseCreds,
     get_chat_completion_llm,
     get_recipe_registry,
     get_recommend_pipeline,
-    get_supabase_creds,
+    get_logger,
 )
 from app.deps.deps_ticket_store import get_ticket_store
 from app.deps.supabase_client import get_current_user_id, get_supabase_client
@@ -49,8 +48,9 @@ async def discover_for_you(
     registry=Depends(get_recipe_registry),
     pipeline=Depends(get_recommend_pipeline),
     store=Depends(get_ticket_store),
-    creds: SupabaseCreds = Depends(get_supabase_creds),
+    logger=Depends(get_logger)
 ):
+    print (req)
     recipe = registry.get(kind="for_you_feed")
     user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
 
@@ -60,24 +60,38 @@ async def discover_for_you(
         media_type=req.media_type.value,
         user_context=user_context,
     )
+    
+    ticket = Ticket(
+        user_id=user_id,
+        prompts=llm_prompts,
+        meta={
+            "recipe": "for_you_feed@v1",
+            "items_brief": [
+                {
+                    "media_id": (c.payload or {}).get("media_id"),
+                    "title": (c.payload or {}).get("title"),
+                }
+                for c in final_candidates[:batch_size]
+            ],
+        },
+    )
 
     await store.put(
         req.query_id,  # ticket key
-        Ticket(
-            user_id=user_id,
-            prompts=llm_prompts,
-            meta={
-                "recipe": "for_you_feed@v1",
-                "items_brief": [
-                    {
-                        "media_id": (c.payload or {}).get("media_id"),
-                        "title": (c.payload or {}).get("title"),
-                    }
-                    for c in final_candidates[:batch_size]
-                ],
-            },
-        ),
+        ticket,
         ttl_sec=IDLE_TTL_SEC,
+    )
+    
+    await logger.log_query_intake(
+        endpoint="discovery/for-you",
+        query_id=req.query_id,
+        user_id=user_id,
+        session_id=req.session_id,
+        media_type=req.media_type,
+        pipeline_version="RecommendPipeline@v2",
+        batch_size=batch_size,
+        device_info=req.device_info,
+        request_meta=ticket.meta,
     )
 
     return JSONResponse(
