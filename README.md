@@ -5,7 +5,7 @@
 [![Netlify](https://img.shields.io/badge/Live%20Site-Netlify-42b883?logo=netlify)](https://reelixai.netlify.app/)
 [![Retriever Model](https://img.shields.io/badge/Retriever%20Model-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/fine-tuned_movie_retriever-bge-base-en-v1.5)
 [![Intent Classifier](https://img.shields.io/badge/Intent%20Classifier-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/intent-classifier-distilbert-moviebot)
-[![CE Reranker](https://img.shields.io/badge/CE%20Reranker-HuggingFace-blue?logo=huggingface)]([https://huggingface.co/JJTsao/intent-classifier-distilbert-moviebot](https://huggingface.co/JJTsao/movietv-reranker-cross-encoder-base-v1))
+[![CE Reranker](https://img.shields.io/badge/CE%20Reranker-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/movietv-reranker-cross-encoder-base-v1)
 [![Made with FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)](https://jjtsao-rag-movie-api.hf.space/docs#/)
 [![Built with React](https://img.shields.io/badge/Frontend-React-61dafb?logo=react)](https://reelixai.netlify.app/)
 ![License](https://img.shields.io/github/license/jj-tsao/rag-movie-recommender-app)
@@ -20,7 +20,7 @@ Under the hood, it combines:
 - **Hybrid retrieval (dense embeddings + BM25)** to surface high-signal candidates
 - **Metadata-aware reranking** (quality, popularity, genre overlap, recency)
 - **Cross-Encoder reranker** for precise final ordering
-- LLM **“why you’ll enjoy it”** rationales, streamed via SSE to the UI
+- **LLM “why you’ll enjoy it”** rationales, streamed via **SSE** to the UI
 
 The result is a fast, **personal For-You recommendation feed** and a flexible **“Explore by vibe”** experience that adapts as you give feedback.
 
@@ -29,13 +29,20 @@ The result is a fast, **personal For-You recommendation feed** and a flexible **
 ---
 ## ✨ Core Experiences
 
-- **Taste Onboarding (`/taste`)** — Quickly signal your preferences (Genre/vibe picks, Love / Like / Dislike titles, trailer views, etc.). We build and store a taste vector that continues to refine as your taste signal evolves.
-- **For‑You Feed (`/discover`)** — A personalized grid of picks. Each card streams a short rationale and markdown-rich movie/tv card.
-- **Explore by Vibe (`/query`)** — Type “psychological thrillers with a satirical tone,” or pick from example chips to see vibe-specific recommendations. Add filters like year range, genres, and streaming services to refine the results. 
+- **Taste Onboarding (`/taste`)** — Quickly signal your preferences (genre/vibe picks; Love / Like / Dislike; trailer views). We build and store a taste vector that refines as you give more feedback.
+- **For-You Feed (`/discover`)** — A personalized grid of picks. Each card streams a short rationale and a markdown-rich movie/TV card.
+- **Explore by Vibe (`/query`)** — Type “psychological thrillers with a satirical tone,” or tap example chips to see vibe-specific recommendations. Add filters for year range, genres, and streaming services.
+
+### Quick Look
+
+> Reelix understands your vibe and curates markdown-rich suggestions, trailers, and rationale in real time.
+
+<img src="https://github.com/user-attachments/assets/ef03a55a-b9b5-4136-8654-5d7fa3f4e97d" alt="Reelix Preview" width="100%" />
+
 
 ---
 
-## How It Works (At a Glance)
+## 🧠 How It Works (At a Glance)
 
 ```
 Taste Signals ──▶ Taste Vector ────┐
@@ -51,7 +58,7 @@ User Query ──▶ Dense + BM25 ──▶ Candidate Pool (RRF#1) ──▶ Met
 - **Sparse**: BM25 with tokenization/stop‑word cleanup
 - **Reranking**: weighted blend of semantic + sparse + quality + popularity (+ optional genre overlap)
 - **CE**: `BERT` Cross‑Encoder pairwise reranker
-- **Streaming**: reasons & mardown delivered as newline‑delimited JSON over SSE
+- **Streaming**: reasons & markdown delivered as newline-delimited JSON over SSE
 - **Bootstrap & Lifespan**: loads intent classifier, embedder, BM25, CE reranker, Qdrant client, and configures ticket store.
 - **Orchestrator**: Recipes (`interactive`, `for_you_feed`) define inputs (query vs taste), retrieval params, and LLM prompt envelopes.
 
@@ -80,12 +87,12 @@ Your **For-You** page streams personalized reasons (and markdown rich movie/tv p
 The endpoint uses a **ticket store** (memory or Redis) with idle and absolute TTLs to hold LLM prompts and guard access by user id.
 
 ### 3) Vibe Query (`/query`)
-Explore by vibe with free-form natural language and optional filters (providers, genres, release years, media type). The request → stream flow mirrors the For-You feed:
+Explore by vibe with free-form natural language and optional filters (providers, genres, release years, media type).
 
 1) `POST /recommendations/interactive`
-- Runs the interactive recipe (dense + BM25 + metadata + CE reranker) to fetch ~20 top candidates.
-- Builds an LLM prompt with those candidates and user taste context if signed in.
-- Streams the final recommendations and their “why” write-ups as the response body (text stream).
+- Runs the interactive recipe (dense + BM25 + metadata + CE reranker) to fetch ~20 top candidates.  
+- Builds the LLM prompt with those candidates and (if signed in) your taste context.  
+- **Streams** the final recommendations **and** their “why” write-ups directly as the response body (text stream).
 
 This flow uses the same ticket store (memory or Redis) with idle and absolute TTLs to hold LLM prompts and guard access by user id.
 
@@ -166,7 +173,7 @@ User prompt ──▶ Intent Classifier ──┐
 ## 📚 Sample Query Flow
 
 1. User enters a vibe-based prompt (e.g., _“Mind-bending sci-fi with existential themes”_)
-2. User selects advanced fitlers if desired (optional)
+2. User selects advanced filters if desired (optional)
 3. Intent classifier routes to recommendation (as opposed to general chat)
 4. Query is embedded (dense + sparse)
 5. Qdrant retrieves top-300 matches via dense and sparse vector search
