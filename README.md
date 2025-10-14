@@ -1,5 +1,7 @@
 # 🎬 Reelix AI – Personalized Movie & TV Show Discovery
 
+**Reelix** is an AI-native discovery agent that understands *vibes* and turns them into cinematic picks.
+
 [![Netlify](https://img.shields.io/badge/Live%20Site-Netlify-42b883?logo=netlify)](https://reelixai.netlify.app/)
 [![Retriever Model](https://img.shields.io/badge/Retriever%20Model-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/fine-tuned_movie_retriever-bge-base-en-v1.5)
 [![Intent Classifier](https://img.shields.io/badge/Intent%20Classifier-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/intent-classifier-distilbert-moviebot)
@@ -8,16 +10,54 @@
 [![Built with React](https://img.shields.io/badge/Frontend-React-61dafb?logo=react)](https://reelixai.netlify.app/)
 ![License](https://img.shields.io/github/license/jj-tsao/rag-movie-recommender-app)
 
-**Reelix** is an AI-native discovery agent that understands *vibes* and turns them into cinematic picks. It blends hybrid retrieval (dense + BM25), metadata scoring, and a fine-tuned Cross-Encoder reranker before handing the final slate to an LLM for concise, spoiler-light “Why you’ll like it” reasons—streamed live to the UI.
+---
+
+Reelix finds your next favorite movies/shows by learning your **personal taste** and the **vibes** you want (themes, tone, pacing, genres).
+
+Under the hood, it combines:
+
+- **Taste vector (SentenceTransformers)** to model what you like (and don’t)
+- **Hybrid retrieval (dense embeddings + BM25)** to surface high-signal candidates
+- **Metadata-aware reranking** (quality, popularity, genre overlap, recency)
+- **Cross-Encoder reranker** for precise final ordering
+- LLM **“why you’ll enjoy it”** rationales, streamed via SSE to the UI
+
+The result is a fast, **personal For-You recommendation feed** and a flexible **“Explore by vibe”** experience that adapts as you give feedback.
+
+👉 Try our **Live Product** here: [**Reelix AI**](https://reelixai.netlify.app/)
+
+---
+## ✨ Core Experiences
+
+- **Taste Onboarding (`/taste`)** — Quickly signal your preferences (Genre/vibe picks, Love / Like / Dislike titles, trailer views, etc.). We build and store a taste vector that continues to refine as your taste signal evolves.
+- **For‑You Feed (`/discover`)** — A personalized grid of picks. Each card streams a short rationale and markdown-rich movie/tv card.
+- **Explore by Vibe (`/query`)** — Type “psychological thrillers with a satirical tone,” or pick from example chips to see vibe-specific recommendations. Add filters like year range, genres, and streaming services to refine the results. 
 
 ---
 
-## 🌐 Live Product
-👉 Try it here: [**Reelix AI**](https://reelixai.netlify.app/)
+## How It Works (At a Glance)
+
+```
+Taste Signals ──▶ Taste Vector ────┐
+                                   │
+                                   ▼
+User Query ──▶ Dense + BM25 ──▶ Candidate Pool (RRF#1) ──▶ Metadata Rerank ──▶ CE Rerank ──▶ Final Fusion (RRF#2) ──▶ LLM "Why"
+                                   ▲                                                             │
+                                   │                                                             ▼
+                               Filters (Streaming services/genres/year)                       SSE stream to UI
+```
+
+- **Dense**: fine‑tuned `bge-base-en-v1.5` embeddings
+- **Sparse**: BM25 with tokenization/stop‑word cleanup
+- **Reranking**: weighted blend of semantic + sparse + quality + popularity (+ optional genre overlap)
+- **CE**: `BERT` Cross‑Encoder pairwise reranker
+- **Streaming**: reasons & mardown delivered as newline‑delimited JSON over SSE
+- **Bootstrap & Lifespan**: loads intent classifier, embedder, BM25, CE reranker, Qdrant client, and configures ticket store.
+- **Orchestrator**: Recipes (`interactive`, `for_you_feed`) define inputs (query vs taste), retrieval params, and LLM prompt envelopes.
 
 ---
 
-## 🔥 What’s New
+## 🌐 Key API Endpoints
 
 ### 1) Taste Onboarding (`/taste`)
 Create a personal taste vector from your likes/dislikes and genre/vibe signals. The service builds and stores a dense taste profile, with endpoints to **inspect** and **rebuild** your profile:
@@ -55,63 +95,51 @@ This flow uses the same ticket store (memory or Redis) with idle and absolute TT
 - Users can **Love / Like / Not for me** or **watch trailer**; feedback is logged and triggers controlled taste rebuilds.
 - **Smart rebuild controller**: after any rating, start/refresh a 10s timer; if ≥2 ratings when the timer fires, rebuild—**max 1 rebuild per 2 minutes**; queue one pending rebuild during cooldown.
 
-
-
 ---
-
-## 🏗️ Architecture (High-Level)
+## 🏗️ Recommendation Pipeline Architecture (High‑Level)
 
 ```
-Taste signals → Taste Vector ──┐
-                               │
-User query ──▶ Dense+BM25 ──► Candidate Pool (RRF#1) ─► Metadata Rerank ─► CE Rerank ─► Final Fusion (RRF#2) ─► LLM "Why"
-                                   ▲                                                             │
-                                   │                                                             ▼
-                               Filters (providers/genres/year)                           SSE stream to UI
+User prompt ──▶ Intent Classifier ──┐
+                                    │ yes
+                                    ▼
+                            Query Encoder (dense + sparse)
+                                    │
+                 ┌──────────────────┴──────────────────┐
+                 ▼                                     ▼
+           Sparse Search                         Dense Search
+                 │                                     │
+                 └──────────────────┬──────────────────┘
+                                    │           
+                                    ▼           
+                 RRF #1: Candidate Pool (dense ⊕ sparse)
+                                    │
+                                    ▼
+                        Metadata Rerank (top 100)
+                                    │
+                                    │                           (tap from DENSE top-30)
+                                    │                                      │
+                                    ▼                                      ▼
+                             Metadata Top-30                      Cross-Encoder Rerank
+                                    │                              (on dense top-30)
+                                    │                                      │
+                                    └───────────────────┬──────────────────┘
+                                                        ▼
+                                    RRF #2: Final Fusion (metadata-top ⊕ CE-top)
+                                                        │
+                                                        ▼
+                                                   Top-K to LLM
+                                                        ▼
+                                                  UI (streaming)
+
 ```
 
-- **Bootstrap & Lifespan**: loads intent classifier, embedder, BM25, CE reranker, Qdrant client, and configures ticket store.
-- **Orchestrator**: Recipes (`interactive`, `for_you_feed`) define inputs (query vs taste), retrieval params, and LLM prompt envelopes.
+**Tunable knobs** (with sensible defaults):
 
-
----
-
-## ✨ Features
-
-- **Hybrid Retrieval + Double Fusion**
-  - Dense (fine-tuned `bge-base-en-v1.5`) and sparse BM25 retrieval
-  - Weighted **metadata rerank** (semantic, sparse, quality, popularity, optional genre)
-  - **Cross-Encoder reranker** (BERT) with GPU-friendly batching/lengths
-  - RRF fusion for stable final ordering (pre-pool & final)
-
-- **For-You Weights (taste-aware)**  
-  `dense=0.56, sparse=0.13, rating=0.15, popularity=0.04, genre=0.12`
-
-- **Interactive Query Weights (vibe query)**  
-  `dense=0.60, sparse=0.10, rating=0.18, popularity=0.12, genre=0.00`
-
-- **LLM Reasoning (streamed)**  
-  Server streams JSONL “why” payloads per item via SSE; UI renders markdown and ratings incrementally.
-
-- **Front-End UX**  
-  - `/query` page: rotating vibe placeholders, media-type tabs, collapsible advanced filters, streaming card grid.
-  - `/discover` page: wide cards, live reason/rating deltas, built-in feedback & trailer actions.
-
-
----
-
-## 📚 API Endpoints (Key)
-
-### Taste Profile
-- `GET /taste_profile/me` → profile meta (last build time, pos/neg counts, dim)
-- `POST /taste_profile/rebuild` → rebuilds from interactions and stores profile
-
-### Discovery (For-You)
-- `POST /discovery/for-you` → `{ query_id, items[], stream_url }`
-- `GET /discovery/for-you/why?query_id=...` (SSE) → events: `started`, many `why_delta`, `done`
-
-### Query (Interactive)
-- Your `/query` page posts a vibe description + filters; back end runs **interactive recipe** (query-conditioned) and streams markdown cards.
+- Retrieval depths: `dense_depth=300`, `sparse_depth=20`
+- Fusion: `rrf_k=60`
+- Metadata weights: `{dense: 0.60, sparse: 0.15, rating: 0.15, popularity: 0.10}`
+- CE window: `meta_ce_top_n=30`
+- Final size: `final_top_k=20`
 
 ---
 ## 🚀 Tech Stack
@@ -135,11 +163,17 @@ User query ──▶ Dense+BM25 ──► Candidate Pool (RRF#1) ─► Metadata
 
 ---
 
-## 🧪 Example Prompts
+## 📚 Sample Query Flow
 
-- “Slow-burn thrillers with morally complex characters and rich atmosphere”
-- “Visually stunning sci-fi with existential undertones”
-- “Playful rom-coms with quirky characters and heartfelt moments”
+1. User enters a vibe-based prompt (e.g., _“Mind-bending sci-fi with existential themes”_)
+2. User selects advanced fitlers if desired (optional)
+3. Intent classifier routes to recommendation (as opposed to general chat)
+4. Query is embedded (dense + sparse)
+5. Qdrant retrieves top-300 matches via dense and sparse vector search
+6. Retrieved medias are re-ranked based on semantic, keywords, rating, and popularity
+7. Top-20 reranked results are sent to LLM for final recommendation and summary
+8. UI streams response card-by-card with poster, rating, metadata, rationale, and trailer link
+9. Final selections are logged to Supabase
 
 ---
 
