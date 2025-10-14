@@ -1,8 +1,8 @@
 import type { InteractiveRequestPayload } from "./types/types";
 import { getSupabaseAccessToken } from "./lib/session";
 
-// export const BASE_URL = import.meta.env.VITE_BACKEND_URL;
-export const BASE_URL = "http://127.0.0.1:8000";
+export const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+// export const BASE_URL = "http://127.0.0.1:8000";
 
 export async function streamChatResponse(
   request: InteractiveRequestPayload,
@@ -37,7 +37,6 @@ export async function streamChatResponse(
     onChunk(chunk);
   }
 }
-
 
 export async function logFinalRecs({
   queryId,
