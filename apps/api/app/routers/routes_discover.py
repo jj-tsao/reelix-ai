@@ -1,5 +1,6 @@
 import json
 import time
+import asyncio
 from typing import Iterator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -48,7 +49,7 @@ async def discover_for_you(
     registry=Depends(get_recipe_registry),
     pipeline=Depends(get_recommend_pipeline),
     store=Depends(get_ticket_store),
-    logger=Depends(get_logger)
+    logger=Depends(get_logger),
 ):
     recipe = registry.get(kind="for_you_feed")
     user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
@@ -59,7 +60,7 @@ async def discover_for_you(
         media_type=req.media_type.value,
         user_context=user_context,
     )
-    
+
     ticket = Ticket(
         user_id=user_id,
         prompts=llm_prompts,
@@ -80,17 +81,19 @@ async def discover_for_you(
         ticket,
         ttl_sec=IDLE_TTL_SEC,
     )
-    
-    await logger.log_query_intake(
-        endpoint="discovery/for-you",
-        query_id=req.query_id,
-        user_id=user_id,
-        session_id=req.session_id,
-        media_type=req.media_type,
-        pipeline_version="RecommendPipeline@v2",
-        batch_size=batch_size,
-        device_info=req.device_info,
-        request_meta=ticket.meta,
+
+    asyncio.create_task(
+        logger.log_query_intake(
+            endpoint="discovery/for-you",
+            query_id=req.query_id,
+            user_id=user_id,
+            session_id=req.session_id,
+            media_type=req.media_type,
+            pipeline_version="RecommendPipeline@v2",
+            batch_size=batch_size,
+            device_info=req.device_info,
+            request_meta=ticket.meta,
+        )
     )
 
     return JSONResponse(
