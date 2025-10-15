@@ -97,6 +97,16 @@ async def discover_for_you(
         )
     )
 
+    asyncio.create_task(
+        logger.log_candidates(
+            endpoint=endpoint,
+            query_id=req.query_id,
+            media_type=req.media_type,
+            candidates=final_candidates[:batch_size],
+            traces=traces,
+            source_meta={"stage": "final"},
+        )
+    )
 
     return JSONResponse(
         {

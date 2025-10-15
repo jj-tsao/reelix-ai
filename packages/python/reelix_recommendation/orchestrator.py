@@ -14,7 +14,7 @@ def orchestrate(
     user_id: str | None = None,
     user_context: UserTasteContext | None = None,
     pipeline: RecommendPipeline,
-) -> Tuple[List[Candidate], Dict[str, ScoreTrace], PromptsEnvelope]:
+) -> Tuple[List[Candidate], Dict[int, ScoreTrace], PromptsEnvelope]:
     dense_vec, sparse_vec, qfilter = recipe.build_inputs(
         media_type=media_type,
         query_text=query_text,

@@ -30,8 +30,9 @@ async def recommend_interactive(
     registry=Depends(get_recipe_registry),
     pipeline=Depends(get_recommend_pipeline),
     chat_llm=Depends(get_chat_completion_llm),
-    logger=Depends(get_logger)
+    logger=Depends(get_logger),
 ):
+    endpoint = "recommendations/interactive"
     recipe = registry.get(kind="interactive")
     user_context = None
 
@@ -48,8 +49,8 @@ async def recommend_interactive(
             query_filter=req.query_filters,
             user_context=user_context,
         )
-        
-        meta={
+
+        meta = {
             "recipe": "interactive@v1",
             "items_brief": [
                 {
@@ -57,11 +58,12 @@ async def recommend_interactive(
                     "title": (c.payload or {}).get("title"),
                 }
                 for c in final_candidates
-            ]
+            ],
         }
 
-        log_fn = partial(logger.log_query_intake,
-            endpoint="recommendations/interactive",
+        log_request = partial(
+            logger.log_query_intake,
+            endpoint=endpoint,
             query_id=req.query_id,
             user_id=user_id,
             session_id=req.session_id,
@@ -72,7 +74,19 @@ async def recommend_interactive(
             device_info=req.device_info,
             request_meta=meta,
         )
-        from_thread.run(log_fn)
+
+        log_results = partial(
+            logger.log_candidates,
+            endpoint=endpoint,
+            query_id=req.query_id,
+            media_type=req.media_type,
+            candidates=final_candidates,
+            traces=traces,
+            source_meta={"stage": "llm_candidates"},
+        )
+
+        from_thread.run(log_request)
+        from_thread.run(log_results)
 
         messages = llm_prompts.calls[0].messages
         for chunk in chat_llm.stream(

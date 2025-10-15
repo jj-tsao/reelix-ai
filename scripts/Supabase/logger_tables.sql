@@ -22,13 +22,14 @@ create table if not exists rec_results (
   created_at timestamptz not null default now(),
   endpoint text not null check (endpoint in ('discovery/for-you','recommendations/interactive')),
   query_id text not null,
+  media_type text not null,
   media_id text not null,
   rank int not null,
   title text,
-  release_year int,
-  genres text[],
   score_final double precision,
-  score_parts jsonb,
+  score_dense double precision,
+  score_sparse double precision,
+  meta_breakdown jsonb,
   source_meta jsonb
 );
 create index if not exists idx_rec_results_ep_qid_rank on rec_results (endpoint, query_id, rank);

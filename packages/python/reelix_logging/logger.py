@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
-import os
 import time
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 import httpx
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-
-from reelix_ranking.types import Candidate
+from reelix_ranking.types import Candidate, ScoreTrace
 
 Endpoint = Literal["discovery", "recommendations"]
 
@@ -85,10 +82,8 @@ class TelemetryLogger:
             print(f"❌ rec_logger POST {path} error: {e}")
 
     @staticmethod
-    def hmac_hash(value: str, secret: str) -> str:
-        return hmac.new(
-            secret.encode("utf-8"), value.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
+    def to_jsonable(x):
+        return jsonable_encoder(x, exclude_none=True)
 
     # ---------- Public APIs ----------
     async def log_query_intake(
@@ -135,19 +130,32 @@ class TelemetryLogger:
         *,
         endpoint: Endpoint,
         query_id: str,
-        candidates: Iterable[dict[str, Any]],
+        media_type: str,
+        candidates: list[Candidate],
+        traces: list[ScoreTrace],
+        source_meta: dict[str, Any],
     ) -> None:
         """
-        Insert N rows into rec_results. Each candidate dict can include:
-          media_id (str), rank (int), title (str), release_year (int), genres (list[str]),
-          poster_url (str), score_final (float), score_parts (dict), source_meta (dict)
+        Insert N rows into rec_results.
         """
         if not self._enabled():
             return
         rows = []
-        for c in candidates:
-            row = {"endpoint": endpoint, "query_id": query_id}
-            row.update(c or {})
+        for r, c in enumerate(candidates, start=1):
+            cid = c.id
+            row = {
+                "endpoint": endpoint,
+                "query_id": query_id,
+                "media_type": media_type,
+                "media_id": cid,
+                "rank": r,
+                "title": c.payload.get("title"),
+                "score_final": traces[cid].final_score,
+                "score_dense": traces[cid].dense_score,
+                "score_sparse": traces[cid].sparse_score,
+                "meta_breakdown": self.to_jsonable(traces[cid].meta_breakdown),
+                "source_meta": source_meta,
+            }
             rows.append(row)
         if not rows:
             return
@@ -293,11 +301,3 @@ class StreamAggregator:
             return
         async with httpx.AsyncClient() as client:
             await self.logger._post(client, "rec_stream_events", rows)
-
-
-# ---------- Convenience helpers ----------
-def hash_user_id(user_id: str | None) -> str | None:
-    if not user_id:
-        return None
-    secret = os.getenv("REC_HASH_SECRET") or os.getenv("SUPABASE_API_KEY") or "dev"
-    return TelemetryLogger.hmac_hash(user_id, secret)

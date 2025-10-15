@@ -73,7 +73,7 @@ def metadata_rerank(
         dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0
     ),
     anchors: NormAnchors | None = None,
-) -> List[Tuple[Candidate, float, str]]:
+) -> List[Tuple[Candidate, float, ScoreBreakdown]]:
     mt = media_type.lower()
     a = anchors or DEFAULT_ANCHORS.get(mt, DEFAULT_ANCHORS["movie"])
 
@@ -88,7 +88,7 @@ def metadata_rerank(
     den = math.log1p(p95)
     user_genres = user_context.signals.genres_include if user_context else []
 
-    out: List[Tuple[Candidate, float, str]] = []
+    out: List[Tuple[Candidate, float, ScoreBreakdown]] = []
     for c in candidates:
         dense = float(c.dense_score or 0.0)
         raw_s = float(c.sparse_score or 0.0)
@@ -104,18 +104,44 @@ def metadata_rerank(
             if c_genres and user_genres
             else 0
         )
+        
+        feats: Dict[str, FeatureContribution] = {
+            "dense": FeatureContribution(
+                feature="dense",
+                value=dense,
+                weight=float(weights.get("dense", 0.0)),
+                contribution=float(weights.get("dense", 0.0)) * dense,
+            ),
+            "sparse": FeatureContribution(
+                feature="sparse",
+                value=sparse,
+                weight=float(weights.get("sparse", 0.0)),
+                contribution=float(weights.get("sparse", 0.0)) * sparse,
+            ),
+            "rating": FeatureContribution(
+                feature="rating",
+                value=q,
+                weight=float(weights.get("rating", 0.0)),
+                contribution=float(weights.get("rating", 0.0)) * q,
+            ),
+            "popularity": FeatureContribution(
+                feature="popularity",
+                value=p,
+                weight=float(weights.get("popularity", 0.0)),
+                contribution=float(weights.get("popularity", 0.0)) * p,
+            ),
+            "genre": FeatureContribution(
+                feature="genre",
+                value=g,
+                weight=float(weights.get("genre", 0.0)),
+                contribution=float(weights.get("genre", 0.0)) * g,
+            ),
+        }
 
-        score = (
-            weights["dense"] * dense
-            + weights["sparse"] * sparse
-            + weights["rating"] * q
-            + weights["popularity"] * p
-            + weights["genre"] * g
-        )
+        breakdown = ScoreBreakdown(features=feats)
+        score = breakdown.total
 
-        m_trace = f"{(c.payload or {}).get('title', '')} | Final Score: {score} | Weighted Parts: Dense={weights['dense'] * dense}, Sparse={weights['sparse'] * sparse}, Rating: {weights['rating'] * q}, Pop={weights['popularity'] * p}, Genres={weights['genre'] * g}"
-
-        out.append((c, score, m_trace))
+        out.append((c, score, breakdown))
 
     out.sort(key=lambda t: t[1], reverse=True)
 

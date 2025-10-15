@@ -42,7 +42,7 @@ class RecommendPipeline:
             dense=0.60, sparse=0.10, rating=0.20, popularity=0.10, genre=0.00
         ),
         final_top_k: int = 20,
-    ) -> Tuple[List[Candidate], Dict[str, ScoreTrace]]:
+    ) -> Tuple[List[Candidate], Dict[int, ScoreTrace]]:
         # 1) retrieve - parallelize Qdrant searches to reduce network latency
         with ThreadPoolExecutor(max_workers=2) as ex:
             f_dense = ex.submit(
@@ -76,29 +76,36 @@ class RecommendPipeline:
             user_context=user_context,
             weights=weights,
         )
-        meta_sorted = [c for c, _, _ in meta_scored][:meta_top_n]
+        meta_sorted = [c for c, m_score, m_trace in meta_scored][:meta_top_n]
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
+        
+        traces: Dict[int, ScoreTrace] = {}
 
         # 4.5) Fallback to metadata reranked results when CE reranker is not available
         if query_text is None or ce_rerank is False:
             final = meta_sorted[:final_top_k]
 
             # Build traces (no ce_score, use metadata score as final score)
-            traces: Dict[str, ScoreTrace] = {}
             dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
             sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
             meta_score_map = {c.id: s for (c, s, t) in meta_scored}
+            meta_breakdown_map = {c.id: t for (c, _, t) in meta_scored}
 
             for c in final:
                 traces[c.id] = ScoreTrace(
                     id=c.id,
                     dense_rank=dense_rank_map.get(c.id),
                     sparse_rank=sparse_rank_map.get(c.id),
+                    dense_score=c.dense_score,
+                    sparse_score=c.sparse_score,
                     meta_score=meta_score_map.get(c.id),
+                    meta_breakdown=meta_breakdown_map.get(c.id),
                     ce_score=None,
-                    final_rrf=meta_score_map.get(
+                    final_score=meta_score_map.get(
                         c.id
                     ),  # Fallback to use metadata reranking score as the final score
+                    weights_used=weights.copy(),
+                    title=c.payload.get("title", ""),
                 )
             return final, traces
 
@@ -130,10 +137,10 @@ class RecommendPipeline:
         index = {c.id: c for c in pool}
         final = [index[i] for i in final_ids if i in index][:final_top_k]
 
-        traces: Dict[str, ScoreTrace] = {}
         dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
         sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
         meta_score_map = {c.id: s for (c, s, t) in meta_scored}
+        meta_breakdown_map = {c.id: t for (c, _, t) in meta_scored}
         final_rrf_map = dict(final_rrf)
 
         for cid in final_ids:
@@ -142,8 +149,9 @@ class RecommendPipeline:
                 dense_rank=dense_rank_map.get(cid),
                 sparse_rank=sparse_rank_map.get(cid),
                 meta_score=meta_score_map.get(cid),
+                meta_breakdown=meta_breakdown_map.get(cid),
                 ce_score=ce_score_map.get(cid),
-                final_rrf=final_rrf_map.get(cid),
+                final_score=final_rrf_map.get(cid),
             )
         return final, traces
 
