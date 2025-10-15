@@ -43,9 +43,13 @@ export function useAuth() {
         const existing = await getAppUser(state.user.id);
         if (cancelled) return;
         if (!existing) {
+          const cleanEmail =
+            typeof state.user.email === "string" && state.user.email.trim().length > 0
+              ? state.user.email.trim()
+              : null;
           const payload: TablesInsert<"app_user"> = {
             user_id: state.user.id,
-            email: state.user.email ?? "",
+            email: (cleanEmail ?? null) as unknown as string,
           };
           const displayName = state.user.user_metadata?.display_name;
           if (typeof displayName === "string" && displayName.trim().length > 0) {
@@ -72,9 +76,13 @@ export function useAuth() {
         if (!pending) return;
         const existing = await getAppUser(state.user.id);
         if (!existing || !existing.display_name) {
+          const cleanEmail =
+            typeof state.user.email === "string" && state.user.email.trim().length > 0
+              ? state.user.email.trim()
+              : null;
           await upsertAppUser({
             user_id: state.user.id,
-            email: state.user.email || "",
+            email: (cleanEmail ?? null) as unknown as string,
             display_name: pending,
           });
         }

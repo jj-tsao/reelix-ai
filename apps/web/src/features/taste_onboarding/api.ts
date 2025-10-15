@@ -26,7 +26,10 @@ async function ensureAppUserRow(userId: string): Promise<void> {
 
   const payload: TablesInsert<"app_user"> = {
     user_id: user.id,
-    email: user.email ?? "",
+    email:
+      typeof user.email === "string" && user.email.trim().length > 0
+        ? user.email.trim()
+        : (null as unknown as string),
   };
   const displayName = user.user_metadata?.display_name;
   if (typeof displayName === "string" && displayName.trim().length > 0) {
