@@ -3,6 +3,43 @@ import type { Json, TablesInsert, TablesUpdate } from "@/types/supabase";
 
 // Upsert into public.user_preferences for current user.
 // Requires caller to pass user_id from the current session.
+
+async function ensureAppUserRow(userId: string): Promise<void> {
+  try {
+    const { data, error } = await supabase
+      .from("app_user")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) {
+      // If we hit an RLS error, continue to attempt upsert as a fallback.
+      console.warn("Failed to read app_user row", error);
+    }
+    if (data?.user_id) return;
+  } catch (error) {
+    console.warn("Unexpected app_user lookup error", error);
+  }
+
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth?.user;
+  if (!user || user.id !== userId) return;
+
+  const payload: TablesInsert<"app_user"> = {
+    user_id: user.id,
+    email: user.email ?? "",
+  };
+  const displayName = user.user_metadata?.display_name;
+  if (typeof displayName === "string" && displayName.trim().length > 0) {
+    payload.display_name = displayName.trim();
+  }
+  const { error: upsertError } = await supabase
+    .from("app_user")
+    .upsert(payload, { onConflict: "user_id" });
+  if (upsertError) {
+    throw new Error(upsertError.message);
+  }
+}
+
 export async function upsertUserPreferences(row: TablesInsert<"user_preferences"> | TablesUpdate<"user_preferences">) {
   if (!("user_id" in row) || !row.user_id) {
     throw new Error("Missing user_id when upserting preferences");
@@ -18,10 +55,23 @@ export async function upsertUserPreferences(row: TablesInsert<"user_preferences"
     ...(row as Partial<TablesInsert<"user_preferences">>),
   };
 
+  await ensureAppUserRow(payload.user_id);
+
   const { error } = await supabase
     .from("user_preferences")
     .upsert(payload, { onConflict: "user_id" });
-  if (error) throw new Error(error.message);
+  if (!error) return;
+
+  if (error.message?.includes("user_preferences_user_id_fkey")) {
+    await ensureAppUserRow(payload.user_id);
+    const { error: retryError } = await supabase
+      .from("user_preferences")
+      .upsert(payload, { onConflict: "user_id" });
+    if (retryError) throw new Error(retryError.message);
+    return;
+  }
+
+  throw new Error(error.message);
 }
 
 // ---------- Taste Onboarding → user_interactions ----------
