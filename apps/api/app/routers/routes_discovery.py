@@ -142,7 +142,7 @@ async def stream_why(
     picked = _pick_call(env, batch)
     messages = picked["messages"]
     batch_id = picked["batch_id"]
-
+    
     model = env.model
     params = dict(env.params or {})
 

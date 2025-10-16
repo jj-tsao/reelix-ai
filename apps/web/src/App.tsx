@@ -1,6 +1,6 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import TopNav from "./components/TopNav";
-import LandingPage from "./features/landing/pages/LandingPage";
+import HomePage from "./features/landing/pages/HomePage";
 import AuthPage from "./features/auth/pages/AuthPage";
 import SignInPage from "./features/auth/pages/SignInPage";
 import SignUpPage from "./features/auth/pages/SignUpPage";
@@ -16,7 +16,7 @@ export default function App() {
     <>
       <TopNav />
       <Routes location={location} key={location.key}>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/query" element={<QueryRecommendationPage />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/auth/signin" element={<SignInPage />} />

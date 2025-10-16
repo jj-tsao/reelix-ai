@@ -11,7 +11,8 @@ import { fetchDiscoverInitial, getAccessToken, logDiscoverFinalRecs, streamDisco
 import DiscoverGridSkeleton from "../components/DiscoverGridSkeleton";
 import StreamStatusBar, { type StreamStatusState } from "../components/StreamStatusBar";
 import { upsertUserInteraction, type RatingValue } from "@/features/taste_onboarding/api";
-import { BASE_URL, rebuildTasteProfile } from "@/api";
+import { rebuildTasteProfile } from "@/api";
+import { hasTasteProfile, type TasteProfileHttpError } from "@/features/taste_profile/api";
 
 type DiscoverRating = Exclude<RatingValue, "dismiss">;
 
@@ -230,43 +231,6 @@ class DiscoverRebuildController {
   }
 }
 
-interface HttpError extends Error {
-  status?: number;
-}
-
-async function hasTasteProfile(token: string): Promise<boolean> {
-  const response = await fetch(`${BASE_URL}/taste_profile/me`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (response.status === 404) {
-    return false;
-  }
-
-  if (response.status === 401 || response.status === 403) {
-    const error: HttpError = new Error("Unauthorized");
-    error.status = response.status;
-    throw error;
-  }
-
-  if (!response.ok) {
-    let detail: string | null = null;
-    try {
-      detail = await response.text();
-    } catch (error) {
-      void error;
-    }
-    const error: HttpError = new Error(detail || `Taste profile check failed (${response.status})`);
-    error.status = response.status;
-    throw error;
-  }
-
-  return true;
-}
-
 export default function DiscoverPage() {
   const [pageState, setPageState] = useState<PageState>("idle");
   const [cards, setCards] = useState<CardMap>({});
@@ -383,7 +347,7 @@ export default function DiscoverPage() {
           profileExists = await hasTasteProfile(token);
         } catch (profileError) {
           if (cancelled) return;
-          const status = (profileError as HttpError | undefined)?.status;
+          const status = (profileError as TasteProfileHttpError | undefined)?.status;
           if (status === 401 || status === 403) {
             setPageState("unauthorized");
             setErrorMessage("Sign in to view your discovery feed.");

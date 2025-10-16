@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/useToast";
@@ -6,6 +6,11 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useProfile } from "@/features/auth/hooks/useProfile";
 import { signOut } from "@/features/auth/api";
 import { isAnonymousUser } from "@/lib/session";
+
+const NAV_ITEMS = [
+  { label: "For You", to: "/discover" },
+  { label: "Explore by vibe", to: "/query" },
+] as const;
 
 export default function TopNav() {
   const { user, loading } = useAuth();
@@ -30,13 +35,27 @@ export default function TopNav() {
   }
   return (
     <header className="sticky top-0 z-50 w-full flex items-center justify-between px-1 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-4 border-b border-border bg-background/80 backdrop-blur-md">
-      <Link to="/" className="flex items-center space-x-3">
-        <img
-          src="/logo/Reelix_logo_dark.svg"
-          alt="Reelix"
-          className="h-10 w-auto"
-        />
-      </Link>
+      <div className="flex items-center gap-6">
+        <Link to="/" className="flex items-center space-x-3">
+          <img src="/logo/Reelix_logo_dark.svg" alt="Reelix" className="h-10 w-auto" />
+        </Link>
+        <nav className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
+          {NAV_ITEMS.map(({ label, to }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                [
+                  "transition-colors hover:text-foreground",
+                  isActive ? "text-foreground font-semibold" : "text-muted-foreground",
+                ].join(" ")
+              }
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
       <div className="flex items-center gap-3 relative">
         {!loading && user && !isAnonymous ? (
           <UserMenu
