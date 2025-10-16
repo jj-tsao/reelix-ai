@@ -7,7 +7,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getSessionId } from "@/utils/session";
 import type { DiscoverCardData } from "../types";
 import type { DiscoverStreamEvent } from "../api";
-import { fetchDiscoverInitial, getAccessToken, streamDiscoverWhy } from "../api";
+import { fetchDiscoverInitial, getAccessToken, logDiscoverFinalRecs, streamDiscoverWhy } from "../api";
 import DiscoverGridSkeleton from "../components/DiscoverGridSkeleton";
 import StreamStatusBar, { type StreamStatusState } from "../components/StreamStatusBar";
 import { upsertUserInteraction, type RatingValue } from "@/features/taste_onboarding/api";
@@ -277,6 +277,7 @@ export default function DiscoverPage() {
   const [feedbackById, setFeedbackById] = useState<Partial<Record<string, DiscoverRating>>>({});
   const [pendingFeedback, setPendingFeedback] = useState<Partial<Record<string, boolean>>>({});
   const queryIdRef = useRef<string | null>(null);
+  const loggedQueryIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -363,6 +364,7 @@ export default function DiscoverPage() {
       const sessionId = getSessionId();
       const queryId = `${sessionId}_${Date.now()}`;
       queryIdRef.current = queryId;
+      loggedQueryIdRef.current = null;
 
       try {
         const token = await getAccessToken();
@@ -480,6 +482,34 @@ export default function DiscoverPage() {
   const handleRetry = useCallback(() => {
     setRefreshIndex((idx) => idx + 1);
   }, []);
+
+  useEffect(() => {
+    if (streamState.status !== "done") return;
+    const queryId = queryIdRef.current;
+    if (!queryId) return;
+    if (loggedQueryIdRef.current === queryId) return;
+
+    const finalRecs = orderedCards
+      .map((card) => {
+        const mediaId = Number(card.mediaId);
+        if (!Number.isFinite(mediaId)) {
+          return null;
+        }
+        const why = card.whyMarkdown ?? card.whyText;
+        if (typeof why !== "string" || !why.trim()) {
+          return null;
+        }
+        return { media_id: mediaId, why };
+      })
+      .filter((entry): entry is { media_id: number; why: string } => entry !== null);
+
+    if (finalRecs.length === 0) return;
+
+    loggedQueryIdRef.current = queryId;
+    void logDiscoverFinalRecs({ queryId, finalRecs }).catch((error) => {
+      console.warn("Failed to log discovery final recommendations", error);
+    });
+  }, [orderedCards, streamState.status]);
 
   const handleFeedback = useCallback(
     async (card: DiscoverCardData, rating: DiscoverRating) => {

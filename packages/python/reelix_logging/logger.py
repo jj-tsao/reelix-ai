@@ -7,6 +7,7 @@ import httpx
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from reelix_ranking.types import Candidate, ScoreTrace
+from reelix_core.types import QueryFilter
 
 Endpoint = Literal["discovery", "recommendations"]
 
@@ -16,6 +17,11 @@ class DeviceInfo(BaseModel):
     device_type: str | None = None
     platform: str | None = None
     user_agent: str | None = None
+
+
+class FinalRec(BaseModel):
+    media_id: int
+    why: str
 
 
 # ---------- Core logger ----------
@@ -76,7 +82,7 @@ class TelemetryLogger:
             )
             if r.status_code not in (200, 201, 204):
                 print(
-                    f"⚠️ rec_logger POST {path} failed {r.status_code}: {r.text[:300]}"
+                    f"⚠️ rec_logger POST {path} failed {r.status_code}: {r.text}"
                 )
         except Exception as e:
             print(f"❌ rec_logger POST {path} error: {e}")
@@ -95,6 +101,8 @@ class TelemetryLogger:
         session_id: str | None = None,
         media_type: str,
         query_text: str | None = None,
+        query_filters: QueryFilter | None = None,
+        ctx_log: dict[str, Any] | None = None,
         pipeline_version: str | None,
         batch_size: int,
         device_info: DeviceInfo | None = None,
@@ -115,12 +123,15 @@ class TelemetryLogger:
             "user_id": user_id,
             "session_id": session_id,
             "media_type": media_type,
+            "ctx_log": ctx_log,
             "pipeline_version": pipeline_version,
             "batch_size": int(batch_size),
             "request_meta": meta,
         }
         if query_text:
             row["query_text"] = query_text
+        if query_filters:
+            row["query_filters"] = self.to_jsonable(query_filters)
 
         async with httpx.AsyncClient() as client:
             await self._post(client, "rec_queries", [row])
@@ -133,7 +144,7 @@ class TelemetryLogger:
         media_type: str,
         candidates: list[Candidate],
         traces: list[ScoreTrace],
-        source_meta: dict[str, Any],
+        stage: str,
     ) -> None:
         """
         Insert N rows into rec_results.
@@ -154,7 +165,7 @@ class TelemetryLogger:
                 "score_dense": traces[cid].dense_score,
                 "score_sparse": traces[cid].sparse_score,
                 "meta_breakdown": self.to_jsonable(traces[cid].meta_breakdown),
-                "source_meta": source_meta,
+                "stage": stage,
             }
             rows.append(row)
         if not rows:
@@ -162,40 +173,39 @@ class TelemetryLogger:
         async with httpx.AsyncClient() as client:
             await self._post(client, "rec_results", rows)
 
+    async def log_why(
+        self,
+        *,
+        endpoint: str,
+        query_id: str,
+        final_recs: list[FinalRec],
+    ) -> None:
+        """
+        Update interactive mode final recs per row.
+        """
+        if not self._enabled():
+            return
+        rows = []
+        for r in final_recs:
+            row = {
+                "endpoint": endpoint,
+                "query_id": query_id,
+                "media_id": r.media_id,
+                "stage": "final",
+                "why_summary": r.why,
+            }
+            rows.append(row)
+        if not rows:
+            return
+        async with httpx.AsyncClient() as client:
+            await self._post(client, "rec_results?on_conflict=endpoint,query_id,media_id", rows)
+
     def start_stream(
         self, *, endpoint: Endpoint, query_id: str, batch_id: int | None
     ) -> "StreamAggregator":
         return StreamAggregator(
             logger=self, endpoint=endpoint, query_id=query_id, batch_id=batch_id
         )
-
-    async def log_recommendations_ext(
-        self,
-        *,
-        query_id: str,
-        query_text: str,
-        language: str | None = None,
-        filters: dict | None = None,
-        intent: dict | None = None,
-        params: dict | None = None,
-    ) -> None:
-        """
-        Insert one row into rec_recommendations_ext (for /recommendations/interactive).
-        """
-        if not self._enabled():
-            return
-        payload = [
-            {
-                "query_id": query_id,
-                "query_text": query_text,
-                "language": language,
-                "filters": (filters or {}),
-                "intent": (intent or {}),
-                "params": (params or {}),
-            }
-        ]
-        async with httpx.AsyncClient() as client:
-            await self._post(client, "rec_recommendations_ext", payload)
 
     async def upsert_session(
         self,

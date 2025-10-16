@@ -18,10 +18,11 @@ from app.deps.deps_ticket_store import get_ticket_store
 from app.deps.supabase_client import get_current_user_id, get_supabase_client
 from app.infrastructure.cache.ticket_store import Ticket
 from app.repositories.taste_profile_store import fetch_user_taste_context
-from app.schemas import DiscoverRequest
+from app.schemas import DiscoverRequest, FinalRecsRequest
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
+ENDPOINT = "discovery/for-you"
 IDLE_TTL_SEC = 15 * 60
 HEARTBEAT_SEC = 15
 
@@ -43,7 +44,7 @@ def _item_view(c):
 @router.post("/for-you")
 async def discover_for_you(
     req: DiscoverRequest,
-    batch_size: int = 6,
+    batch_size: int = 8,
     sb=Depends(get_supabase_client),
     user_id: str = Depends(get_current_user_id),
     registry=Depends(get_recipe_registry),
@@ -51,14 +52,14 @@ async def discover_for_you(
     store=Depends(get_ticket_store),
     logger=Depends(get_logger),
 ):
-    endpoint = "discovery/for-you"
     recipe = registry.get(kind="for_you_feed")
     user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
 
-    final_candidates, traces, llm_prompts = orchestrate(
+    final_candidates, traces, ctx_log, llm_prompts = orchestrate(
         recipe=recipe,
         pipeline=pipeline,
         media_type=req.media_type.value,
+        batch_size=batch_size,
         user_context=user_context,
     )
 
@@ -85,11 +86,12 @@ async def discover_for_you(
 
     asyncio.create_task(
         logger.log_query_intake(
-            endpoint=endpoint,
+            endpoint=ENDPOINT,
             query_id=req.query_id,
             user_id=user_id,
             session_id=req.session_id,
             media_type=req.media_type,
+            ctx_log=ctx_log,
             pipeline_version="RecommendPipeline@v2",
             batch_size=batch_size,
             device_info=req.device_info,
@@ -99,12 +101,12 @@ async def discover_for_you(
 
     asyncio.create_task(
         logger.log_candidates(
-            endpoint=endpoint,
+            endpoint=ENDPOINT,
             query_id=req.query_id,
             media_type=req.media_type,
             candidates=final_candidates[:batch_size],
             traces=traces,
-            source_meta={"stage": "final"},
+            stage="final",
         )
     )
 
@@ -236,6 +238,20 @@ async def stream_why(
     #         "Connection": "keep-alive",
     #     },
     # )
+
+
+@router.post("/log/final_recs")
+async def log_final_recommendations(
+    req: FinalRecsRequest,
+    logger=Depends(get_logger),
+):
+    asyncio.create_task(
+        logger.log_why(
+            endpoint=ENDPOINT,
+            query_id=req.query_id,
+            final_recs=req.final_recs,
+        )
+    )
 
 
 def _pick_call(env: PromptsEnvelope, batch: int | None) -> dict:

@@ -37,9 +37,9 @@ class ForYouFeedRecipe(BaseRecipe):
             final_top_k=20,
             weights=dict(
                 dense=0.56,
-                sparse=0.13,
+                sparse=0.12,
                 rating=0.15,
-                popularity=0.04,
+                popularity=0.05,
                 genre=0.12,
             ),
         )
@@ -48,6 +48,7 @@ class ForYouFeedRecipe(BaseRecipe):
         self,
         *,
         query_text: str,
+        batch_size: int = 8,
         user_context: UserTasteContext,
         candidates: list,
         llm_model: str | None = None,
@@ -58,8 +59,9 @@ class ForYouFeedRecipe(BaseRecipe):
             recipe_name=self.name,
             candidates=candidates,
             user_signals=user_context.signals,
+            batch_size=batch_size,
         )
-
+        print(user_prompt)
         envelope = self.build_prompt_envelope(
             self.name, system_prompt, user_prompt, candidates
         )
@@ -101,13 +103,19 @@ class InteractiveRecipe(BaseRecipe):
         )
 
     def build_prompt(
-        self, *, query_text: str, user_context: UserTasteContext, candidates
+        self,
+        *,
+        query_text: str,
+        batch_size: int = 20,
+        user_context: UserTasteContext,
+        candidates,
     ) -> PromptsEnvelope:
         system_prompt = self.get_system_prompt(recipe_name=self.name)
         user_prompt = self.build_user_prompt(
             recipe_name=self.name,
             candidates=candidates,
             query_text=query_text,
+            batch_size=batch_size,
             user_signals=user_context.signals if user_context else None,
         )
 

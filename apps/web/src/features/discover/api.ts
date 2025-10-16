@@ -140,6 +140,31 @@ export async function streamDiscoverWhy({
   }
 }
 
+export async function logDiscoverFinalRecs({
+  queryId,
+  finalRecs,
+}: {
+  queryId: string;
+  finalRecs: { media_id: number; why: string }[];
+}): Promise<void> {
+  const token = await getSupabaseAccessToken();
+  const response = await fetch(`${BASE_URL}/discovery/log/final_recs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      query_id: queryId,
+      final_recs: finalRecs,
+    }),
+  });
+
+  if (!response.ok) {
+    console.warn("Failed to log discovery final recs");
+  }
+}
+
 async function safeReadText(response: Response): Promise<string | null> {
   try {
     return await response.text();

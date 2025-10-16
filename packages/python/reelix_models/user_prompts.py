@@ -22,20 +22,10 @@ def build_for_you_user_prompt(
     user_signals: UserSignals,
     query_text: Optional[str] = None,
     limits: Mapping[str, int] = DEFAULT_LIMITS,
-    batch_size: int = 6,
+    batch_size: int = 8,
 ) -> str:
     """
     Build the User Prompt for the discover/for-you/why LLM call.
-
-    Args:
-        candidates: Ordered list of Candidate items.
-        user_genres: Iterable of user-selected genres (already ranked/weighted upstream).
-        user_keywords: Iterable of user-selected keywords/vibes (already ranked/weighted upstream).
-        liked_titles: Iterable of positively-rated titles (recent/highest-weight first).
-        disliked_titles: Iterable of negatively-rated titles (strongest negatives first).
-        query_text: Optional short session theme (≤ ~12 words). If None, note as “no explicit request”.
-        limits: Caps for genres/keywords/liked/disliked. Defaults match recommended ranges.
-
     Returns:
         Markdown string for the User Prompt to send to LLM.
     """
@@ -124,7 +114,7 @@ def build_for_you_user_prompt(
 
     # explicit instructions (verbatim from template expectations)
     parts.append("\n**Instructions:**")
-    parts.append("- Output six recommendation lines using the specified format.")
+    parts.append(f"- Output {batch_size} recommendation lines using the specified format.")
 
     return "\n".join(parts)
 
