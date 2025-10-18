@@ -152,14 +152,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/69Xzn8UdPbVnmqSChKz2RTpoNfB.jpg",
       media_id: 754,
     },
-    {
-      title: "Speed",
-      year: 1994,
-      vibes: ["High-concept thriller", "Non-stop action"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/o1Zs7VaS9y2GYH9CLeWxaVLWd3x.jpg",
-      media_id: 1637,
-    },
+    // {
+    //   title: "Speed",
+    //   year: 1994,
+    //   vibes: ["High-concept thriller", "Non-stop action"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/o1Zs7VaS9y2GYH9CLeWxaVLWd3x.jpg",
+    //   media_id: 1637,
+    // },
     {
       title: "Kill Bill: Vol. 1",
       year: 2003,
@@ -314,12 +314,12 @@ export const SEED_MOVIES = {
       media_id: 89,
     },
     {
-      title: "The Princess Bride",
-      year: 1987,
-      vibes: ["Fairy tale", "Swashbuckler", "Quotable"],
+      title: "The Wonderful Story of Henry Sugar",
+      year: 2023,
+      vibes: ["Quirky Comedy", "Wes Anderson"],
       poster_url:
-        "https://image.tmdb.org/t/p/w500/dvjqlp2sAhUeFjUOfQDgqwpphHj.jpg",
-      media_id: 2493,
+        "https://image.tmdb.org/t/p/w500/fDUywEHwHh6nsLnVXAdPN9m4ZUG.jpg",
+      media_id: 923939,
     },
     {
       title: "Jurassic Park",
@@ -342,14 +342,14 @@ export const SEED_MOVIES = {
     //  'vibes': ['Modern treasure hunt', 'Puzzle-solving'],
     //  'poster_url': 'https://image.tmdb.org/t/p/w500/pxL6E4GBOPUG6CdkO9cUQN5VMwI.jpg',
     //  'media_id': 2059},
-    {
-      title: "The Jungle Book",
-      year: 2016,
-      vibes: ["Coming-of-age", "Nature adventure"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/2Epx7F9X7DrFptn4seqn4mzBVks.jpg",
-      media_id: 278927,
-    },
+    // {
+    //   title: "The Jungle Book",
+    //   year: 2016,
+    //   vibes: ["Coming-of-age", "Nature adventure"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/2Epx7F9X7DrFptn4seqn4mzBVks.jpg",
+    //   media_id: 278927,
+    // },
     {
       title: "Finding Nemo",
       year: 2003,
@@ -366,14 +366,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
       media_id: 157336,
     },
-    {
-      title: "Lawrence of Arabia",
-      year: 1962,
-      vibes: ["Epic desert adventure", "Historical"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/AiAm0EtDvyGqNpVoieRw4u65vD1.jpg",
-      media_id: 947,
-    },
+    // {
+    //   title: "Lawrence of Arabia",
+    //   year: 1962,
+    //   vibes: ["Epic desert adventure", "Historical"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/AiAm0EtDvyGqNpVoieRw4u65vD1.jpg",
+    //   media_id: 947,
+    // },
     {
       title: "The Wild Robot",
       year: 2024,
@@ -382,14 +382,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/wTnV3PCVW5O92JMrFvvrRcV39RU.jpg",
       media_id: 1184918,
     },
-    {
-      title: "Tomb Raider",
-      year: 2018,
-      vibes: ["Modern Adventure", "Female Protagonist"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/s4Qn5LF6OwK4rIifmthIDtbqDSs.jpg",
-      media_id: 338970,
-    },
+    // {
+    //   title: "Tomb Raider",
+    //   year: 2018,
+    //   vibes: ["Modern Adventure", "Female Protagonist"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/s4Qn5LF6OwK4rIifmthIDtbqDSs.jpg",
+    //   media_id: 338970,
+    // },
     {
       title: "Jumanji: Welcome to the Jungle",
       year: 2017,
@@ -490,14 +490,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/1mqL7VG4Ix8wmxwypmCA1HTHBky.jpg",
       media_id: 515001,
     },
-    {
-      title: "Anchorman: The Legend of Ron Burgundy",
-      year: 2004,
-      vibes: ["Light-hearted", "Absurd"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/mhZIcRePT7U8viFQVjt1ZjYIsR4.jpg",
-      media_id: 8699,
-    },
+    // {
+    //   title: "Anchorman: The Legend of Ron Burgundy",
+    //   year: 2004,
+    //   vibes: ["Light-hearted", "Absurd"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/mhZIcRePT7U8viFQVjt1ZjYIsR4.jpg",
+    //   media_id: 8699,
+    // },
     {
       title: "Hot Fuzz",
       year: 2007,
@@ -530,14 +530,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/ek8e8txUyUwd2BNqj6lFEerJfbq.jpg",
       media_id: 8363,
     },
-    {
-      title: "Bridesmaids",
-      year: 2011,
-      vibes: ["Female-driven", "Raunchy", "Wedding Comedy"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/gJtA7hYsBMQ7EM3sPBMUdBfU7a0.jpg",
-      media_id: 55721,
-    },
+    // {
+    //   title: "Bridesmaids",
+    //   year: 2011,
+    //   vibes: ["Female-driven", "Raunchy", "Wedding Comedy"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/gJtA7hYsBMQ7EM3sPBMUdBfU7a0.jpg",
+    //   media_id: 55721,
+    // },
     {
       title: "The Hangover",
       year: 2009,
@@ -579,14 +579,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/pThyQovXQrw2m0s9x82twj48Jq4.jpg",
       media_id: 546554,
     },
-    {
-      title: "Game Night",
-      year: 2018,
-      vibes: ["Dark comedy", "Thriller comedy"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/85R8LMyn9f2Lev2YPBF8Nughrkv.jpg",
-      media_id: 445571,
-    },
+    // {
+    //   title: "Game Night",
+    //   year: 2018,
+    //   vibes: ["Dark comedy", "Thriller comedy"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/85R8LMyn9f2Lev2YPBF8Nughrkv.jpg",
+    //   media_id: 445571,
+    // },
     {
       title: "Snatch",
       year: 2000,
@@ -595,14 +595,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/kJZoAHq1SLDdWjeNGtlHAnGpmFV.jpg",
       media_id: 107,
     },
-    {
-      title: "Hunt for the Wilderpeople",
-      year: 2016,
-      vibes: ["New Zealand comedy", "Adventure"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/hkmz9rxgcweizXNElozGeKwmAJE.jpg",
-      media_id: 371645,
-    },
+    // {
+    //   title: "Hunt for the Wilderpeople",
+    //   year: 2016,
+    //   vibes: ["New Zealand comedy", "Adventure"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/hkmz9rxgcweizXNElozGeKwmAJE.jpg",
+    //   media_id: 371645,
+    // },
     {
       title: "In Bruges",
       year: 2008,
@@ -643,14 +643,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/2aSxRDmisJP90H3S0aocyuQIe4z.jpg",
       media_id: 505600,
     },
-    {
-      title: "The Other Guys",
-      year: 2010,
-      vibes: ["Buddy cops", "Will Ferrell", "Satirical"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/wNEHNqo3MgHmj3BUiPSqqq5czcm.jpg",
-      media_id: 27581,
-    },
+    // {
+    //   title: "The Other Guys",
+    //   year: 2010,
+    //   vibes: ["Buddy cops", "Will Ferrell", "Satirical"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/wNEHNqo3MgHmj3BUiPSqqq5czcm.jpg",
+    //   media_id: 27581,
+    // },
     // {'title': 'Step Brothers',
     //  'year': 2008,
     //  'vibes': ['Absurd', 'Family comedy', 'Childish humor'],
@@ -1743,19 +1743,22 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/jAXfku1u1uaLGh4cUmK0ESf1pPu.jpg",
       media_id: 858,
     },
-    // {'title': "You've Got Mail",
-    //  'year': 1998,
-    //  'vibes': ['Email Romance', 'Small business vs corporate'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/e2uVtH6TpMfUl7WeOM70ezkcjsU.jpg',
-    //  'media_id': 9489},
     {
-      title: "Pretty Woman",
-      year: 1990,
-      vibes: ["Modern fairy tale", "Class differences"],
+      title: "Phantom Thread",
+      year: 2017,
+      vibes: ["Period Drama", "Daniel Day-Lewis", "Psychological"],
       poster_url:
-        "https://image.tmdb.org/t/p/w500/hVHUfT801LQATGd26VPzhorIYza.jpg",
-      media_id: 114,
+        "https://image.tmdb.org/t/p/w500/hgoWjp9Sh0MI97eAMZCnIoVfgvq.jpg",
+      media_id: 400617,
     },
+    // {
+    //   title: "Pretty Woman",
+    //   year: 1990,
+    //   vibes: ["Modern fairy tale", "Class differences"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/hVHUfT801LQATGd26VPzhorIYza.jpg",
+    //   media_id: 114,
+    // },
     {
       title: "Ghost",
       year: 1990,
@@ -1918,14 +1921,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/u68AjlvlutfEIcpmbYpKcdi09ut.jpg",
       media_id: 545611,
     },
-    {
-      title: "Gattaca",
-      year: 1997,
-      vibes: ["Dystopian", "Thought-provoking"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/eSKr5Fl1MEC7zpAXaLWBWSBjgJq.jpg",
-      media_id: 782,
-    },
+    // {
+    //   title: "Gattaca",
+    //   year: 1997,
+    //   vibes: ["Dystopian", "Thought-provoking"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/eSKr5Fl1MEC7zpAXaLWBWSBjgJq.jpg",
+    //   media_id: 782,
+    // },
     {
       title: "Gravity",
       year: 2013,
@@ -1942,14 +1945,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/eCOtqtfvn7mxGl6nfmq4b1exJRc.jpg",
       media_id: 152601,
     },
-    {
-      title: "Ghost in the Shell",
-      year: 1995,
-      vibes: ["Cyberpunk", "Thought-provoking"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/9gC88zYUBARRSThcG93MvW14sqx.jpg",
-      media_id: 9323,
-    },
+    // {
+    //   title: "Ghost in the Shell",
+    //   year: 1995,
+    //   vibes: ["Cyberpunk", "Thought-provoking"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/9gC88zYUBARRSThcG93MvW14sqx.jpg",
+    //   media_id: 9323,
+    // },
     {
       title: "Blade Runner",
       year: 1982,
@@ -1974,14 +1977,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/6FfCtAuVAW8XJjZ7eWeLibRLWTw.jpg",
       media_id: 11,
     },
-    {
-      title: "E.T. the Extra-Terrestrial",
-      year: 1982,
-      vibes: ["Family sci-fi", "Spielberg", "Friendship"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/an0nD6uq6byfxXCfk6lQBzdL2J1.jpg",
-      media_id: 601,
-    },
+    // {
+    //   title: "E.T. the Extra-Terrestrial",
+    //   year: 1982,
+    //   vibes: ["Family sci-fi", "Spielberg", "Friendship"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/an0nD6uq6byfxXCfk6lQBzdL2J1.jpg",
+    //   media_id: 601,
+    // },
     // {'title': 'Logan',
     //  'year': 2017,
     //  'vibes': ['Dystopian', 'Neo-Western', 'Character-Driven'],
@@ -2056,14 +2059,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/sNjL6SqErDBE8OUZlrDLkexfsCj.jpg",
       media_id: 59967,
     },
-    {
-      title: "Minority Report",
-      year: 2002,
-      vibes: ["Pre-crime", "Philip K. Dick", "Spielberg"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/ccqpHq5tk5W4ymbSbuoy4uYOxFI.jpg",
-      media_id: 180,
-    },
+    // {
+    //   title: "Minority Report",
+    //   year: 2002,
+    //   vibes: ["Pre-crime", "Philip K. Dick", "Spielberg"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/ccqpHq5tk5W4ymbSbuoy4uYOxFI.jpg",
+    //   media_id: 180,
+    // },
     // {'title': 'Total Recall',
     //  'year': 1990,
     //  'vibes': ['Memory implants', 'Mars', 'Philip K. Dick'],
@@ -2215,14 +2218,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg",
       media_id: 475557,
     },
-    {
-      title: "Cape Fear",
-      year: 1991,
-      vibes: ["Stalker", "Family Threat", "De Niro"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/meJZAAuVcjic2ipvbOPz5UlE4P9.jpg",
-      media_id: 1598,
-    },
+    // {
+    //   title: "Cape Fear",
+    //   year: 1991,
+    //   vibes: ["Stalker", "Family Threat", "De Niro"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/meJZAAuVcjic2ipvbOPz5UlE4P9.jpg",
+    //   media_id: 1598,
+    // },
     // {'title': 'Fatal Attraction',
     //  'year': 1987,
     //  'vibes': ['Adultery Consequences', 'Stalker', 'Family'],
@@ -2278,11 +2281,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/diAYqR4xdF9Hnj7qun6DEQhRrT2.jpg",
       media_id: 4553,
     },
-    // {'title': 'Shutter',
-    //  'year': 2004,
-    //  'vibes': ['Thai horror-thriller', 'Photography', 'Guilt'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/zUyaVtyugDaDHtOC6kCMJhbZsWu.jpg',
-    //  'media_id': 17111},
+    {
+      title: "Promising Young Woman",
+      year: 2020,
+      vibes: ["Suspense Mystery", "Tragedy", "Sardonic"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/73QoFJFmUrJfDG2EynFjNc5gJxk.jpg",
+      media_id: 582014,
+    },
     {
       title: "The Wailing",
       year: 2016,
