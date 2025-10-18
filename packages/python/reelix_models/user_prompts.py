@@ -14,8 +14,6 @@ DEFAULT_LIMITS = dict(
 
 
 # == User prompt builder for for-you feed discovery mode ==
-
-
 def build_for_you_user_prompt(
     *,
     candidates: List[Candidate],
@@ -114,14 +112,14 @@ def build_for_you_user_prompt(
 
     # explicit instructions (verbatim from template expectations)
     parts.append("\n**Instructions:**")
-    parts.append(f"- Output {batch_size} recommendation lines using the specified format.")
+    parts.append(
+        f"- Output {batch_size} recommendation lines using the specified format."
+    )
 
     return "\n".join(parts)
 
 
 # == User prompt builder for interactive recommendation mode ==
-
-
 def format_rec_context(candidates: list):
     context = "\n\n".join([c.payload.get("llm_context", "") for c in candidates])
     return context

@@ -5,7 +5,7 @@ reelix_core.egg-info/PKG-INFO
 reelix_core.egg-info/SOURCES.txt
 reelix_core.egg-info/dependency_links.txt
 reelix_core.egg-info/top_level.txt
-reelix_logging/usage_logger.py
+reelix_logging/rec_logger.py
 reelix_models/__init__.py
 reelix_models/cross_encoder_reranker.py
 reelix_models/custom_models.py
@@ -16,7 +16,6 @@ reelix_ranking/metadata.py
 reelix_ranking/rrf.py
 reelix_ranking/types.py
 reelix_recommendation/base_recipe.py
-reelix_recommendation/first_rec.py
 reelix_recommendation/orchestrator.py
 reelix_recommendation/recipe_helpers.py
 reelix_recommendation/recipes.py
@@ -32,3 +31,9 @@ reelix_retrieval/vectorstore.py
 reelix_tmdb/tmdb_client.py
 reelix_user/__init__.py
 reelix_user/taste_profile.py
+reelix_watchlist/__init__.py
+reelix_watchlist/errors.py
+reelix_watchlist/events.py
+reelix_watchlist/schemas.py
+reelix_watchlist/supabase_repo.py
+reelix_watchlist/watchlist_service.py

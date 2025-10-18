@@ -16,7 +16,7 @@ export async function streamChatResponse(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}/recommend/interactive`, {
+  const response = await fetch(`${BASE_URL}/recommendations/interactive`, {
     method: "POST",
     headers,
     body: JSON.stringify(request),
@@ -45,7 +45,7 @@ export async function logFinalRecs({
   finalRecs: { media_id: number; why: string }[];
 }) {
   const token = await getSupabaseAccessToken();
-  const res = await fetch(`${BASE_URL}/recommend/log/final_recs`, {
+  const res = await fetch(`${BASE_URL}/recommendations/log/final_recs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

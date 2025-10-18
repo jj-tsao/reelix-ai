@@ -15,7 +15,7 @@ from reelix_core.config import (
     QDRANT_MOVIE_COLLECTION_NAME,
     QDRANT_TV_COLLECTION_NAME,
 )
-from reelix_logging.logger import TelemetryLogger
+from reelix_logging.rec_logger import TelemetryLogger
 from app.infrastructure.cache.ticket_store import make_ticket_store
 from .routers import all_routers
 

@@ -19,7 +19,7 @@ from app.deps.supabase_optional import (
 from app.repositories.taste_profile_store import fetch_user_taste_context
 from app.schemas import FinalRecsRequest, InteractiveRequest
 
-router = APIRouter(prefix="/recommend", tags=["recommend"])
+router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 ENDPOINT = "recommendations/interactive"
 
