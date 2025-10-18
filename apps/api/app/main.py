@@ -4,9 +4,12 @@ import httpx
 from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from postgrest.exceptions import APIError as PgRestError
+from reelix_watchlist.errors import DomainError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from qdrant_client import QdrantClient
 
@@ -210,6 +213,22 @@ def _custom_openapi():
 
 app.openapi = _custom_openapi
 
+
+@app.exception_handler(DomainError)
+async def domain_error_handler(request: Request, exc: DomainError):
+    return JSONResponse(
+        status_code=exc.status,
+        content={"error": {"code": exc.code, "message": str(exc)}},
+    )
+
+@app.exception_handler(PgRestError)
+async def postgrest_error_handler(request: Request, exc: PgRestError):
+    # Fallback if any PgRestError leaks past the repo mapping
+    status = 400 if getattr(exc, "code", "") in ("22P02", "23502") else 500
+    return JSONResponse(
+        status_code=status,
+        content={"error": {"code": "db_error", "message": "database error"}},
+    )
 
 @app.get("/health")
 def health():

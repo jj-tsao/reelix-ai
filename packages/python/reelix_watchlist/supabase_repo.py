@@ -6,7 +6,7 @@ from typing import Sequence, Tuple
 from anyio import to_thread
 from postgrest.exceptions import APIError as PostgrestAPIError
 
-from .errors import NotFound
+from .errors import NotFound, Conflict, Forbidden  # <-- add these
 from .schemas import (
     ExistsOut,
     WatchlistCreate,
@@ -17,7 +17,6 @@ from .schemas import (
 )
 
 TABLE = "user_watchlist"
-RPC_SOFT_DELETE = "soft_delete_watchlist_row"  # make sure this function exists in DB
 DENORM_FIELDS = {
     "title",
     "poster_url",
@@ -27,17 +26,26 @@ DENORM_FIELDS = {
     "source",
 }
 
-
 def _row_to_item(row: dict) -> WatchlistItem:
     return WatchlistItem(**row)
 
+def _map_pgrest(e: PostgrestAPIError) -> Exception:
+    code = getattr(e, "code", None) or ""
+    # Postgres / PostgREST error codes:
+    # 23505 unique_violation, 42501 insufficient_privilege (RLS), 23503 foreign_key_violation
+    if code == "23505":
+        return Conflict("duplicate")
+    if code == "42501":
+        return Forbidden("permission denied")
+    if code == "23503":
+        return Conflict("foreign key violation")
+    return e  # let unexpected ones bubble up to 500
 
 class SupabaseWatchlistRepo:
     def __init__(self, client):
         self.client = client
 
     # ---------- Async facade (runs sync work in threadpool) ----------
-
     async def create_or_revive(self, dto: WatchlistCreate) -> WatchlistItem:
         return await to_thread.run_sync(self._create_revive_sync, dto)
 
@@ -80,7 +88,6 @@ class SupabaseWatchlistRepo:
         return await to_thread.run_sync(self._get_sync, user_id, id)
 
     # ---------- Private sync implementations ----------
-
     def _create_revive_sync(self, dto: WatchlistCreate) -> WatchlistItem:
         payload = dto.model_dump(exclude_none=True)
 
@@ -100,24 +107,27 @@ class SupabaseWatchlistRepo:
 
         # 1) Revive a soft-deleted row
         revive_updates = {"deleted_at": None, "deleted_reason": None}
-        # optional: backfill denorms only if currently null
         for k in DENORM_FIELDS:
             if k in payload:
                 revive_updates[k] = payload[k]
 
-        revived = (
-            self.client.table(TABLE)
-            .update(revive_updates, returning="representation")
-            .eq("user_id", dto.user_id)
-            .eq("media_id", dto.media_id)
-            .eq("media_type", dto.media_type)
-            .not_.is_("deleted_at", None)
-            .execute()
-        )
+        try:
+            revived = (
+                self.client.table(TABLE)
+                .update(revive_updates, returning="representation")
+                .eq("user_id", dto.user_id)
+                .eq("media_id", dto.media_id)
+                .eq("media_type", dto.media_type)
+                .not_.is_("deleted_at", None)
+                .execute()
+            )
+        except PostgrestAPIError as e:
+            raise _map_pgrest(e)
+
         if revived.data:
             return _row_to_item(revived.data[0])
 
-        # 2) Fresh insert
+        # 2) Fresh insert (handle race 23505 → read active)
         try:
             res = (
                 self.client.table(TABLE)
@@ -126,8 +136,8 @@ class SupabaseWatchlistRepo:
             )
             return _row_to_item(res.data[0])
         except PostgrestAPIError as e:
-            # Race: someone inserted after this check → read active and return
-            if getattr(e, "code", None) == "23505":
+            mapped = _map_pgrest(e)
+            if isinstance(mapped, Conflict):  # 23505 race: someone inserted
                 final = (
                     self.client.table(TABLE)
                     .select("*")
@@ -140,7 +150,7 @@ class SupabaseWatchlistRepo:
                 )
                 if final.data:
                     return _row_to_item(final.data[0])
-            raise
+            raise mapped
 
     def _update_sync(self, dto: WatchlistUpdate) -> WatchlistItem:
         # 1) Ensure the row exists AND is not soft-deleted
@@ -183,35 +193,42 @@ class SupabaseWatchlistRepo:
             return _row_to_item(current.data[0])
 
         # 3) Apply update and return the updated row
-        res = (
-            self.client.table(TABLE)
-            .update(updates, returning="representation")
-            .eq("id", dto.id)
-            .eq("user_id", dto.user_id)
-            .is_("deleted_at", None)
-            .execute()
-        )
+        try:
+            res = (
+                self.client.table(TABLE)
+                .update(updates, returning="representation")
+                .eq("id", dto.id)
+                .eq("user_id", dto.user_id)
+                .is_("deleted_at", None)
+                .execute()
+            )
+        except PostgrestAPIError as e:
+            raise _map_pgrest(e)
+
         if not res.data:
-            # In case the row was soft-deleted between the check and update
             raise NotFound("watchlist item not found")
 
         return _row_to_item(res.data[0])
 
     def _remove_by_id_sync(self, dto: WatchlistRemoveById) -> WatchlistItem:
-        res = (
-            self.client.table(TABLE)
-            .update(
-                {
-                    "deleted_at": datetime.now(timezone.utc).isoformat(),
-                    "deleted_reason": "user_removed",
-                },
-                returning="representation",
+        try:
+            res = (
+                self.client.table(TABLE)
+                .update(
+                    {
+                        "deleted_at": datetime.now(timezone.utc).isoformat(),
+                        "deleted_reason": "user_removed",
+                    },
+                    returning="representation",
+                )
+                .eq("id", dto.id)
+                .eq("user_id", dto.user_id)
+                .is_("deleted_at", None)  # only active rows
+                .execute()
             )
-            .eq("id", dto.id)
-            .eq("user_id", dto.user_id)
-            .is_("deleted_at", None)  # only active rows
-            .execute()
-        )
+        except PostgrestAPIError as e:
+            raise _map_pgrest(e)
+
         data = res.data or []
         if not data:
             raise NotFound("watchlist item not found")
@@ -258,15 +275,11 @@ class SupabaseWatchlistRepo:
         if col == "rating":
             # Prefer explicit NULLS LAST for rating sorts
             try:
-                # newer supabase-py exposes nulls_last
-                qb = qb.order("rating", desc=desc, nullslast=True)
+                qb = qb.order("rating", desc=desc, nullslast=True)   # newer clients
             except TypeError:
-                # fallback: older clients only expose nulls_first
                 if desc:
-                    # DESC defaults to NULLS FIRST → force last
-                    qb = qb.order("rating", desc=True, nullsfirst=False)
+                    qb = qb.order("rating", desc=True, nullsfirst=False)  # fallback
                 else:
-                    # ASC already defaults to NULLS LAST; leave as-is
                     qb = qb.order("rating", desc=False)
         else:
             qb = qb.order(col, desc=desc)
@@ -290,14 +303,12 @@ class SupabaseWatchlistRepo:
             .limit(1)
             .execute()
         )
-
         rows = res.data or []
         if not rows:
             return ExistsOut(exists=False)
 
         row = rows[0]
         status = self._to_watch_status(row.get("status"))
-
         return ExistsOut(
             exists=True,
             id=row.get("id"),
@@ -309,7 +320,6 @@ class SupabaseWatchlistRepo:
         try:
             return WatchStatus(value) if value is not None else WatchStatus.WANT
         except ValueError:
-            # Unknown status in DB; be defensive but log if you want
             return WatchStatus.WANT
 
     def _get_sync(self, user_id: str, id: str) -> WatchlistItem:
