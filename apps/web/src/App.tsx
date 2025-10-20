@@ -8,6 +8,7 @@ import ResetPage from "./features/auth/pages/ResetPage";
 import TasteOnboardingPage from "./features/taste_onboarding/pages/TasteOnboardingPage";
 import QueryRecommendationPage from "./features/recommendation/pages/QueryRecommendationPage";
 import DiscoverPage from "./features/discover/pages/DiscoverPage";
+import WatchlistPage from "./features/watchlist/pages/WatchlistPage";
 
 export default function App() {
   const location = useLocation();
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/auth/reset" element={<ResetPage />} />
         <Route path="/taste" element={<TasteOnboardingPage />} />
         <Route path="/discover" element={<DiscoverPage />} />
+        <Route path="/watchlist" element={<WatchlistPage />} />
       </Routes>
     </>
   );

@@ -4,7 +4,7 @@ from typing import List
 
 from pydantic import BaseModel, Field, field_validator
 from reelix_core.types import MediaType, QueryFilter
-from reelix_watchlist.schemas import WatchStatus
+from reelix_watchlist.schemas import WatchStatus, WatchlistKey
 
 
 class ChatMessage(BaseModel):
@@ -66,9 +66,17 @@ class WatchlistCreateRequest(BaseModel):
     title: str | None = None
     poster_url: str | None = None
     backdrop_url: str | None = None
+    trailer_url: str | None = None
     release_year: int | None = None
     genres: list[str] | None = None
+    imdb_rating: float | None = None
+    rt_rating: int | None = None
+    why_summary: str | None = None
     source: str | None = None
+
+
+class KeysLookupRequest(BaseModel):
+    keys: list[WatchlistKey] = Field(..., min_length=1, max_length=200)
 
 
 class WatchlistUpdateByIdRequest(BaseModel):

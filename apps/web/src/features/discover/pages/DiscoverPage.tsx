@@ -13,6 +13,13 @@ import StreamStatusBar, { type StreamStatusState } from "../components/StreamSta
 import { upsertUserInteraction, type RatingValue } from "@/features/taste_onboarding/api";
 import { rebuildTasteProfile } from "@/api";
 import { hasTasteProfile, type TasteProfileHttpError } from "@/features/taste_profile/api";
+import {
+  createWatchlistItem,
+  deleteWatchlistItem,
+  lookupWatchlistKeys,
+  updateWatchlist,
+  type WatchlistStatus,
+} from "@/features/watchlist/api";
 
 type DiscoverRating = Exclude<RatingValue, "dismiss">;
 
@@ -54,6 +61,13 @@ function normalizeMediaId(value: unknown): string {
   return "";
 }
 
+function toNumericMediaId(value: string): number | null {
+  if (!value) return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.trunc(numeric);
+}
+
 function toOptionalNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() !== "") {
@@ -87,12 +101,37 @@ type PageState = "idle" | "loading" | "ready" | "error" | "unauthorized" | "miss
 
 type StreamPhase = StreamStatusState["status"];
 
+type WatchlistButtonState = "loading" | "not_added" | "in_list";
+
+interface WatchlistUiState {
+  state: WatchlistButtonState;
+  status: WatchlistStatus | null;
+  rating: number | null;
+  id: string | null;
+  busy: boolean;
+}
+
+function isSameWatchlistEntry(a: WatchlistUiState | undefined, b: WatchlistUiState): boolean {
+  if (!a) return false;
+  return (
+    a.state === b.state &&
+    a.status === b.status &&
+    a.rating === b.rating &&
+    a.id === b.id &&
+    a.busy === b.busy
+  );
+}
+
 const RATING_COUNT_KEY = "rating_count";
 const PENDING_REBUILD_KEY = "pending_rebuild";
 const LAST_REBUILD_KEY = "last_rebuild_at";
 const MIN_RATINGS_FOR_REBUILD = 2;
 const REBUILD_DELAY_MS = 10_000;
 const REBUILD_COOLDOWN_MS = 2 * 60 * 1000;
+const WATCHLIST_SOURCE = "discover_for_you";
+const LOOKUP_TRIGGER_SIZE = 12;
+const LOOKUP_MAX_BATCH = 20;
+const LOOKUP_DEBOUNCE_MS = 300;
 
 function parseStoredNumber(value: string | null): number | null {
   if (typeof value !== "string") return null;
@@ -240,9 +279,13 @@ export default function DiscoverPage() {
   const [refreshIndex, setRefreshIndex] = useState(0);
   const [feedbackById, setFeedbackById] = useState<Partial<Record<string, DiscoverRating>>>({});
   const [pendingFeedback, setPendingFeedback] = useState<Partial<Record<string, boolean>>>({});
+  const [watchlistState, setWatchlistState] = useState<Record<string, WatchlistUiState>>({});
+  const [activeRatingPrompt, setActiveRatingPrompt] = useState<string | null>(null);
   const queryIdRef = useRef<string | null>(null);
   const loggedQueryIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lookupQueueRef = useRef<Set<string>>(new Set());
+  const lookupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -261,10 +304,235 @@ export default function DiscoverPage() {
     };
   }, [rebuildController]);
 
+  useEffect(() => {
+    return () => {
+      if (lookupTimerRef.current) {
+        clearTimeout(lookupTimerRef.current);
+        lookupTimerRef.current = null;
+      }
+      lookupQueueRef.current.clear();
+    };
+  }, []);
+
   const orderedCards = useMemo(
     () => order.map((id) => cards[id]).filter((card): card is DiscoverCardData => Boolean(card)),
     [order, cards],
   );
+
+  const flushLookupQueue = useCallback(async () => {
+    if (lookupTimerRef.current) {
+      clearTimeout(lookupTimerRef.current);
+      lookupTimerRef.current = null;
+    }
+
+    const queue = lookupQueueRef.current;
+    if (queue.size === 0) {
+      return;
+    }
+
+    const batchIds: string[] = [];
+    for (const id of queue) {
+      batchIds.push(id);
+      queue.delete(id);
+      if (batchIds.length >= LOOKUP_MAX_BATCH) {
+        break;
+      }
+    }
+
+    if (batchIds.length === 0) {
+      return;
+    }
+
+    const mapped = batchIds
+      .map((id) => {
+        const numericId = toNumericMediaId(id);
+        if (numericId === null) return null;
+        return { mediaId: id, numericId };
+      })
+      .filter((entry): entry is { mediaId: string; numericId: number } => entry !== null);
+
+    if (mapped.length === 0) {
+      if (queue.size > 0) {
+        lookupTimerRef.current = setTimeout(() => {
+          void flushLookupQueue();
+        }, LOOKUP_DEBOUNCE_MS);
+      }
+      return;
+    }
+
+    const keys = mapped.map(({ numericId }) => ({
+      media_id: numericId,
+      media_type: "movie" as const,
+    }));
+
+    try {
+      const results = await lookupWatchlistKeys(keys);
+      const resultMap = new Map<number, (typeof results)[number]>();
+      for (const result of results) {
+        resultMap.set(result.media_id, result);
+      }
+
+      setWatchlistState((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const { mediaId, numericId } of mapped) {
+          const current = next[mediaId];
+          if (!current) continue;
+          const match = resultMap.get(numericId);
+          const entry: WatchlistUiState =
+            match && match.exists && match.id
+              ? {
+                  state: "in_list",
+                  status: match.status ?? "want",
+                  rating: match.rating ?? null,
+                  id: match.id,
+                  busy: false,
+                }
+              : {
+                  state: "not_added",
+                  status: null,
+                  rating: null,
+                  id: null,
+                  busy: false,
+                };
+          if (!isSameWatchlistEntry(current, entry)) {
+            next[mediaId] = entry;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    } catch (error) {
+      console.warn("Watchlist lookup failed", error);
+      setWatchlistState((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const { mediaId } of mapped) {
+          const current = next[mediaId];
+          if (!current) continue;
+          const entry: WatchlistUiState = {
+            state: "not_added",
+            status: null,
+            rating: null,
+            id: null,
+            busy: false,
+          };
+          if (!isSameWatchlistEntry(current, entry)) {
+            next[mediaId] = entry;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    } finally {
+      if (queue.size > 0) {
+        lookupTimerRef.current = setTimeout(() => {
+          void flushLookupQueue();
+        }, LOOKUP_DEBOUNCE_MS);
+      }
+    }
+  }, [lookupWatchlistKeys]);
+
+  const enqueueWatchlistLookup = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const queue = lookupQueueRef.current;
+      let added = false;
+      ids.forEach((id) => {
+        if (!id) return;
+        if (!queue.has(id)) {
+          queue.add(id);
+          added = true;
+        }
+      });
+      if (!added) return;
+      if (queue.size >= LOOKUP_TRIGGER_SIZE) {
+        void flushLookupQueue();
+        return;
+      }
+      if (lookupTimerRef.current) {
+        clearTimeout(lookupTimerRef.current);
+      }
+      lookupTimerRef.current = setTimeout(() => {
+        void flushLookupQueue();
+      }, LOOKUP_DEBOUNCE_MS);
+    },
+    [flushLookupQueue],
+  );
+
+  const ensureWatchlistEntries = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const unique = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+      if (unique.length === 0) return;
+
+      setWatchlistState((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const id of unique) {
+          if (next[id]) continue;
+          next[id] = {
+            state: "loading",
+            status: null,
+            rating: null,
+            id: null,
+            busy: false,
+          };
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+
+      enqueueWatchlistLookup(unique);
+    },
+    [enqueueWatchlistLookup],
+  );
+
+  const openRatingPrompt = useCallback((mediaId: string) => {
+    if (!mediaId) return;
+    setActiveRatingPrompt(mediaId);
+  }, []);
+
+  const closeRatingPrompt = useCallback((mediaId?: string) => {
+    setActiveRatingPrompt((current) => {
+      if (!current) return current;
+      if (!mediaId || current === mediaId) {
+        return null;
+      }
+      return current;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (order.length === 0) return;
+    const missing: string[] = [];
+    for (const id of order) {
+      if (!id) continue;
+      if (!watchlistState[id]) {
+        missing.push(id);
+      }
+    }
+    if (missing.length > 0) {
+      ensureWatchlistEntries(missing);
+    }
+  }, [order, watchlistState, ensureWatchlistEntries]);
+
+  useEffect(() => {
+    if (!activeRatingPrompt) return;
+    const entry = watchlistState[activeRatingPrompt];
+    if (!entry) {
+      closeRatingPrompt(activeRatingPrompt);
+      return;
+    }
+    if (entry.state !== "in_list") {
+      closeRatingPrompt(activeRatingPrompt);
+      return;
+    }
+    if (entry.status !== "watched" && entry.rating === null) {
+      closeRatingPrompt(activeRatingPrompt);
+      return;
+    }
+  }, [activeRatingPrompt, watchlistState, closeRatingPrompt]);
 
   const handleStreamEvent = useCallback((event: DiscoverStreamEvent) => {
     if (event.type === "started") {
@@ -325,6 +593,13 @@ export default function DiscoverPage() {
       setErrorMessage(null);
       setStreamState({ status: "idle" });
       abortRef.current?.abort();
+      lookupQueueRef.current.clear();
+      if (lookupTimerRef.current) {
+        clearTimeout(lookupTimerRef.current);
+        lookupTimerRef.current = null;
+      }
+      setWatchlistState({});
+      closeRatingPrompt();
       const sessionId = getSessionId();
       const queryId = `${sessionId}_${Date.now()}`;
       queryIdRef.current = queryId;
@@ -385,12 +660,12 @@ export default function DiscoverPage() {
           if (!card.mediaId) return;
           mapped[card.mediaId] = card;
         });
+        const newOrder = response.items
+          .map((item) => normalizeMediaId(item.media_id))
+          .filter((id): id is string => Boolean(id));
         setCards(mapped);
-        setOrder(
-          response.items
-            .map((item) => normalizeMediaId(item.media_id))
-            .filter((id): id is string => Boolean(id)),
-        );
+        setOrder(newOrder);
+        ensureWatchlistEntries(newOrder);
         setPageState("ready");
 
         if (response.stream_url) {
@@ -434,7 +709,7 @@ export default function DiscoverPage() {
       cancelled = true;
       abortRef.current?.abort();
     };
-  }, [refreshIndex, handleStreamEvent]);
+  }, [refreshIndex, handleStreamEvent, ensureWatchlistEntries]);
 
   const streamPhase: StreamPhase = streamState.status;
   const canCancel = streamPhase === "connecting" || streamPhase === "streaming";
@@ -539,6 +814,364 @@ export default function DiscoverPage() {
     [toast],
   );
 
+  const handleWatchlistAdd = useCallback(
+    async (card: DiscoverCardData) => {
+      if (!card.mediaId) return;
+      const entry = watchlistState[card.mediaId];
+      if (entry && (entry.state === "loading" || entry.state === "in_list" || entry.busy)) {
+        return;
+      }
+
+      const numericId = toNumericMediaId(card.mediaId);
+      if (numericId === null) {
+        toast({
+          title: "Unable to add",
+          description: "We couldn't identify this title just yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setWatchlistState((prev) => ({
+        ...prev,
+        [card.mediaId]: {
+          state: "in_list",
+          status: "want",
+          rating: entry?.rating ?? null,
+          id: entry?.id ?? null,
+          busy: true,
+        },
+      }));
+
+      try {
+        const result = await createWatchlistItem({
+          media_id: numericId,
+          media_type: "movie",
+          status: "want",
+          title: card.title,
+          poster_url: card.posterUrl ?? null,
+          backdrop_url: card.backdropUrl ?? null,
+          trailer_url: card.trailerKey ? `https://www.youtube.com/watch?v=${card.trailerKey}` : null,
+          release_year: card.releaseYear ?? null,
+          genres: card.genres.length > 0 ? card.genres : null,
+          imdb_rating: typeof card.imdbRating === "number" ? card.imdbRating : null,
+          rt_rating: typeof card.rottenTomatoesRating === "number" ? card.rottenTomatoesRating : null,
+          why_summary: card.whyMarkdown ?? card.whyText ?? null,
+          source: WATCHLIST_SOURCE,
+        });
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              state: "in_list",
+              status: result.status ?? "want",
+              rating: result.rating ?? null,
+              id: result.id,
+              busy: false,
+            },
+          };
+        });
+      } catch (error) {
+        setWatchlistState((prev) => ({
+          ...prev,
+          [card.mediaId]: {
+            state: "not_added",
+            status: null,
+            rating: null,
+            id: null,
+            busy: false,
+          },
+        }));
+        toast({
+          title: "Could not add to watchlist",
+          description: toErrorMessage(error, "Please try again in a moment."),
+          variant: "destructive",
+        });
+      }
+    },
+    [toast, watchlistState],
+  );
+
+  const handleWatchlistStatus = useCallback(
+    async (card: DiscoverCardData, nextStatus: WatchlistStatus) => {
+      if (!card.mediaId) return;
+      const entry = watchlistState[card.mediaId];
+      if (!entry || entry.state !== "in_list" || entry.busy || !entry.id) {
+        return;
+      }
+      const previousStatus = entry.status ?? "want";
+      if (previousStatus === nextStatus) {
+        return;
+      }
+      const snapshot: WatchlistUiState = { ...entry };
+      const watchlistId = entry.id;
+
+      if (nextStatus !== "watched") {
+        closeRatingPrompt(card.mediaId);
+      }
+
+      setWatchlistState((prev) => {
+        const existing = prev[card.mediaId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [card.mediaId]: {
+            ...existing,
+            state: "in_list",
+            status: nextStatus,
+            rating: existing.rating ?? null,
+            busy: true,
+          },
+        };
+      });
+
+      try {
+        const result = await updateWatchlist(watchlistId, { status: nextStatus });
+        const updatedStatus = result.status ?? nextStatus;
+        const updatedRating = result.rating ?? snapshot.rating ?? null;
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              state: "in_list",
+              status: updatedStatus,
+              rating: updatedRating,
+              id: result.id,
+              busy: false,
+            },
+          };
+        });
+        if (updatedStatus === "watched" && (updatedRating === null || updatedRating === 0)) {
+          openRatingPrompt(card.mediaId);
+        } else {
+          closeRatingPrompt(card.mediaId);
+        }
+      } catch (error) {
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              ...snapshot,
+              busy: false,
+            },
+          };
+        });
+        toast({
+          title: "Could not update watchlist",
+          description: toErrorMessage(error, "Please try again soon."),
+          variant: "destructive",
+        });
+      }
+    },
+    [toast, watchlistState, closeRatingPrompt, openRatingPrompt],
+  );
+
+  const handleWatchlistRating = useCallback(
+    async (card: DiscoverCardData, ratingValue: number) => {
+      if (!card.mediaId) return;
+      const entry = watchlistState[card.mediaId];
+      if (!entry || entry.state !== "in_list" || entry.busy || !entry.id) {
+        return;
+      }
+      if (!Number.isFinite(ratingValue) || ratingValue < 1 || ratingValue > 10) {
+        return;
+      }
+      const normalized = Math.min(10, Math.max(1, Math.round(ratingValue)));
+      const snapshot: WatchlistUiState = { ...entry };
+
+      setWatchlistState((prev) => {
+        const existing = prev[card.mediaId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [card.mediaId]: {
+            ...existing,
+            rating: normalized,
+            busy: true,
+          },
+        };
+      });
+
+      closeRatingPrompt(card.mediaId);
+
+      try {
+        const result = await updateWatchlist(entry.id, { rating: normalized });
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              ...existing,
+              status: result.status ?? existing.status,
+              rating: result.rating ?? normalized,
+              id: result.id,
+              busy: false,
+            },
+          };
+        });
+      } catch (error) {
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              ...existing,
+              rating: snapshot.rating,
+              busy: false,
+            },
+          };
+        });
+        toast({
+          title: "Could not save rating",
+          description: toErrorMessage(error, "Please try again soon."),
+          variant: "destructive",
+        });
+      }
+    },
+    [watchlistState, closeRatingPrompt, toast],
+  );
+
+  const handleWatchlistRatingSkip = useCallback(
+    (card: DiscoverCardData) => {
+      if (!card.mediaId) return;
+      closeRatingPrompt(card.mediaId);
+    },
+    [closeRatingPrompt],
+  );
+
+  const handleWatchlistRatingClear = useCallback(
+    async (card: DiscoverCardData) => {
+      if (!card.mediaId) return;
+      const entry = watchlistState[card.mediaId];
+      if (!entry || entry.state !== "in_list" || entry.busy || !entry.id) {
+        closeRatingPrompt(card.mediaId);
+        return;
+      }
+      if (entry.rating === null) {
+        closeRatingPrompt(card.mediaId);
+        return;
+      }
+
+      const snapshot = { ...entry };
+
+      setWatchlistState((prev) => {
+        const existing = prev[card.mediaId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [card.mediaId]: {
+            ...existing,
+            rating: null,
+            busy: true,
+          },
+        };
+      });
+
+      closeRatingPrompt(card.mediaId);
+
+      try {
+        const result = await updateWatchlist(entry.id, { rating: null });
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              state: "in_list",
+              status: result.status ?? existing.status,
+              rating: result.rating ?? null,
+              id: result.id,
+              busy: false,
+            },
+          };
+        });
+      } catch (error) {
+        setWatchlistState((prev) => ({
+          ...prev,
+          [card.mediaId]: snapshot,
+        }));
+        toast({
+          title: "Could not clear rating",
+          description: toErrorMessage(error, "Please try again soon."),
+          variant: "destructive",
+        });
+      }
+    },
+    [watchlistState, closeRatingPrompt, toast],
+  );
+
+  const handleWatchlistRemove = useCallback(
+    async (card: DiscoverCardData) => {
+      if (!card.mediaId) return;
+      const entry = watchlistState[card.mediaId];
+      if (!entry || entry.state !== "in_list" || entry.busy || !entry.id) {
+        return;
+      }
+      const snapshot: WatchlistUiState = { ...entry };
+
+      closeRatingPrompt(card.mediaId);
+
+      setWatchlistState((prev) => {
+        const existing = prev[card.mediaId];
+        if (!existing) return prev;
+        return {
+          ...prev,
+          [card.mediaId]: {
+            state: "not_added",
+            status: null,
+            rating: null,
+            id: null,
+            busy: true,
+          },
+        };
+      });
+
+      try {
+        await deleteWatchlistItem(snapshot.id as string);
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              state: "not_added",
+              status: null,
+              rating: null,
+              id: null,
+              busy: false,
+            },
+          };
+        });
+      } catch (error) {
+        setWatchlistState((prev) => {
+          const existing = prev[card.mediaId];
+          if (!existing) return prev;
+          return {
+            ...prev,
+            [card.mediaId]: {
+              ...snapshot,
+              busy: false,
+            },
+          };
+        });
+        toast({
+          title: "Could not remove from watchlist",
+          description: toErrorMessage(error, "Please try again in a moment."),
+          variant: "destructive",
+        });
+      }
+    },
+    [toast, watchlistState],
+  );
+
   const handleStartTasteOnboarding = useCallback(() => {
     const target = user ? "/taste" : "/taste?first_run=1";
     navigate(target);
@@ -598,23 +1231,45 @@ export default function DiscoverPage() {
 
       {orderedCards.length > 0 && (
         <div className="flex flex-col gap-4">
-          {orderedCards.map(({ mediaId, ...card }) => (
-            <MovieCard
-              key={mediaId}
-              movie={{
-                ...card,
-                imdbRating: card.imdbRating ?? undefined,
-                rottenTomatoesRating: card.rottenTomatoesRating ?? undefined,
-              }}
-              feedback={{
-                value: feedbackById[mediaId],
-                disabled: pendingFeedback[mediaId] ?? false,
-                onChange: (value) => handleFeedback({ mediaId, ...card }, value),
-              }}
-              onTrailerClick={() => handleTrailerClick({ mediaId, ...card })}
-              layout="wide"
-            />
-          ))}
+          {orderedCards.map((cardData) => {
+            const { mediaId, ...movieCard } = cardData;
+            const entry = mediaId ? watchlistState[mediaId] : undefined;
+            const watchlistProps = mediaId
+              ? {
+                  state: entry?.state ?? "loading",
+                  status: entry?.status ?? null,
+                  rating: entry?.rating ?? null,
+                  busy: entry?.busy ?? false,
+                  onAdd: () => handleWatchlistAdd(cardData),
+                  onSelectStatus: (status: WatchlistStatus) => handleWatchlistStatus(cardData, status),
+                  onRemove: () => handleWatchlistRemove(cardData),
+                  showRatingPrompt: activeRatingPrompt === mediaId,
+                  onRatingSelect: (value: number) => handleWatchlistRating(cardData, value),
+                  onRatingSkip: () => handleWatchlistRatingSkip(cardData),
+                  onRatingPromptOpen: () => openRatingPrompt(mediaId),
+                  onRatingClear: () => handleWatchlistRatingClear(cardData),
+                }
+              : undefined;
+
+            return (
+              <MovieCard
+                key={mediaId}
+                movie={{
+                  ...movieCard,
+                  imdbRating: movieCard.imdbRating ?? undefined,
+                  rottenTomatoesRating: movieCard.rottenTomatoesRating ?? undefined,
+                }}
+                feedback={{
+                  value: mediaId ? feedbackById[mediaId] : undefined,
+                  disabled: mediaId ? pendingFeedback[mediaId] ?? false : false,
+                  onChange: (value) => handleFeedback(cardData, value),
+                }}
+                watchlist={watchlistProps}
+                onTrailerClick={() => handleTrailerClick(cardData)}
+                layout="wide"
+              />
+            );
+          })}
         </div>
       )}
 
@@ -623,6 +1278,16 @@ export default function DiscoverPage() {
       )}
     </section>
   );
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    const message = error.message?.trim();
+    if (message) {
+      return message;
+    }
+  }
+  return fallback;
 }
 
 function finalizePending(map: CardMap): CardMap {

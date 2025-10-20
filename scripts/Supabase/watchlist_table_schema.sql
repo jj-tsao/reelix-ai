@@ -23,9 +23,12 @@ create table public.user_watchlist (
   release_year  int,
   poster_url    text,
   backdrop_url  text,
-  trailer_url text,
+  trailer_url   text,
   genres        text[],
-  source        text,                                            -- 'discover','query','manual'
+  imdb_rating  float,
+  rt_rating    bigint,
+  why_summary   text,
+  source        text,                                            
 
   -- Lifecycle
   created_at    timestamptz not null default now(),

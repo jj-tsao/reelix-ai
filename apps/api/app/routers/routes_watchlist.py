@@ -8,18 +8,26 @@ from reelix_watchlist.schemas import (
     WatchlistItem,
     WatchlistRemoveById,
     WatchlistUpdate,
+    KeysLookupOutItem,
 )
 from reelix_watchlist.supabase_repo import SupabaseWatchlistRepo
 from reelix_watchlist.watchlist_service import WatchlistService
 
 from app.deps.supabase_client import get_current_user_id, get_supabase_client
-from app.schemas import WatchlistCreateRequest, WatchlistUpdateByIdRequest, WatchStatus
+from app.schemas import (
+    WatchlistCreateRequest,
+    WatchlistUpdateByIdRequest,
+    WatchStatus,
+    KeysLookupRequest,
+)
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
+
 
 def get_service(client=Depends(get_supabase_client)) -> WatchlistService:
     repo = SupabaseWatchlistRepo(client)
     return WatchlistService(repo)
+
 
 # ---- Create ----
 @router.post("", response_model=WatchlistItem, status_code=201)
@@ -31,6 +39,7 @@ async def create_item(
     dto = WatchlistCreate(user_id=user_id, **req.model_dump(exclude_unset=True))
     return await service.add(dto)
 
+
 # ---- Update (watch status, user rating, note) ----
 @router.patch("/{id}", response_model=WatchlistItem)
 async def update_item(
@@ -39,8 +48,9 @@ async def update_item(
     user_id: str = Depends(get_current_user_id),
     service: WatchlistService = Depends(get_service),
 ):
-    dto = WatchlistUpdate(user_id=user_id, id=id, **req.model_dump(exclude_unset=True))
+    dto = WatchlistUpdate(user_id=user_id, id=id, rating_set=("rating" in req.model_fields_set), **req.model_dump(exclude_unset=True))
     return await service.update(dto)
+
 
 # ---- Delete (DB soft delete) ----
 @router.delete("/{id}", response_model=WatchlistItem)
@@ -52,11 +62,13 @@ async def remove_by_id(
     dto = WatchlistRemoveById(user_id=user_id, id=id)
     return await service.remove_by_id(dto)
 
+
 class WatchlistPage(BaseModel):
     items: List[WatchlistItem]
     page: int
     page_size: int
     total: int
+
 
 # ---- List ----
 @router.get("", response_model=WatchlistPage)
@@ -83,6 +95,17 @@ async def list_items(
     )
     return {"items": items, "page": page, "page_size": page_size, "total": total}
 
+
+# ---- Batch lookup by keys ----
+@router.post("/keys/lookup", response_model=list[KeysLookupOutItem])
+async def keys_lookup(
+    req: KeysLookupRequest,
+    user_id: str = Depends(get_current_user_id),
+    service: WatchlistService = Depends(get_service),
+):
+    return await service.batch_lookup(user_id, req.keys)
+
+
 # ---- Exists (declare BEFORE `/{id}` to avoid route shadowing) ----
 @router.get("/exists", response_model=ExistsOut)
 async def exists_item(
@@ -92,6 +115,7 @@ async def exists_item(
     service: WatchlistService = Depends(get_service),
 ):
     return await service.exists(user_id, media_id, media_type)
+
 
 # ---- Get by id ----
 @router.get("/{id}", response_model=WatchlistItem)

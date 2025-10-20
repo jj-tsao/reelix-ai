@@ -1,8 +1,11 @@
+from typing import Sequence, List
 from .schemas import (
     WatchlistCreate,
     WatchlistUpdate,
     WatchlistItem,
     WatchlistRemoveById,
+    WatchlistKey,
+    KeysLookupOutItem,
     ExistsOut,
 )
 from .supabase_repo import SupabaseWatchlistRepo
@@ -57,6 +60,12 @@ class WatchlistService:
 
     async def list(self, **kwargs):
         return await self.repo.list(**kwargs)
+
+    async def batch_lookup(
+        self, user_id: str, keys: Sequence[WatchlistKey]
+    ) -> List[KeysLookupOutItem]:
+        rows = await self.repo.batch_lookup(user_id, keys)
+        return rows
 
     async def exists(self, user_id: str, media_id: int, media_type: str) -> ExistsOut:
         return await self.repo.exists(user_id, media_id, media_type)

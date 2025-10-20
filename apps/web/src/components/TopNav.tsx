@@ -10,6 +10,7 @@ import { isAnonymousUser } from "@/lib/session";
 const NAV_ITEMS = [
   { label: "For You", to: "/discover" },
   { label: "Explore by vibe", to: "/query" },
+  { label: "Watchlist", to: "/watchlist" },
 ] as const;
 
 export default function TopNav() {

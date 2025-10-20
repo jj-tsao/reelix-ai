@@ -197,11 +197,14 @@ export const SEED_MOVIES = {
     //  'vibes': ['Stylish', 'Espionage', 'Female-led'],
     //  'poster_url': 'https://image.tmdb.org/t/p/w500/kV9R5h0Yct1kR8Hf8sJ1nX0Vz4x.jpg',
     //  'media_id': 341013},
-    // {'title': 'The Equalizer',
-    //  'year': 2014,
-    //  'vibes': ['Vigilante Justice', 'Methodical', 'Modern'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/9u4yW7yPA0BQ2pv9XwiNzItwvp8.jpg',
-    //  'media_id': 156022},
+    {
+      title: "The Man from U.N.C.L.E.",
+      year: 2015,
+      vibes: ["Globetrotting Adventure", "Parody", "Cold War"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/y5yZaForGSJbPD66Cvq9AT5WMAD.jpg",
+      media_id: 203801,
+    },
     {
       title: "Nobody",
       year: 2021,
@@ -424,14 +427,14 @@ export const SEED_MOVIES = {
     //  'vibes': ['Survival epic', 'Historical journey'],
     //  'poster_url': 'https://image.tmdb.org/t/p/w500/oImI6rxld0sKNfEXaszgreLnNAO.jpg',
     //  'media_id': 49009},
-    {
-      title: "Wild",
-      year: 2014,
-      vibes: ["Personal journey", "Memoir adaptation"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/ohhWI4Xwf4m4HjbQiIkyAhLekUy.jpg",
-      media_id: 228970,
-    },
+    // {
+    //   title: "Wild",
+    //   year: 2014,
+    //   vibes: ["Personal journey", "Memoir adaptation"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/ohhWI4Xwf4m4HjbQiIkyAhLekUy.jpg",
+    //   media_id: 228970,
+    // },
     {
       title: "King Kong",
       year: 2005,
@@ -903,11 +906,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/mbm8k3GFhXS0ROd9AD1gqYbIFbM.jpg",
       media_id: 398978,
     },
-    // {'title': 'Knives Out',
-    //  'year': 2019,
-    //  'vibes': ['Murder mystery', 'Ensemble', 'Modern whodunit'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/pThyQovXQrw2m0s9x82twj48Jq4.jpg',
-    //  'media_id': 546554},
+    {
+      title: "Catch Me If You Can",
+      year: 2002,
+      vibes: ["Con Artist", "Caper", "True Crime"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/ctjEj2xM32OvBXCq8zAdK3ZrsAj.jpg",
+      media_id: 640,
+    },
     {
       title: "The Hateful Eight",
       year: 2015,
@@ -1291,7 +1297,7 @@ export const SEED_MOVIES = {
       media_id: 346698,
     },
     {
-      title: "The GoldKPop Demon Huntersen Compass",
+      title: "KPop Demon Hunters",
       year: 2025,
       vibes: ["Supernatural", "Pop Musical"],
       poster_url:

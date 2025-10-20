@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Sequence, Tuple
+from typing import Sequence
 
 from anyio import to_thread
 from postgrest.exceptions import APIError as PostgrestAPIError
@@ -14,6 +14,8 @@ from .schemas import (
     WatchlistRemoveById,
     WatchlistUpdate,
     WatchStatus,
+    WatchlistKey,
+    KeysLookupOutItem,
 )
 
 TABLE = "user_watchlist"
@@ -23,11 +25,15 @@ DENORM_FIELDS = {
     "backdrop_url",
     "release_year",
     "genres",
+    "why_summary",
     "source",
 }
+MAX_IN = 200  # keep matches PostgREST URL/param safety
+
 
 def _row_to_item(row: dict) -> WatchlistItem:
     return WatchlistItem(**row)
+
 
 def _map_pgrest(e: PostgrestAPIError) -> Exception:
     code = getattr(e, "code", None) or ""
@@ -40,6 +46,7 @@ def _map_pgrest(e: PostgrestAPIError) -> Exception:
     if code == "23503":
         return Conflict("foreign key violation")
     return e  # let unexpected ones bubble up to 500
+
 
 class SupabaseWatchlistRepo:
     def __init__(self, client):
@@ -66,7 +73,7 @@ class SupabaseWatchlistRepo:
         sort: str,
         page: int,
         page_size: int,
-    ) -> Tuple[Sequence[WatchlistItem], int]:
+    ) -> tuple[Sequence[WatchlistItem], int]:
         return await to_thread.run_sync(
             self._list_sync,
             user_id,
@@ -78,6 +85,11 @@ class SupabaseWatchlistRepo:
             page,
             page_size,
         )
+
+    async def batch_lookup(
+        self, user_id: str, keys: Sequence[WatchlistKey]
+    ) -> list[KeysLookupOutItem]:
+        return await to_thread.run_sync(self._batch_lookup_sync, user_id, keys)
 
     async def exists(self, user_id: str, media_id: int, media_type: str) -> ExistsOut:
         return await to_thread.run_sync(
@@ -172,8 +184,8 @@ class SupabaseWatchlistRepo:
             updates["status"] = (
                 dto.status.value if hasattr(dto.status, "value") else dto.status
             )
-        if dto.rating is not None:
-            updates["rating"] = dto.rating
+        if dto.rating_set:   
+            updates["rating"] = dto.rating   # may be None → sets NULL in DB
         if dto.notes is not None:
             updates["notes"] = dto.notes
 
@@ -216,6 +228,8 @@ class SupabaseWatchlistRepo:
                 self.client.table(TABLE)
                 .update(
                     {
+                        "status": "want",
+                        "rating": None,
                         "deleted_at": datetime.now(timezone.utc).isoformat(),
                         "deleted_reason": "user_removed",
                     },
@@ -244,7 +258,7 @@ class SupabaseWatchlistRepo:
         sort: str,
         page: int,
         page_size: int,
-    ) -> Tuple[Sequence[WatchlistItem], int]:
+    ) -> tuple[Sequence[WatchlistItem], int]:
         qb = (
             self.client.table(TABLE)
             .select("*", count="exact")
@@ -262,12 +276,12 @@ class SupabaseWatchlistRepo:
             qb = qb.lte("release_year", year_max)
 
         sort_map = {
-            "added_desc":  ("created_at", True),
-            "added_asc":   ("created_at", False),
-            "year_desc":   ("release_year", True),
-            "year_asc":    ("release_year", False),
+            "added_desc": ("created_at", True),
+            "added_asc": ("created_at", False),
+            "year_desc": ("release_year", True),
+            "year_asc": ("release_year", False),
             "rating_desc": ("rating", True),
-            "rating_asc":  ("rating", False),
+            "rating_asc": ("rating", False),
         }
 
         col, desc = sort_map.get(sort, ("created_at", True))
@@ -275,7 +289,7 @@ class SupabaseWatchlistRepo:
         if col == "rating":
             # Prefer explicit NULLS LAST for rating sorts
             try:
-                qb = qb.order("rating", desc=desc, nullslast=True)   # newer clients
+                qb = qb.order("rating", desc=desc, nullslast=True)  # newer clients
             except TypeError:
                 if desc:
                     qb = qb.order("rating", desc=True, nullsfirst=False)  # fallback
@@ -291,6 +305,75 @@ class SupabaseWatchlistRepo:
         items = [_row_to_item(r) for r in (res.data or [])]
         total = res.count or 0
         return items, total
+
+    def _batch_lookup_sync(
+        self, user_id: str, keys: Sequence[WatchlistKey]
+    ) -> list[KeysLookupOutItem]:
+        # Build a set of unique keys and group by media_type for efficient queries
+        unique_keys = []
+        seen = set()
+        for k in keys:
+            tup = (k.media_type, k.media_id)
+            if tup not in seen:
+                unique_keys.append(tup)
+                seen.add(tup)
+
+        # Group by type
+        by_type: dict[str, list[int]] = {"movie": [], "tv": []}
+        for mt, mid in unique_keys:
+            by_type.setdefault(mt, []).append(mid)
+
+        # Fetch rows per type (chunk if large)
+        rows_map: dict[tuple[str, int], dict] = {}
+        for mt, ids in by_type.items():
+            if not ids:
+                continue
+            for i in range(0, len(ids), MAX_IN):
+                chunk = ids[i : i + MAX_IN]
+                res = (
+                    self.client.table(TABLE)
+                    .select("id,media_id,media_type,status,rating")
+                    .eq("user_id", user_id)
+                    .eq("media_type", mt)
+                    .is_("deleted_at", None)
+                    .in_("media_id", chunk)
+                    .execute()
+                )
+                for r in res.data or []:
+                    rows_map[(r["media_type"], int(r["media_id"]))] = r
+
+        # Build output preserving input order
+        out: list[KeysLookupOutItem] = []
+        for k in keys:
+            row = rows_map.get((k.media_type, k.media_id))
+            if not row:
+                out.append(
+                    KeysLookupOutItem(
+                        media_type=k.media_type,
+                        media_id=k.media_id,
+                        exists=False,
+                        id=None,
+                        status=None,
+                        rating=None,
+                    )
+                )
+            else:
+                # Cast status string to Enum
+                try:
+                    status_enum = WatchStatus(row["status"])
+                except Exception:
+                    status_enum = None
+                out.append(
+                    KeysLookupOutItem(
+                        media_type=k.media_type,
+                        media_id=k.media_id,
+                        exists=True,
+                        id=row["id"],
+                        status=status_enum,
+                        rating=row.get("rating"),
+                    )
+                )
+        return out
 
     def _exists_sync(self, user_id: str, media_id: int, media_type: str) -> ExistsOut:
         res = (
