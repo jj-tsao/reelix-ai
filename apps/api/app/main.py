@@ -140,24 +140,24 @@ async def lifespan(app: FastAPI):
 
     settings = Settings()
     app.state.settings = settings
-    
+
     supabase_url = app.state.settings.supabase_url
     supabase_api_key = app.state.settings.supabase_api_key
-    
+
     if not supabase_url or not supabase_api_key:
         raise RuntimeError("Missing Supabase credits")
-    
+
     http_client = httpx.AsyncClient(timeout=5.0)
-    
+
     logger = TelemetryLogger(
         supabase_url,
         supabase_api_key,
         client=http_client,
-        timeout_s=5.0, 
+        timeout_s=5.0,
     )
-    
+
     app.state.logger = logger
-    
+
     # Eager init of external clients/models
     if _should_init_recommendation():
         try:
@@ -178,11 +178,14 @@ async def lifespan(app: FastAPI):
     finally:
         await http_client.aclose()
 
+
 app = FastAPI(title="Reelix Discovery Agent API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://reelixai.netlify.app", "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -221,6 +224,7 @@ async def domain_error_handler(request: Request, exc: DomainError):
         content={"error": {"code": exc.code, "message": str(exc)}},
     )
 
+
 @app.exception_handler(PgRestError)
 async def postgrest_error_handler(request: Request, exc: PgRestError):
     # Fallback if any PgRestError leaks past the repo mapping
@@ -229,6 +233,7 @@ async def postgrest_error_handler(request: Request, exc: PgRestError):
         status_code=status,
         content={"error": {"code": "db_error", "message": "database error"}},
     )
+
 
 @app.get("/health")
 def health():
