@@ -29,7 +29,7 @@ export const TEASER_TITLES = {
       imdb_rating: 7.8,
       rotten_tomatoes_rating: 93,
       why_you_might_enjoy_it:
-        "Everything Everywhere All at Once aligns well with your taste for character-driven stories with psychological depth, blending surreal multiverse play with intimate family stakes. Its mix of humor and existential reflection echoes the inventive emotion of Her and Eternal Sunshine of the Spotless Mind.",
+        "Everything Everywhere All at Once aligns well with your taste for character-driven stories with psychological depth, blending surreal multiverse play with intimate family stakes. Its mix of humor and existential reflection echoes the inventive emotion you appreciate in Her and Eternal Sunshine of the Spotless Mind.",
     },
 
     {
@@ -45,7 +45,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8.7,
       rotten_tomatoes_rating: 73,
       why_you_might_enjoy_it:
-        "Interstellar aligns with your interest in idea-driven sci-fi anchored by human stakes. Its time-bending narrative and contemplative tone pair cosmic spectacle with emotional resonance, similar to the reflective depth of Arrival and Gravity.",
+        "Interstellar aligns with your interest in idea-driven sci-fi anchored by human stakes. Its time-bending narrative and contemplative tone pair cosmic spectacle with emotional resonance, similar to the reflective depth you appreciate in Arrival and Gravity.",
     },
 
     {
@@ -61,7 +61,7 @@ export const TEASER_TITLES = {
       imdb_rating: 7.7,
       rotten_tomatoes_rating: 92,
       why_you_might_enjoy_it:
-        "With its minimalist tension and questions of power, trust, and AI, Ex Machina aligns well with your preference for cerebral sci-fi over pure spectacle. Its precise pacing and ethical ambiguity mirror the cool futurism of Black Mirror and Blade Runner 2049.",
+        "With its minimalist tension and questions of power, trust, and AI, Ex Machina aligns well with your preference for cerebral sci-fi over pure spectacle. Its precise pacing and ethical ambiguity mirror the cool futurism you appreciate in Black Mirror and Blade Runner 2049.",
     },
 
     {
@@ -108,7 +108,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8,
       rotten_tomatoes_rating: 88,
       why_you_might_enjoy_it:
-        "With its lush world-building and existential questions, Blade Runner 2049 aligns with your taste for atmospheric, philosophically inclined sci-fi. Its meditative noir mood and identity themes feel akin to Dune and Ghost in the Shell.",
+        "With its lush world-building and existential questions, Blade Runner 2049 aligns with your taste for atmospheric, philosophically inclined sci-fi. Its meditative noir mood and identity themes echo the films you like, such as Dune and Ghost in the Shell.",
     },
   ],
 
@@ -174,7 +174,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8.3,
       rotten_tomatoes_rating: 90,
       why_you_might_enjoy_it:
-        "With whimsical storytelling and playful visual language, Amélie aligns with your taste for tender, quirky romances. Its lighthearted charm and imaginative details feel similar to Midnight in Paris and Before Sunrise.",
+        "With whimsical storytelling and playful visual language, Amélie aligns with your taste for tender, quirky romances. Its lighthearted charm and imaginative details feel similar to your favorites: Midnight in Paris and Before Sunrise.",
     },
 
     {
@@ -190,7 +190,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8,
       rotten_tomatoes_rating: 95,
       why_you_might_enjoy_it:
-        "Her aligns with your interest in introspective romance that uses near-future tech to explore love and identity. Its gentle color palette and melancholic warmth evoke the reflective mood of Lost in Translation and Eternal Sunshine of the Spotless Mind.",
+        "Her aligns with your interest in introspective romance that uses near-future tech to explore love and identity. Its gentle color palette and melancholic warmth evoke the reflective mood of films you enjoy - such as Lost in Translation and Eternal Sunshine of the Spotless Mind.",
     },
 
     {
@@ -206,7 +206,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8,
       rotten_tomatoes_rating: 91,
       why_you_might_enjoy_it:
-        "With bittersweet romance and modern musical verve, La La Land aligns well with your taste for ambitious, performance-driven stories. Its dreamy set-pieces and grounded emotion echo the optimism of Sing Street and the artistic drive of Whiplash.",
+        "With bittersweet romance and modern musical verve, La La Land aligns well with your taste for ambitious, performance-driven stories. Its dreamy set-pieces and grounded emotion echo the optimism of Sing Street and the artistic drive of Whiplash you like.",
     },
 
     {
@@ -222,7 +222,7 @@ export const TEASER_TITLES = {
       imdb_rating: 7.8,
       rotten_tomatoes_rating: 71,
       why_you_might_enjoy_it:
-        "About Time aligns with your preference for heartfelt, quietly funny romances that value everyday kindness. Its time-twist premise supports a warm family story, similar to the gentle sincerity of Begin Again and The Notebook.",
+        "About Time aligns with your preference for heartfelt, quietly funny romances that value everyday kindness. Its time-twist premise supports a warm family story, similar to the gentle sincerity of films you like - Begin Again and The Notebook.",
     },
   ],
 
@@ -240,7 +240,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8.1,
       rotten_tomatoes_rating: 97,
       why_you_might_enjoy_it:
-        "With precision action and tactile world-building, Mad Max: Fury Road aligns well with your taste for visually choreographed set-pieces. Its relentless momentum and surprising heart mirror the craftsmanship of John Wick and the exhilaration of The Raid.",
+        "With precision action and tactile world-building, Mad Max: Fury Road aligns well with your taste for visually choreographed set-pieces. Its relentless momentum and surprising heart mirror the craftsmanship you enjoy in John Wick.",
     },
 
     {
@@ -272,7 +272,7 @@ export const TEASER_TITLES = {
       imdb_rating: 9,
       rotten_tomatoes_rating: 94,
       why_you_might_enjoy_it:
-        "With mythic scale and emotional payoff, The Return of the King aligns well with your taste for ensemble journeys and epic world-building. Its sweeping battles and friendship-first stakes evoke Gladiator and Braveheart.",
+        "With mythic scale and emotional payoff, The Return of the King aligns well with your taste for ensemble journeys and epic world-building. Its sweeping battles and friendship-first stakes evoke some of your favorites - Gladiator and Braveheart.",
     },
 
     {
@@ -288,7 +288,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8.4,
       rotten_tomatoes_rating: 97,
       why_you_might_enjoy_it:
-        "Spider-Man: Into the Spider-Verse aligns with your taste for stylish, music-laced hero stories that balance fun with heart. Its inventive animation and rhythmic storytelling feel similar to Scott Pilgrim and The Lego Movie.",
+        "Spider-Man: Into the Spider-Verse aligns with your taste for stylish, music-laced hero stories that balance fun with heart. Its inventive animation and rhythmic storytelling feel similar to Scott Pilgrim and The Lego Movie that you like.",
     },
 
     {
@@ -304,7 +304,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8.4,
       rotten_tomatoes_rating: 92,
       why_you_might_enjoy_it:
-        "With operatic stakes and immersive design, Dune: Part Two aligns well with your interest in slow-burn, world-driven sci-fi. Its atmosphere and thematic sweep echo Blade Runner 2049 and Interstellar.",
+        "With operatic stakes and immersive design, Dune: Part Two aligns well with your interest in slow-burn, world-driven sci-fi. Its atmosphere and thematic sweep echo some of your favorite films: Blade Runner 2049 and Interstellar.",
     },
 
     {
@@ -336,7 +336,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8.6,
       rotten_tomatoes_rating: 96,
       why_you_might_enjoy_it:
-        "With hand-crafted wonder and gentle adventure, Spirited Away aligns well with your taste for lyrical, transportive animation. Its cozy awe and emotional clarity are similar to My Neighbor Totoro and Kiki’s Delivery Service.",
+        "With hand-crafted wonder and gentle adventure, Spirited Away aligns well with your taste for lyrical, transportive animation. Its cozy awe and emotional clarity are similar to films you enjoy, such as My Neighbor Totoro and Kiki’s Delivery Service.",
     },
 
     {
@@ -368,7 +368,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8,
       rotten_tomatoes_rating: 78,
       why_you_might_enjoy_it:
-        "With immersive survival storytelling and natural-light cinematography, The Revenant aligns with your taste for visceral, craft-forward epics. Its long takes and elemental stakes deliver raw immediacy, similar to the real-time tension of 1917",
+        "With immersive survival storytelling and natural-light cinematography, The Revenant aligns with your taste for visceral, craft-forward epics. Its long takes and elemental stakes deliver raw immediacy, similar to the real-time tension you enjoy in 1917.",
     },
   ],
 };
