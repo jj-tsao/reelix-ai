@@ -35,8 +35,8 @@ interface TeaserMovie {
   genres: string[];
   trailerKey?: string;
   whyText?: string;
-  imdbRating?: number | null;
-  rottenTomatoesRating?: number | null;
+  imdbRating?: number;
+  rottenTomatoesRating?: number;
 }
 
 type TeaserWatchlistEntry = {
@@ -143,16 +143,12 @@ export default function LandingPage() {
         trailerKey: movie.trailer_key,
         whyText: movie.why_you_might_enjoy_it,
         imdbRating:
-          typeof movie.imdb_rating === "number"
+          typeof movie.imdb_rating === "number" && Number.isFinite(movie.imdb_rating)
             ? movie.imdb_rating
-            : movie.imdb_rating === null
-            ? null
             : undefined,
         rottenTomatoesRating:
-          typeof movie.rotten_tomatoes_rating === "number"
+          typeof movie.rotten_tomatoes_rating === "number" && Number.isFinite(movie.rotten_tomatoes_rating)
             ? movie.rotten_tomatoes_rating
-            : movie.rotten_tomatoes_rating === null
-            ? null
             : undefined,
       }));
   }, []);
