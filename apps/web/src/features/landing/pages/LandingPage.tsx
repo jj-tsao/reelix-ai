@@ -279,6 +279,12 @@ export default function LandingPage() {
             : null,
           release_year: movie.releaseYear ?? null,
           genres: movie.genres.length > 0 ? movie.genres : null,
+          imdb_rating:
+            typeof movie.imdbRating === "number" ? movie.imdbRating : null,
+          rt_rating:
+            typeof movie.rottenTomatoesRating === "number"
+              ? movie.rottenTomatoesRating
+              : null,
           why_summary: movie.whyText ?? null,
           source: WATCHLIST_SOURCE,
         });

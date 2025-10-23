@@ -27,6 +27,8 @@ DENORM_FIELDS = {
     "genres",
     "why_summary",
     "source",
+    "imdb_rating",
+    "rt_rating",
 }
 MAX_IN = 200  # keep matches PostgREST URL/param safety
 
@@ -115,7 +117,30 @@ class SupabaseWatchlistRepo:
             .execute()
         )
         if existing.data:
-            return _row_to_item(existing.data[0])
+            current = existing.data[0]
+            updates: dict[str, object] = {}
+            for field in ("imdb_rating", "rt_rating"):
+                if field in payload and payload[field] is not None and current.get(field) != payload[field]:
+                    updates[field] = payload[field]
+
+            if updates:
+                try:
+                    updated = (
+                        self.client.table(TABLE)
+                        .update(updates, returning="representation")
+                        .eq("user_id", dto.user_id)
+                        .eq("media_id", dto.media_id)
+                        .eq("media_type", dto.media_type)
+                        .is_("deleted_at", None)
+                        .execute()
+                    )
+                except PostgrestAPIError as e:
+                    raise _map_pgrest(e)
+
+                if updated.data:
+                    return _row_to_item(updated.data[0])
+                current.update(updates)
+            return _row_to_item(current)
 
         # 1) Revive a soft-deleted row
         revive_updates = {"deleted_at": None, "deleted_reason": None}
