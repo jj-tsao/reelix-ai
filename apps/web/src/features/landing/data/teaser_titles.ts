@@ -40,7 +40,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/vgnoBSVzWAV9sNQUORaDGvDp7wx.jpg",
+        "https://image.tmdb.org/t/p/w500/ln2Gre4IYRhpjuGVybbtaF4CLo5.jpg",
       trailer_key: "LY19rHKAaAg",
       imdb_rating: 8.7,
       rotten_tomatoes_rating: 73,
@@ -70,9 +70,9 @@ export const TEASER_TITLES = {
       media_id: 1124,
       genres: ["Drama", "Mystery", "Science Fiction"],
       poster_url:
-        "https://image.tmdb.org/t/p/w500/2ZOzyhoW08neG27DVySMCcq2emd.jpg",
+        "https://image.tmdb.org/t/p/w500/bdN3gXuIZYaJP7ftKK2sU0nPtEA.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/yCnJT53HMXAK87xzPAdjdYhZ3JE.jpg",
+        "https://image.tmdb.org/t/p/w500/xBDE2d6HM1aBKQRu4IT7SfPD9fs.jpg",
       trailer_key: "ijXruSzfGEc",
       imdb_rating: 8.5,
       rotten_tomatoes_rating: 77,
@@ -108,7 +108,7 @@ export const TEASER_TITLES = {
       imdb_rating: 8,
       rotten_tomatoes_rating: 88,
       why_you_might_enjoy_it:
-        "With its lush world-building and existential questions, Blade Runner 2049 aligns with your taste for atmospheric, philosophically inclined sci-fi. Its meditative noir mood and identity themes echo the films you like, such as Dune and Ghost in the Shell.",
+        "With its lush world-building and existential questions, Blade Runner 2049 aligns with your taste for atmospheric, philosophically inclined sci-fi. Its meditative noir mood and identity themes echo the films you like, such as Dune and Memento.",
     },
   ],
 
@@ -121,7 +121,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/1OJ9vkD5xPt3skC6KguyXAgagRZ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/kRVUMsXFzhuXjr20JcCGc6TapxA.jpg",
+        "https://image.tmdb.org/t/p/w500/AmoYMCH3rz7r4b7QMZfcOprV7Uh.jpg",
       trailer_key: "52x5HJ9H8DM",
       imdb_rating: 7.8,
       rotten_tomatoes_rating: 99,
@@ -137,7 +137,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/qx4HXHXt528hS4rwePZbZo20xqZ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/Z3ocAumcK9Iooc9BMlu7wE7XX9.jpg",
+        "https://image.tmdb.org/t/p/w500/caEE4HnHdIkofsYgDwQSflfuny8.jpg",
       trailer_key: "uTRCxOE7Xzc",
       imdb_rating: 7.4,
       rotten_tomatoes_rating: 83,
@@ -235,7 +235,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/hA2ple9q4qnwxp3hKVNhroipsir.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/gqrnQA6Xppdl8vIb2eJc58VC1tW.jpg",
+        "https://image.tmdb.org/t/p/w500/n6vWE0bXq4ImAM00iM5gWyORNSM.jpg",
       trailer_key: "MonFNCgK4WE",
       imdb_rating: 8.1,
       rotten_tomatoes_rating: 97,
@@ -299,7 +299,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
+        "https://image.tmdb.org/t/p/w500/f6ahdeUZPwUVirr86gcZ1QmiasQ.jpg",
       trailer_key: "U2Qp5pL3ovA",
       imdb_rating: 8.4,
       rotten_tomatoes_rating: 92,
@@ -315,7 +315,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/lMrxYKKhd4lqRzwUHAy5gcx9PSO.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/c2gcLDxniE0lNmT2a7CcQVuW6En.jpg",
+        "https://image.tmdb.org/t/p/w500/4sO09d1zReaSl3F08choHVZ9p8r.jpg",
       trailer_key: "U4NT78c-pYs",
       imdb_rating: 8,
       rotten_tomatoes_rating: 94,
