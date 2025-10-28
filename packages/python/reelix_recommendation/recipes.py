@@ -35,6 +35,7 @@ class ForYouFeedRecipe(BaseRecipe):
     def pipeline_params(self):
         return dict(
             final_top_k=20,
+            # sparse_depth=40,
             weights=dict(
                 dense=0.56,
                 sparse=0.12,
@@ -61,7 +62,6 @@ class ForYouFeedRecipe(BaseRecipe):
             user_signals=user_context.signals,
             batch_size=batch_size,
         )
-        print(user_prompt)
         envelope = self.build_prompt_envelope(
             self.name, system_prompt, user_prompt, candidates
         )

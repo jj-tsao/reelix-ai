@@ -52,6 +52,7 @@ class BaseRetriever:
                 "popularity",
                 "vote_average",
                 "vote_count",
+                "collection",
             ],
             query_filter=qfilter,
         )
@@ -91,6 +92,7 @@ class BaseRetriever:
                 "popularity",
                 "vote_average",
                 "vote_count",
+                "collection",
             ],
             query_filter=qfilter,
         )

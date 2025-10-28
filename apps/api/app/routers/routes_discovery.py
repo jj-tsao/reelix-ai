@@ -105,7 +105,7 @@ async def discover_for_you(
             query_id=req.query_id,
             media_type=req.media_type,
             candidates=final_candidates[:batch_size],
-            traces=traces,
+            traces=traces,  
             stage="final",
         )
     )
