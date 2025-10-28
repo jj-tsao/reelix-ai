@@ -4,6 +4,7 @@ from reelix_core.types import UserTasteContext
 from reelix_ranking.rrf import rrf
 from reelix_ranking.metadata import metadata_rerank
 from reelix_ranking.types import Candidate, ScoreTrace
+from reelix_ranking.diversification import diversify_by_collection
 from reelix_retrieval.base_retriever import BaseRetriever
 from qdrant_client.models import Filter as QFilter
 from concurrent.futures import ThreadPoolExecutor
@@ -77,8 +78,20 @@ class RecommendPipeline:
             weights=weights,
         )
         meta_sorted = [c for c, m_score, m_trace in meta_scored][:meta_top_n]
-        meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
         
+        meta_sorted, _ = diversify_by_collection(
+            meta_sorted,
+            per_collection_cap=1,
+        )
+        
+        meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
+
+        dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
+        sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
+
+        meta_score_map = {c.id: s for (c, s, t) in meta_scored}
+        meta_breakdown_map = {c.id: t for (c, _, t) in meta_scored}
+
         traces: Dict[int, ScoreTrace] = {}
 
         # 4.5) Fallback to metadata reranked results when CE reranker is not available
@@ -86,11 +99,6 @@ class RecommendPipeline:
             final = meta_sorted[:final_top_k]
 
             # Build traces (no ce_score, use metadata score as final score)
-            dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
-            sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
-            meta_score_map = {c.id: s for (c, s, t) in meta_scored}
-            meta_breakdown_map = {c.id: t for (c, _, t) in meta_scored}
-
             for c in final:
                 traces[c.id] = ScoreTrace(
                     id=c.id,
@@ -137,10 +145,6 @@ class RecommendPipeline:
         index = {c.id: c for c in pool}
         final = [index[i] for i in final_ids if i in index][:final_top_k]
 
-        dense_rank_map = {cid: r for r, cid in enumerate(dense_ids, start=1)}
-        sparse_rank_map = {cid: r for r, cid in enumerate(sparse_ids, start=1)}
-        meta_score_map = {c.id: s for (c, s, t) in meta_scored}
-        meta_breakdown_map = {c.id: t for (c, _, t) in meta_scored}
         final_rrf_map = dict(final_rrf)
 
         for cid in final_ids:

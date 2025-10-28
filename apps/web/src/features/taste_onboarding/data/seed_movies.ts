@@ -220,14 +220,14 @@ export const SEED_MOVIES = {
   //  'poster_url': 'https://image.tmdb.org/t/p/w500/nygOUcBKPHFTbxsYRFZVePqgPK6.jpg',
   //  'media_id': 545609}],
   Adventure: [
-    {
-      title: "Raiders of the Lost Ark",
-      year: 1981,
-      vibes: ["Epic scale", "Grand journey"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/ceG9VzoRAVGwivFU403Wc3AHRys.jpg",
-      media_id: 85,
-    },
+    // {
+    //   title: "Raiders of the Lost Ark",
+    //   year: 1981,
+    //   vibes: ["Epic scale", "Grand journey"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/ceG9VzoRAVGwivFU403Wc3AHRys.jpg",
+    //   media_id: 85,
+    // },
     {
       title: "The Lord of the Rings: The Fellowship of the Ring",
       year: 2001,
@@ -526,12 +526,12 @@ export const SEED_MOVIES = {
       media_id: 115,
     },
     {
-      title: "Superbad",
-      year: 2007,
-      vibes: ["Coming-of-age", "Raunchy", "Friendship"],
+      title: "Chef",
+      year: 2014,
+      vibes: ["Road Comedy", "Culinary", "Heartwarming"],
       poster_url:
-        "https://image.tmdb.org/t/p/w500/ek8e8txUyUwd2BNqj6lFEerJfbq.jpg",
-      media_id: 8363,
+        "https://image.tmdb.org/t/p/w500/hyp8EXDmO4dSC8V6Q5jU7gD1kcg.jpg",
+      media_id: 212778,
     },
     // {
     //   title: "Bridesmaids",
@@ -549,15 +549,15 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/A0uS9rHR56FeBtpjVki16M5xxSW.jpg",
       media_id: 18785,
     },
-    {
-      title:
-        "Borat: Cultural Learnings of America for Make Benefit Glorious Nation of Kazakhstan",
-      year: 2006,
-      vibes: ["Mockumentary", "Satirical", "Controversial"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/kfkyALfD4G1mlBJI1lOt2QCra4i.jpg",
-      media_id: 496,
-    },
+    // {
+    //   title:
+    //     "Borat: Cultural Learnings of America for Make Benefit Glorious Nation of Kazakhstan",
+    //   year: 2006,
+    //   vibes: ["Mockumentary", "Satirical", "Controversial"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/kfkyALfD4G1mlBJI1lOt2QCra4i.jpg",
+    //   media_id: 496,
+    // },
     {
       title: "Tropic Thunder",
       year: 2008,

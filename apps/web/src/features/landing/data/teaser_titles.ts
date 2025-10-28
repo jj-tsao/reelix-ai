@@ -8,7 +8,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/hiKmpZMGZsrkA3cdce8a7Dpos1j.jpg",
+        "https://image.tmdb.org/t/p/w1280/hiKmpZMGZsrkA3cdce8a7Dpos1j.jpg",
       trailer_key: "bM9QabAojCg",
       imdb_rating: 8.5,
       rotten_tomatoes_rating: 99,
@@ -24,7 +24,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/u68AjlvlutfEIcpmbYpKcdi09ut.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/ss0Os3uWJfQAENILHZUdX8Tt1OC.jpg",
+        "https://image.tmdb.org/t/p/w1280/ss0Os3uWJfQAENILHZUdX8Tt1OC.jpg",
       trailer_key: "wxN1T1uxQ2g",
       imdb_rating: 7.8,
       rotten_tomatoes_rating: 93,
@@ -40,7 +40,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/ln2Gre4IYRhpjuGVybbtaF4CLo5.jpg",
+        "https://image.tmdb.org/t/p/w1280/ln2Gre4IYRhpjuGVybbtaF4CLo5.jpg",
       trailer_key: "LY19rHKAaAg",
       imdb_rating: 8.7,
       rotten_tomatoes_rating: 73,
@@ -56,7 +56,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/dmJW8IAKHKxFNiUnoDR7JfsK7Rp.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/uqOuJ50EtTj7kkDIXP8LCg7G45D.jpg",
+        "https://image.tmdb.org/t/p/w1280/uqOuJ50EtTj7kkDIXP8LCg7G45D.jpg",
       trailer_key: "hEcB7T-C0g8",
       imdb_rating: 7.7,
       rotten_tomatoes_rating: 92,
@@ -72,7 +72,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/bdN3gXuIZYaJP7ftKK2sU0nPtEA.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/xBDE2d6HM1aBKQRu4IT7SfPD9fs.jpg",
+        "https://image.tmdb.org/t/p/w1280/nlqYna8K075J2j5E13Rs1Gzq2HJ.jpg",
       trailer_key: "ijXruSzfGEc",
       imdb_rating: 8.5,
       rotten_tomatoes_rating: 77,
@@ -88,7 +88,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/vQWk5YBFWF4bZaofAbv0tShwBvQ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg",
+        "https://image.tmdb.org/t/p/w1280/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg",
       trailer_key: "tGpTpVyI_OQ",
       imdb_rating: 8.9,
       rotten_tomatoes_rating: 92,
@@ -103,7 +103,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/iqZWmj1Ifz4T5tuCuszWktUG5yX.jpg",
+        "https://image.tmdb.org/t/p/w1280/iqZWmj1Ifz4T5tuCuszWktUG5yX.jpg",
       trailer_key: "gCcx85zbxz4",
       imdb_rating: 8,
       rotten_tomatoes_rating: 88,
@@ -121,7 +121,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/1OJ9vkD5xPt3skC6KguyXAgagRZ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/AmoYMCH3rz7r4b7QMZfcOprV7Uh.jpg",
+        "https://image.tmdb.org/t/p/w1280/AmoYMCH3rz7r4b7QMZfcOprV7Uh.jpg",
       trailer_key: "52x5HJ9H8DM",
       imdb_rating: 7.8,
       rotten_tomatoes_rating: 99,
@@ -137,7 +137,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/qx4HXHXt528hS4rwePZbZo20xqZ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/caEE4HnHdIkofsYgDwQSflfuny8.jpg",
+        "https://image.tmdb.org/t/p/w1280/caEE4HnHdIkofsYgDwQSflfuny8.jpg",
       trailer_key: "uTRCxOE7Xzc",
       imdb_rating: 7.4,
       rotten_tomatoes_rating: 83,
@@ -153,7 +153,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/gl66K7zRdtNYGrxyS2YDUP5ASZd.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/b6XrxL6iRfhRn4PrZ4JehrLpgdD.jpg",
+        "https://image.tmdb.org/t/p/w1280/b6XrxL6iRfhRn4PrZ4JehrLpgdD.jpg",
       trailer_key: "cNi_HC839Wo",
       imdb_rating: 7.4,
       rotten_tomatoes_rating: 99,
@@ -169,7 +169,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/nSxDa3M9aMvGVLoItzWTepQ5h5d.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/6n53UI4mX9QMfe2S0Pgt8mGebY1.jpg",
+        "https://image.tmdb.org/t/p/w1280/6n53UI4mX9QMfe2S0Pgt8mGebY1.jpg",
       trailer_key: "QY6Qt0ZUeVQ",
       imdb_rating: 8.3,
       rotten_tomatoes_rating: 90,
@@ -185,7 +185,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/eCOtqtfvn7mxGl6nfmq4b1exJRc.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/zxttikp0SNEtF4vWsg70Vs6McFi.jpg",
+        "https://image.tmdb.org/t/p/w1280/zxttikp0SNEtF4vWsg70Vs6McFi.jpg",
       trailer_key: "ne6p6MfLBxc",
       imdb_rating: 8,
       rotten_tomatoes_rating: 95,
@@ -201,7 +201,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/nlPCdZlHtRNcF6C9hzUH4ebmV1w.jpg",
+        "https://image.tmdb.org/t/p/w1280/nlPCdZlHtRNcF6C9hzUH4ebmV1w.jpg",
       trailer_key: "0pdqf4P9MB8",
       imdb_rating: 8,
       rotten_tomatoes_rating: 91,
@@ -217,7 +217,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/iR1bVfURbN7r1C46WHFbwCkVve.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/fzZmcKQv7ZTGIiPvocPhNs3wUyK.jpg",
+        "https://image.tmdb.org/t/p/w1280/fzZmcKQv7ZTGIiPvocPhNs3wUyK.jpg",
       trailer_key: "7OIFdWk83no",
       imdb_rating: 7.8,
       rotten_tomatoes_rating: 71,
@@ -235,7 +235,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/hA2ple9q4qnwxp3hKVNhroipsir.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/n6vWE0bXq4ImAM00iM5gWyORNSM.jpg",
+        "https://image.tmdb.org/t/p/w1280/n6vWE0bXq4ImAM00iM5gWyORNSM.jpg",
       trailer_key: "MonFNCgK4WE",
       imdb_rating: 8.1,
       rotten_tomatoes_rating: 97,
@@ -251,7 +251,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/62HCnUTziyWcpDaBO2i1DX17ljH.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/kBSSbN1sOiJtXjAGVZXxHJR9Kox.jpg",
+        "https://image.tmdb.org/t/p/w1280/kBSSbN1sOiJtXjAGVZXxHJR9Kox.jpg",
       trailer_key: "giXco2jaZ_4",
       imdb_rating: 8.2,
       rotten_tomatoes_rating: 96,
@@ -267,7 +267,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg",
+        "https://image.tmdb.org/t/p/w1280/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg",
       trailer_key: "zckJCxYxn1g",
       imdb_rating: 9,
       rotten_tomatoes_rating: 94,
@@ -283,7 +283,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/8mnXR9rey5uQ08rZAvzojKWbDQS.jpg",
+        "https://image.tmdb.org/t/p/w1280/8mnXR9rey5uQ08rZAvzojKWbDQS.jpg",
       trailer_key: "tg52up16eq0",
       imdb_rating: 8.4,
       rotten_tomatoes_rating: 97,
@@ -299,7 +299,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/f6ahdeUZPwUVirr86gcZ1QmiasQ.jpg",
+        "https://image.tmdb.org/t/p/w1280/f6ahdeUZPwUVirr86gcZ1QmiasQ.jpg",
       trailer_key: "U2Qp5pL3ovA",
       imdb_rating: 8.4,
       rotten_tomatoes_rating: 92,
@@ -315,7 +315,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/lMrxYKKhd4lqRzwUHAy5gcx9PSO.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/4sO09d1zReaSl3F08choHVZ9p8r.jpg",
+        "https://image.tmdb.org/t/p/w1280/4sO09d1zReaSl3F08choHVZ9p8r.jpg",
       trailer_key: "U4NT78c-pYs",
       imdb_rating: 8,
       rotten_tomatoes_rating: 94,
@@ -331,7 +331,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/ukfI9QkU1aIhOhKXYWE9n3z1mFR.jpg",
+        "https://image.tmdb.org/t/p/w1280/ukfI9QkU1aIhOhKXYWE9n3z1mFR.jpg",
       trailer_key: "GAp2_0JJskk",
       imdb_rating: 8.6,
       rotten_tomatoes_rating: 96,
@@ -347,7 +347,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/iZf0KyrE25z1sage4SYFLCCrMi9.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/2lBOQK06tltt8SQaswgb8d657Mv.jpg",
+        "https://image.tmdb.org/t/p/w1280/2lBOQK06tltt8SQaswgb8d657Mv.jpg",
       trailer_key: "gZjQROMAh_s",
       imdb_rating: 8.2,
       rotten_tomatoes_rating: 88,
@@ -363,7 +363,7 @@ export const TEASER_TITLES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/ji3ecJphATlVgWNY0B0RVXZizdf.jpg",
       backdrop_url:
-        "https://image.tmdb.org/t/p/w500/sGOw65ZmfgGfistCjuNsazjs6j9.jpg",
+        "https://image.tmdb.org/t/p/w1280/sGOw65ZmfgGfistCjuNsazjs6j9.jpg",
       trailer_key: "LoebZZ8K5N0",
       imdb_rating: 8,
       rotten_tomatoes_rating: 78,
