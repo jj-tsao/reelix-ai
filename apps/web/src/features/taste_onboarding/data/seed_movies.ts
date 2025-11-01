@@ -27,7 +27,7 @@ export const SEED_MOVIES = {
     {
       title: "Skyfall",
       year: 2012,
-      vibes: ["Espionage", "High-stakes"],
+      vibes: ["Espionage", "High-Stakes", "Nostalgic"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/d0IVecFQvsGdSbnMAHqiYsNYaJT.jpg",
       media_id: 37724,
@@ -43,7 +43,7 @@ export const SEED_MOVIES = {
     {
       title: "Die Hard",
       year: 1988,
-      vibes: ["High-stakes", "Action-packed"],
+      vibes: ["High-Stakes", "Action-Packed"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/aJCpHDC6RoGz7d1Fzayl019xnxX.jpg",
       media_id: 562,
@@ -59,7 +59,7 @@ export const SEED_MOVIES = {
     {
       title: "The Bourne Ultimatum",
       year: 2007,
-      vibes: ["Espionage", "Fast-paced"],
+      vibes: ["Espionage", "Fast-Paced"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/15rMz5MRXFp7CP4VxhjYw4y0FUn.jpg",
       media_id: 2503,
@@ -83,7 +83,7 @@ export const SEED_MOVIES = {
     {
       title: "Casino Royale",
       year: 2006,
-      vibes: ["Espionage", "High-stakes", "Reboot"],
+      vibes: ["Espionage", "Gritty", "Reboot"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/lMrxYKKhd4lqRzwUHAy5gcx9PSO.jpg",
       media_id: 36557,
@@ -123,7 +123,7 @@ export const SEED_MOVIES = {
     {
       title: "Wonder Woman",
       year: 2017,
-      vibes: ["Superhero", "Empowering", "Period setting"],
+      vibes: ["Superhero", "Empowering", "Period Setting"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/v4ncgZjG2Zu8ZW5al1vIZTsSjqX.jpg",
       media_id: 297762,
@@ -131,7 +131,7 @@ export const SEED_MOVIES = {
     {
       title: "Dawn of the Planet of the Apes",
       year: 2014,
-      vibes: ["Intense", "Dystopian", "Thought-provoking"],
+      vibes: ["Intense", "Dystopian", "Thought-Provoking"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/kScdQEwS9jPEdnO23XjGAtaoRcT.jpg",
       media_id: 119450,
@@ -139,7 +139,7 @@ export const SEED_MOVIES = {
     {
       title: "The Matrix",
       year: 1999,
-      vibes: ["Sci-fi action", "Mind-bending", "Revolutionary"],
+      vibes: ["Sci-fi Action", "Mind-bending", "Revolutionary"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/p96dm7sCMn4VYAStA6siNz30G1r.jpg",
       media_id: 603,
@@ -369,14 +369,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
       media_id: 157336,
     },
-    // {
-    //   title: "Lawrence of Arabia",
-    //   year: 1962,
-    //   vibes: ["Epic desert adventure", "Historical"],
-    //   poster_url:
-    //     "https://image.tmdb.org/t/p/w500/AiAm0EtDvyGqNpVoieRw4u65vD1.jpg",
-    //   media_id: 947,
-    // },
+    {
+      title: "Despicable Me",
+      year: 2010,
+      vibes: ["Urban Adventure", "Heist", "Parody"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/b1BT309QWjtFUlJPLmXmrcHOWEL.jpg",
+      media_id: 20352,
+    },
     {
       title: "The Wild Robot",
       year: 2024,
@@ -417,11 +417,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/fvnu6QHyR0gSV1JI6lMyXCny21a.jpg",
       media_id: 10528,
     },
-    // {'title': 'Jungle Cruise',
-    //  'year': 2021,
-    //  'vibes': ['Theme park adventure', 'Comedy'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/3UPz63cGsAQlYQnkOHfAbUhl1O3.jpg',
-    //  'media_id': 451048},
+    // {
+    //   title: "Despicable Me",
+    //   year: 2010,
+    //   vibes: ["Urban Adventure", "Heist", "Parody"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/b1BT309QWjtFUlJPLmXmrcHOWEL.jpg",
+    //   media_id: 20352,
+    // },
     // {'title': 'The Way Back',
     //  'year': 2010,
     //  'vibes': ['Survival epic', 'Historical journey'],
@@ -493,14 +496,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/1mqL7VG4Ix8wmxwypmCA1HTHBky.jpg",
       media_id: 515001,
     },
-    // {
-    //   title: "Anchorman: The Legend of Ron Burgundy",
-    //   year: 2004,
-    //   vibes: ["Light-hearted", "Absurd"],
-    //   poster_url:
-    //     "https://image.tmdb.org/t/p/w500/mhZIcRePT7U8viFQVjt1ZjYIsR4.jpg",
-    //   media_id: 8699,
-    // },
+    {
+      title: "American Hustle",
+      year: 2013,
+      vibes: ["Dark Comedy", "Con Artist", "Whimsical"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/z6O1KDhfWDTm5ZBr6Ovr0eg8LqO.jpg",
+      media_id: 168672,
+    },
     {
       title: "Hot Fuzz",
       year: 2007,
@@ -533,35 +536,34 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/hyp8EXDmO4dSC8V6Q5jU7gD1kcg.jpg",
       media_id: 212778,
     },
-    // {
-    //   title: "Bridesmaids",
-    //   year: 2011,
-    //   vibes: ["Female-driven", "Raunchy", "Wedding Comedy"],
-    //   poster_url:
-    //     "https://image.tmdb.org/t/p/w500/gJtA7hYsBMQ7EM3sPBMUdBfU7a0.jpg",
-    //   media_id: 55721,
-    // },
+    {
+      title: "The Truman Show",
+      year: 1998,
+      vibes: ["Dark Comedy", "Satire", "Dystopian"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/vuza0WqY239yBXOadKlGwJsZJFE.jpg",
+      media_id: 37165,
+    },
     {
       title: "The Hangover",
       year: 2009,
-      vibes: ["Bachelor party", "Mystery Comedy", "Raunchy"],
+      vibes: ["Bachelor Party", "Mystery Comedy", "Raunchy"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/A0uS9rHR56FeBtpjVki16M5xxSW.jpg",
       media_id: 18785,
     },
-    // {
-    //   title:
-    //     "Borat: Cultural Learnings of America for Make Benefit Glorious Nation of Kazakhstan",
-    //   year: 2006,
-    //   vibes: ["Mockumentary", "Satirical", "Controversial"],
-    //   poster_url:
-    //     "https://image.tmdb.org/t/p/w500/kfkyALfD4G1mlBJI1lOt2QCra4i.jpg",
-    //   media_id: 496,
-    // },
+    {
+      title: "Crazy, Stupid, Love.",
+      year: 2011,
+      vibes: ["Romantic Comedy", "Witty", "Heartfelt"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/j9knqa9n855SBwQ9PgjhdDASALE.jpg",
+      media_id: 50646,
+    },
     {
       title: "Tropic Thunder",
       year: 2008,
-      vibes: ["Hollywood satire", "Action Comedy"],
+      vibes: ["Hollywood Satire", "Action Comedy"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/zAurB9mNxfYRoVrVjAJJwGV3sPg.jpg",
       media_id: 7446,
@@ -577,7 +579,7 @@ export const SEED_MOVIES = {
     {
       title: "Knives Out",
       year: 2019,
-      vibes: ["Murder mystery", "Ensemble", "Witty"],
+      vibes: ["Murder Mystery", "Ensemble", "Witty"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/pThyQovXQrw2m0s9x82twj48Jq4.jpg",
       media_id: 546554,
@@ -609,7 +611,7 @@ export const SEED_MOVIES = {
     {
       title: "In Bruges",
       year: 2008,
-      vibes: ["Dark comedy", "Crime comedy", "Philosophical"],
+      vibes: ["Dark comedy", "Crime Comedy", "Philosophical"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/jMiBBqk72VRo1Y39x2ZbbenEU3a.jpg",
       media_id: 8321,
@@ -617,7 +619,7 @@ export const SEED_MOVIES = {
     {
       title: "The Nice Guys",
       year: 2016,
-      vibes: ["Buddy comedy", "70s setting", "Crime"],
+      vibes: ["Buddy Comedy", "70s Setting", "Crime"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/clq4So9spa9cXk3MZy2iMdqkxP2.jpg",
       media_id: 290250,
@@ -625,7 +627,7 @@ export const SEED_MOVIES = {
     {
       title: "Thor: Ragnarok",
       year: 2017,
-      vibes: ["Superhero comedy", "Space adventure"],
+      vibes: ["Superhero Comedy", "Space Adventure"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/rzRwTcFvttcN1ZpX2xv4j3tSdJu.jpg",
       media_id: 284053,
@@ -633,7 +635,7 @@ export const SEED_MOVIES = {
     {
       title: "Deadpool",
       year: 2016,
-      vibes: ["Superhero parody", "Meta-humor", "R-rated"],
+      vibes: ["Superhero Parody", "Meta-Humor", "R-rated"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/3E53WEZJqP6aM84D8CckXx4pIHw.jpg",
       media_id: 293660,
@@ -641,7 +643,7 @@ export const SEED_MOVIES = {
     {
       title: "Booksmart",
       year: 2019,
-      vibes: ["Coming-of-age", "Female friendship", "Smart"],
+      vibes: ["Coming-of-Age", "Female Friendship", "Smart"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/2aSxRDmisJP90H3S0aocyuQIe4z.jpg",
       media_id: 505600,
@@ -722,18 +724,18 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/jcgUjx1QcupGzjntTVlnQ15lHqy.jpg",
       media_id: 11423,
     },
-    {
-      title: "Oldboy",
-      year: 2003,
-      vibes: ["Neo-Noir", "Plot-twisty"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/pWDtjs568ZfOTMbURQBYuT4Qxka.jpg",
-      media_id: 670,
-    },
+    // {
+    //   title: "Oldboy",
+    //   year: 2003,
+    //   vibes: ["Neo-Noir", "Plot-twisty"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/pWDtjs568ZfOTMbURQBYuT4Qxka.jpg",
+    //   media_id: 670,
+    // },
     {
       title: "The Gentlemen",
       year: 2020,
-      vibes: ["Fast-paced", "Dark comedy"],
+      vibes: ["Fast-Paced", "Dark comedy", "Slick"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/jtrhTYB7xSrJxR1vusu99nvnZ1g.jpg",
       media_id: 522627,
@@ -741,7 +743,7 @@ export const SEED_MOVIES = {
     {
       title: "The Godfather",
       year: 1972,
-      vibes: ["Slow-burn"],
+      vibes: ["Slow-Burn", "Crime", "Classic"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
       media_id: 238,
@@ -765,7 +767,7 @@ export const SEED_MOVIES = {
     {
       title: "GoodFellas",
       year: 1990,
-      vibes: ["Crime epic", "Darkly Funny", "Rise and fall"],
+      vibes: ["Crime Epic", "Darkly Funny", "Rise and Aall"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg",
       media_id: 769,
@@ -773,7 +775,7 @@ export const SEED_MOVIES = {
     {
       title: "The Godfather Part II",
       year: 1974,
-      vibes: ["Epic sequel", "Multi-generational"],
+      vibes: ["Epic Sequel", "Multi-Generational"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/hek3koDUyRQk7FIhPXsa6mT2Zc3.jpg",
       media_id: 240,
@@ -789,7 +791,7 @@ export const SEED_MOVIES = {
     {
       title: "Scarface",
       year: 1983,
-      vibes: ["Rise and fall", "Excess", "Iconic"],
+      vibes: ["Rise and Fall", "Excess", "Iconic"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/iQ5ztdjvteGeboxtmRdXEChJOHh.jpg",
       media_id: 111,
@@ -829,7 +831,7 @@ export const SEED_MOVIES = {
     {
       title: "Donnie Brasco",
       year: 1997,
-      vibes: ["Undercover", "Mafia infiltration"],
+      vibes: ["Undercover", "Mafia Infiltration"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/xtKLvpOfARi1XVm8u2FTdhY5Piq.jpg",
       media_id: 9366,
@@ -845,7 +847,7 @@ export const SEED_MOVIES = {
     {
       title: "Collateral",
       year: 2004,
-      vibes: ["Night in LA", "Hitman thriller"],
+      vibes: ["Night in LA", "Hitman Thriller"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/nV5316WUsVij8sVXLCF1g7TFitg.jpg",
       media_id: 1538,
@@ -853,7 +855,7 @@ export const SEED_MOVIES = {
     {
       title: "Baby Driver",
       year: 2017,
-      vibes: ["Music-driven", "Stylish", "Heist"],
+      vibes: ["Music-Driven", "Stylish", "Heist"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/tYzFuYXmT8LOYASlFCkaPiAFAl0.jpg",
       media_id: 339403,
@@ -861,7 +863,7 @@ export const SEED_MOVIES = {
     {
       title: "Hell or High Water",
       year: 2016,
-      vibes: ["Modern Western", "Bank robbery"],
+      vibes: ["Modern Western", "Bank Robbery"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/ljRRxqy2aXIkIBXLmOVifcOR021.jpg",
       media_id: 338766,
@@ -877,7 +879,7 @@ export const SEED_MOVIES = {
     {
       title: "The Town",
       year: 2010,
-      vibes: ["Boston crime", "Bank robbery", "Ben Affleck"],
+      vibes: ["Boston Crime", "Bank Robbery"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/3NIzyXkfylsjflRKSz8Fts3lXzm.jpg",
       media_id: 23168,
@@ -893,7 +895,7 @@ export const SEED_MOVIES = {
     {
       title: "Zodiac",
       year: 2007,
-      vibes: ["Serial killer investigation", "70s period"],
+      vibes: ["Serial Killer Investigation", "70s Period"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/6YmeO4pB7XTh8P8F960O1uA14JO.jpg",
       media_id: 1949,
@@ -901,7 +903,7 @@ export const SEED_MOVIES = {
     {
       title: "The Irishman",
       year: 2019,
-      vibes: ["Crime epic", "Aging gangsters", "Scorsese"],
+      vibes: ["Crime Epic", "Aging Gangsters", "Scorsese"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/mbm8k3GFhXS0ROd9AD1gqYbIFbM.jpg",
       media_id: 398978,
@@ -925,7 +927,7 @@ export const SEED_MOVIES = {
     {
       title: "Mystic River",
       year: 2003,
-      vibes: ["Neo-noir", "Mystery", "Somber"],
+      vibes: ["Neo-Noir", "Mystery", "Somber"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/hCHVDbo6XJGj3r2i4hVjKhE0GKF.jpg",
       media_id: 322,
@@ -943,7 +945,7 @@ export const SEED_MOVIES = {
     {
       title: "Parasite",
       year: 2019,
-      vibes: ["Social commentary", "Character-driven", "Class warfare"],
+      vibes: ["Social Commentary", "Character-Driven", "Class Warfare"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
       media_id: 496243,
@@ -951,7 +953,7 @@ export const SEED_MOVIES = {
     {
       title: "There Will Be Blood",
       year: 2007,
-      vibes: ["Character-driven", "Historical"],
+      vibes: ["Character-Driven", "Historical"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/fa0RDkAlCec0STeMNAhPaF89q6U.jpg",
       media_id: 7345,
@@ -967,7 +969,7 @@ export const SEED_MOVIES = {
     {
       title: "Manchester by the Sea",
       year: 2016,
-      vibes: ["Emotional", "Character-driven"],
+      vibes: ["Emotional", "Character-Driven"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/o9VXYOuaJxCEKOxbA86xqtwmqYn.jpg",
       media_id: 334541,
@@ -1007,7 +1009,7 @@ export const SEED_MOVIES = {
     {
       title: "Whiplash",
       year: 2014,
-      vibes: ["Character-driven", "Emotional"],
+      vibes: ["Character-Driven", "Emotional"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/7fn624j5lj3xTme2SgiLCeuedmO.jpg",
       media_id: 244786,
@@ -1015,7 +1017,7 @@ export const SEED_MOVIES = {
     {
       title: "Birdman or (The Unexpected Virtue of Ignorance)",
       year: 2014,
-      vibes: ["Meta-theatrical", "Character study", "Long takes"],
+      vibes: ["Meta-Theatrical", "Character Study", "Long Takes"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/rHUg2AuIuLSIYMYFgavVwqt1jtc.jpg",
       media_id: 194662,
@@ -1055,7 +1057,7 @@ export const SEED_MOVIES = {
     {
       title: "Three Billboards Outside Ebbing, Missouri",
       year: 2017,
-      vibes: ["Dark comedy-drama", "Small town"],
+      vibes: ["Dark Comedy-Drama", "Small Town"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/vgvw6w1CtcFkuXXn004S5wQsHRl.jpg",
       media_id: 359940,
@@ -1071,7 +1073,7 @@ export const SEED_MOVIES = {
     {
       title: "Green Book",
       year: 2018,
-      vibes: ["Racial relations", "Road trip", "1960s"],
+      vibes: ["Racial Relations", "Road Trip", "1960s"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/7BsvSuDQuoqhWmU2fL7W2GOcZHU.jpg",
       media_id: 490132,
@@ -1135,7 +1137,7 @@ export const SEED_MOVIES = {
     {
       title: "CODA",
       year: 2021,
-      vibes: ["Deaf family", "Coming-of-age", "Music"],
+      vibes: ["Deaf Family", "Coming-of-Age", "Music"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/BzVjmm8l23rPsijLiNLUzuQtyd.jpg",
       media_id: 776503,
@@ -1193,7 +1195,7 @@ export const SEED_MOVIES = {
     {
       title: "Harry Potter and the Prisoner of Azkaban",
       year: 2004,
-      vibes: ["Magical"],
+      vibes: ["Magical", "Urban Fantasy"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/aWxwnYoe8p2d2fcxOqtvAtJ72Rw.jpg",
       media_id: 673,
@@ -1664,7 +1666,7 @@ export const SEED_MOVIES = {
     {
       title: "Before Sunrise",
       year: 1995,
-      vibes: ["Bittersweet"],
+      vibes: ["Bittersweet", "Pensive", "Wistful"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/kf1Jb1c2JAOqjuzA3H4oDM263uB.jpg",
       media_id: 76,
@@ -1680,7 +1682,7 @@ export const SEED_MOVIES = {
     {
       title: "Eternal Sunshine of the Spotless Mind",
       year: 2004,
-      vibes: ["Bittersweet"],
+      vibes: ["Bittersweet", "Existential", "Dreamlike"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/5MwkWH9tYHv3mV9OdYTMR5qreIz.jpg",
       media_id: 38,
@@ -1728,7 +1730,7 @@ export const SEED_MOVIES = {
     {
       title: "The Handmaiden",
       year: 2016,
-      vibes: ["Dark romance", "Erotic thriller", "Steamy romance"],
+      vibes: ["Dark romance", "Erotic Thriller", "Steamy Romance"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/dLlH4aNHdnmf62umnInL8xPlPzw.jpg",
       media_id: 290098,
@@ -1757,14 +1759,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/hgoWjp9Sh0MI97eAMZCnIoVfgvq.jpg",
       media_id: 400617,
     },
-    // {
-    //   title: "Pretty Woman",
-    //   year: 1990,
-    //   vibes: ["Modern fairy tale", "Class differences"],
-    //   poster_url:
-    //     "https://image.tmdb.org/t/p/w500/hVHUfT801LQATGd26VPzhorIYza.jpg",
-    //   media_id: 114,
-    // },
+    {
+      title: "50/50",
+      year: 2011,
+      vibes: ["Medical Drama", "Heartfelt", "Friendship"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/8f9tM9JVB4ETBhxlQcXIjLckArl.jpg",
+      media_id: 40807,
+    },
     {
       title: "Ghost",
       year: 1990,
@@ -1797,14 +1799,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg",
       media_id: 666277,
     },
-    {
-      title: "Before Sunset",
-      year: 2004,
-      vibes: ["Sequel", "Paris setting", "Real-time conversation"],
-      poster_url:
-        "https://image.tmdb.org/t/p/w500/94Yl2xVB7YIRK4IgA0RqYGiNgkB.jpg",
-      media_id: 80,
-    },
+    // {
+    //   title: "Before Sunset",
+    //   year: 2004,
+    //   vibes: ["Sequel", "Paris setting", "Real-time conversation"],
+    //   poster_url:
+    //     "https://image.tmdb.org/t/p/w500/94Yl2xVB7YIRK4IgA0RqYGiNgkB.jpg",
+    //   media_id: 80,
+    // },
     {
       title: "The Great Gatsby",
       year: 2013,
@@ -1868,6 +1870,14 @@ export const SEED_MOVIES = {
       poster_url:
         "https://image.tmdb.org/t/p/w500/iR1bVfURbN7r1C46WHFbwCkVve.jpg",
       media_id: 122906,
+    },
+    {
+      title: "The Lobster",
+      year: 2015,
+      vibes: ["Dark Comedy", "Dystopian", "Absurdist"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/7Y9ILV1unpW9mLpGcqyGQU72LUy.jpg",
+      media_id: 254320,
     },
   ],
   "Science Fiction": [
@@ -2045,9 +2055,9 @@ export const SEED_MOVIES = {
       media_id: 17654,
     },
     {
-      title: " ",
+      title: "Moon",
       year: 2009,
-      vibes: ["Isolation", "AI companion", "Sam Rockwell"],
+      vibes: ["Isolation", "AI Companion", "Space Sci-Fi"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/35IU0Mq0zFsN1mYwDGts5mKc77n.jpg",
       media_id: 17431,
@@ -2060,7 +2070,7 @@ export const SEED_MOVIES = {
     {
       title: "Looper",
       year: 2012,
-      vibes: ["Time travel assassins", "Joseph Gordon-Levitt"],
+      vibes: ["Time Travel Assassins", "Cyberpunk"],
       poster_url:
         "https://image.tmdb.org/t/p/w500/sNjL6SqErDBE8OUZlrDLkexfsCj.jpg",
       media_id: 59967,
@@ -2261,11 +2271,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/vOyfUXNFSnaTk7Vk5AjpsKTUWsu.jpg",
       media_id: 745,
     },
-    // {'title': 'What Lies Beneath',
-    //  'year': 2000,
-    //  'vibes': ['Supernatural Thriller', 'Marriage Secrets'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/2L3Cn0CizbSy2E9KJt1SiOSyb6p.jpg',
-    //  'media_id': 2655},
+    {
+      title: "Dark Waters",
+      year: 2019,
+      vibes: ["Legal Thriller", "Corporate Conspiracy"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/bzvzaHqKBSuGIIWhinTQPHvT0zf.jpg",
+      media_id: 552178,
+    },
     {
       title: "The Others",
       year: 2001,
@@ -2274,11 +2287,14 @@ export const SEED_MOVIES = {
         "https://image.tmdb.org/t/p/w500/p8g1vlTvpM6nr2hMMiZ1fUlKF0D.jpg",
       media_id: 1933,
     },
-    // {'title': 'Identity',
-    //  'year': 2003,
-    //  'vibes': ['Multiple Personalities', 'Motel Setting', 'Twist'],
-    //  'poster_url': 'https://image.tmdb.org/t/p/w500/bnidwEvWNAVJ3Uco9wWtuzWAfrx.jpg',
-    //  'media_id': 2832},
+    {
+      title: "Oldboy",
+      year: 2003,
+      vibes: ["Neo-Noir", "Plot-twisty"],
+      poster_url:
+        "https://image.tmdb.org/t/p/w500/pWDtjs568ZfOTMbURQBYuT4Qxka.jpg",
+      media_id: 670,
+    },
     {
       title: "The Machinist",
       year: 2004,
