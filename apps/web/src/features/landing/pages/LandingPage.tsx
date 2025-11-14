@@ -10,7 +10,7 @@ import MovieCard from "@/components/MovieCard";
 import { useToast } from "@/components/ui/useToast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import {
-  upsertUserInteraction,
+  logUserRecReaction,
   type RatingValue,
 } from "@/features/taste_onboarding/api";
 import {
@@ -437,15 +437,12 @@ export default function LandingPage() {
       setPendingFeedback((prev) => ({ ...prev, [key]: true }));
 
       try {
-        await upsertUserInteraction(
-          {
-            media_id: movie.mediaId,
-            title: movie.title,
-            vibes: movie.genres,
-            rating,
-          },
-          { source: FEEDBACK_SOURCE }
-        );
+        await logUserRecReaction({
+          mediaId: movie.mediaId,
+          title: movie.title,
+          reaction: rating,
+          source: FEEDBACK_SOURCE,
+        });
       } catch (error) {
         setFeedbackById((prev) => {
           const next = { ...prev };

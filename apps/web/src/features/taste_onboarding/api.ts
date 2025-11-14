@@ -1,86 +1,46 @@
+import { BASE_URL } from "@/api";
+import { getSupabaseAccessToken } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
+import { getSessionId } from "@/utils/session";
 import type { Json, TablesInsert, TablesUpdate } from "@/types/supabase";
 
-// Upsert into public.user_preferences for current user.
-// Requires caller to pass user_id from the current session.
-
-async function ensureAppUserRow(userId: string): Promise<void> {
-  try {
-    const { data, error } = await supabase
-      .from("app_user")
-      .select("user_id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) {
-      // If we hit an RLS error, continue to attempt upsert as a fallback.
-      console.warn("Failed to read app_user row", error);
-    }
-    if (data?.user_id) return;
-  } catch (error) {
-    console.warn("Unexpected app_user lookup error", error);
+export async function upsertUserPreferences(payload: {
+  genres: string[];
+  keywords: string[];
+}): Promise<void> {
+  const token = await getSupabaseAccessToken();
+  if (!token) {
+    throw new Error("Not signed in");
   }
 
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (!user || user.id !== userId) return;
+  const response = await fetch(`${BASE_URL}/v2/users/me/settings/preferences`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      genres_include: payload.genres,
+      keywords_include: payload.keywords,
+    }),
+  });
 
-  const payload: TablesInsert<"app_user"> = {
-    user_id: user.id,
-    email:
-      typeof user.email === "string" && user.email.trim().length > 0
-        ? user.email.trim()
-        : (null as unknown as string),
-  };
-  const displayName = user.user_metadata?.display_name;
-  if (typeof displayName === "string" && displayName.trim().length > 0) {
-    payload.display_name = displayName.trim();
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Failed to save preferences");
   }
-  const { error: upsertError } = await supabase
-    .from("app_user")
-    .upsert(payload, { onConflict: "user_id" });
-  if (upsertError) {
-    throw new Error(upsertError.message);
-  }
-}
-
-export async function upsertUserPreferences(row: TablesInsert<"user_preferences"> | TablesUpdate<"user_preferences">) {
-  if (!("user_id" in row) || !row.user_id) {
-    throw new Error("Missing user_id when upserting preferences");
-  }
-  // Ensure we overwrite these arrays on every request (clear to null when omitted)
-  // PostgREST upsert only updates columns present in the payload.
-  // By setting defaults to null first, we guarantee previous values are cleared if not provided now.
-  const payload: TablesInsert<"user_preferences"> = {
-    user_id: row.user_id as string,
-    genres_include: null,
-    keywords_include: null,
-    // Limit spread to fields valid for an insert payload to avoid `any`.
-    ...(row as Partial<TablesInsert<"user_preferences">>),
-  };
-
-  await ensureAppUserRow(payload.user_id);
-
-  const { error } = await supabase
-    .from("user_preferences")
-    .upsert(payload, { onConflict: "user_id" });
-  if (!error) return;
-
-  if (error.message?.includes("user_preferences_user_id_fkey")) {
-    await ensureAppUserRow(payload.user_id);
-    const { error: retryError } = await supabase
-      .from("user_preferences")
-      .upsert(payload, { onConflict: "user_id" });
-    if (retryError) throw new Error(retryError.message);
-    return;
-  }
-
-  throw new Error(error.message);
 }
 
 // ---------- Taste Onboarding → user_interactions ----------
 export type RatingValue = "love" | "like" | "dislike" | "dismiss";
 
 const DEFAULT_INTERACTION_SOURCE = "taste_onboarding";
+const REACTION_EVENT_TYPE = "rec_reaction";
+const VALID_REACTIONS = new Set<Exclude<RatingValue, "dismiss">>([
+  "love",
+  "like",
+  "dislike",
+]);
 
 // Canonical event names match DB check constraint exactly; map only weights.
 const EVENT_WEIGHT: Record<string, number> = {
@@ -178,6 +138,89 @@ export function canonicalizeTag(s: string): string {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .replace(/_{2,}/g, "_");
+}
+
+type RecReaction = Exclude<RatingValue, "dismiss">;
+
+type LogRecReactionArgs = {
+  mediaId: number | string;
+  title: string;
+  reaction: RecReaction;
+  source?: string;
+  mediaType?: "movie" | "tv";
+  position?: number | null;
+  queryId?: string | null;
+};
+
+type InteractionApiPayload = {
+  media_type: "movie" | "tv";
+  media_id: number;
+  title: string;
+  event_type: typeof REACTION_EVENT_TYPE;
+  reaction: RecReaction;
+  source: string;
+  position?: number;
+  session_id: string;
+  query_id?: string;
+};
+
+export async function logUserRecReaction({
+  mediaId,
+  title,
+  reaction,
+  source,
+  mediaType = "movie",
+  position,
+  queryId,
+}: LogRecReactionArgs): Promise<void> {
+  if (!VALID_REACTIONS.has(reaction)) {
+    throw new Error("Invalid reaction");
+  }
+
+  const numericId = Number(mediaId);
+  if (!Number.isFinite(numericId)) {
+    throw new Error("Invalid media_id");
+  }
+
+  const token = await getSupabaseAccessToken();
+  if (!token) {
+    throw new Error("Not signed in");
+  }
+
+  const sessionId = getSessionId();
+  const normalizedQueryId =
+    typeof queryId === "string" && queryId.trim().length > 0 ? queryId.trim() : null;
+
+  const normalizedPosition =
+    typeof position === "number" && Number.isFinite(position) && position > 0
+      ? Math.max(1, Math.trunc(position))
+      : null;
+
+  const payload: InteractionApiPayload = {
+    media_type: mediaType,
+    media_id: numericId,
+    title,
+    event_type: REACTION_EVENT_TYPE,
+    reaction,
+    source: source ?? DEFAULT_INTERACTION_SOURCE,
+    session_id: sessionId,
+    ...(normalizedPosition ? { position: normalizedPosition } : {}),
+    ...(normalizedQueryId ? { query_id: normalizedQueryId } : {}),
+  };
+
+  const response = await fetch(`${BASE_URL}/v2/interactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Failed to log reaction");
+  }
 }
 
 // Upsert a single interaction on each rating click.

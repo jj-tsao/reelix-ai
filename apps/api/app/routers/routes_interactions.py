@@ -20,7 +20,7 @@ def get_service(
     return InteractionsService(repo)
 
 
-@router.post("/v2/interactions", status_code=201)
+@router.post("", status_code=201)
 async def create_interaction(
     req: InteractionsCreateRequest,  # Pydantic → maps to InteractionCreate
     user_id: str = Depends(get_current_user_id),

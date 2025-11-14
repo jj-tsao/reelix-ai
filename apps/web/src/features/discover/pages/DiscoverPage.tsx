@@ -10,7 +10,11 @@ import type { DiscoverStreamEvent } from "../api";
 import { fetchDiscoverInitial, getAccessToken, logDiscoverFinalRecs, streamDiscoverWhy } from "../api";
 import DiscoverGridSkeleton from "../components/DiscoverGridSkeleton";
 import StreamStatusBar, { type StreamStatusState } from "../components/StreamStatusBar";
-import { upsertUserInteraction, type RatingValue } from "@/features/taste_onboarding/api";
+import {
+  logUserRecReaction,
+  upsertUserInteraction,
+  type RatingValue,
+} from "@/features/taste_onboarding/api";
 import { rebuildTasteProfile } from "@/api";
 import { hasTasteProfile, type TasteProfileHttpError } from "@/features/taste_profile/api";
 import {
@@ -760,16 +764,20 @@ export default function DiscoverPage() {
       setFeedbackById((prev) => ({ ...prev, [id]: rating }));
       setPendingFeedback((prev) => ({ ...prev, [id]: true }));
 
+      const rankingIndex = order.findIndex((mediaId) => mediaId === id);
+      const position = rankingIndex >= 0 ? rankingIndex + 1 : null;
+      const queryId = queryIdRef.current;
+
       try {
-        await upsertUserInteraction(
-          {
-            media_id: card.mediaId,
-            title: card.title,
-            vibes: card.genres,
-            rating,
-          },
-          { source: "for_you_feed" },
-        );
+        await logUserRecReaction({
+          mediaId: card.mediaId,
+          title: card.title,
+          reaction: rating,
+          source: "for_you_feed",
+          mediaType: "movie",
+          position,
+          queryId,
+        });
         rebuildController?.registerRating();
       } catch (error) {
         setFeedbackById((prev) => {
@@ -791,7 +799,7 @@ export default function DiscoverPage() {
         });
       }
     },
-    [feedbackById, toast, rebuildController],
+    [feedbackById, order, toast, rebuildController],
   );
 
   const handleTrailerClick = useCallback(

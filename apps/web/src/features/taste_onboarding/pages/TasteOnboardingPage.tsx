@@ -36,9 +36,8 @@ export default function TasteOnboardingPage() {
     try {
       setSubmitting(true);
       await upsertUserPreferences({
-        user_id: user.id,
-        genres_include: genres,
-        keywords_include: vibeTags,
+        genres,
+        keywords: vibeTags,
       });
       toast({
         title: "Saved",

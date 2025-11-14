@@ -61,8 +61,6 @@ def get_priors(
 
 
 # ---- main builder ----
-
-
 def build_taste_vector(
     user: UserSignals,
     *,
@@ -81,7 +79,6 @@ def build_taste_vector(
     - Genre/keyword priors mixed in with alpha/beta/gamma/delta.
     """
     now = now or datetime.now(timezone.utc)
-
     # 1) compute canonical weight per title
     weights = compute_item_weights(user.interactions, now, params)
 

@@ -64,7 +64,6 @@ async def discover_for_you(
         batch_size=batch_size,
         user_context=user_context,
     )
-    print (llm_prompts)
     ticket = Ticket(
         user_id=user_id,
         prompts=llm_prompts,

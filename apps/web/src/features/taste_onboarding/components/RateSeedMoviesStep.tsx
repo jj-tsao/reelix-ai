@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { upsertUserInteraction } from "../api";
+import { logUserRecReaction, upsertUserInteraction } from "../api";
 import { rebuildTasteProfile } from "@/api";
 import type { PropsWithChildren } from "react";
 import { SEED_MOVIES } from "../data/seed_movies";
@@ -217,8 +217,13 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     if (t) clearTimeout(t);
     if (!m.media_id) return;
     const timer = setTimeout(() => {
-      upsertUserInteraction({ media_id: m.media_id!, title: m.title, vibes: m.vibes, rating: r }).catch((err) => {
-        console.error("upsertUserInteraction failed", err);
+      const promise =
+        r === "dismiss"
+          ? upsertUserInteraction({ media_id: m.media_id!, title: m.title, vibes: m.vibes, rating: r })
+          : logUserRecReaction({ mediaId: m.media_id!, title: m.title, reaction: r });
+
+      promise.catch((err) => {
+        console.error("Failed to log reaction", err);
       });
       upsertTimers.current.delete(key);
     }, 200);

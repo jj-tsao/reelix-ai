@@ -39,11 +39,6 @@ def _compute_item_weight(
     rx = map_reaction(reaction_ev) if reaction_ev else None
     watchl_add_ev = latest(interactions, {"add_to_watchlist"})
     watchl_rm_ev = latest(interactions, {"remove_from_watchlist"})
-    print(rating_ev)
-    print(reaction_ev)
-    print(rx)
-    print(watchl_add_ev)
-    print(watchl_rm_ev)
 
     base = 0.0
     used_signal = "none"
@@ -107,9 +102,6 @@ def _compute_item_weight(
     else:
         # Fallback: should basically never hit if used_signal is True, but safe
         latest_ts = max(it.ts for it in interactions)
-
-    print(f"signal used: {used_signal}")
-    print(f"base_weight: {base}")
 
     # Apply recency decay
     decay = tdecay(latest_ts, now, params.lambda_month)
