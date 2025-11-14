@@ -2,7 +2,7 @@ import { BASE_URL } from "@/api";
 import { getSupabaseAccessToken } from "@/lib/session";
 import { supabase } from "@/lib/supabase";
 import { getSessionId } from "@/utils/session";
-import type { Json, TablesInsert, TablesUpdate } from "@/types/supabase";
+import type { Json, TablesInsert } from "@/types/supabase";
 
 export async function upsertUserPreferences(payload: {
   genres: string[];
