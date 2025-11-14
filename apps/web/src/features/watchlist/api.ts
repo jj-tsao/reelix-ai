@@ -71,7 +71,7 @@ export async function lookupWatchlistKeys(keys: WatchlistLookupKey[]): Promise<W
     throw new Error("Sign in to manage your watchlist.");
   }
 
-  const response = await fetch(`${BASE_URL}/watchlist/keys/lookup`, {
+  const response = await fetch(`${BASE_URL}/v2/users/me/watchlist/keys/lookup`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -99,7 +99,7 @@ export async function createWatchlistItem(payload: WatchlistCreateInput): Promis
     throw new Error("Sign in to manage your watchlist.");
   }
 
-  const response = await fetch(`${BASE_URL}/watchlist`, {
+  const response = await fetch(`${BASE_URL}/v2/users/me/watchlist`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -147,7 +147,7 @@ export async function fetchWatchlist({
     params.set("status", status);
   }
 
-  const response = await fetch(`${BASE_URL}/watchlist?${params.toString()}`, {
+  const response = await fetch(`${BASE_URL}/v2/users/me/watchlist?${params.toString()}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -176,7 +176,7 @@ export async function updateWatchlist(id: string, payload: WatchlistUpdatePayloa
     throw new Error("Sign in to manage your watchlist.");
   }
 
-  const response = await fetch(`${BASE_URL}/watchlist/${encodeURIComponent(id)}`, {
+  const response = await fetch(`${BASE_URL}/v2/users/me/watchlist/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -199,7 +199,7 @@ export async function deleteWatchlistItem(id: string): Promise<void> {
     throw new Error("Sign in to manage your watchlist.");
   }
 
-  const response = await fetch(`${BASE_URL}/watchlist/${encodeURIComponent(id)}`, {
+  const response = await fetch(`${BASE_URL}/v2/users/me/watchlist/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,

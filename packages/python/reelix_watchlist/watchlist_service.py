@@ -8,7 +8,7 @@ from .schemas import (
     KeysLookupOutItem,
     ExistsOut,
 )
-from .supabase_repo import SupabaseWatchlistRepo
+from .watchlist_repo import SupabaseWatchlistRepo
 from .events import EventEmitter, NoopEmitter
 
 

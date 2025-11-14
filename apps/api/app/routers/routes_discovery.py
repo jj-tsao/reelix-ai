@@ -14,10 +14,12 @@ from app.deps.deps import (
     get_recommend_pipeline,
     get_logger,
 )
+from app.deps.supabase_client import (
+    get_current_user_id,
+    get_user_context_service,
+)
 from app.deps.deps_ticket_store import get_ticket_store
-from app.deps.supabase_client import get_current_user_id, get_supabase_client
 from app.infrastructure.cache.ticket_store import Ticket
-from app.repositories.taste_profile_store import fetch_user_taste_context
 from app.schemas import DiscoverRequest, FinalRecsRequest
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
@@ -45,15 +47,15 @@ def _item_view(c):
 async def discover_for_you(
     req: DiscoverRequest,
     batch_size: int = 8,
-    sb=Depends(get_supabase_client),
     user_id: str = Depends(get_current_user_id),
     registry=Depends(get_recipe_registry),
+    user_context=Depends(get_user_context_service),
     pipeline=Depends(get_recommend_pipeline),
     store=Depends(get_ticket_store),
     logger=Depends(get_logger),
 ):
     recipe = registry.get(kind="for_you_feed")
-    user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
+    user_context = await user_context.fetch_user_taste_context(user_id, req.media_type)
 
     final_candidates, traces, ctx_log, llm_prompts = orchestrate(
         recipe=recipe,
@@ -62,7 +64,7 @@ async def discover_for_you(
         batch_size=batch_size,
         user_context=user_context,
     )
-
+    print (llm_prompts)
     ticket = Ticket(
         user_id=user_id,
         prompts=llm_prompts,
@@ -105,7 +107,7 @@ async def discover_for_you(
             query_id=req.query_id,
             media_type=req.media_type,
             candidates=final_candidates[:batch_size],
-            traces=traces,  
+            traces=traces,
             stage="final",
         )
     )

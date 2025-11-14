@@ -37,11 +37,12 @@ class ForYouFeedRecipe(BaseRecipe):
             final_top_k=20,
             # sparse_depth=40,
             weights=dict(
-                dense=0.56,
+                dense=0.54,
                 sparse=0.12,
                 rating=0.15,
-                popularity=0.05,
-                genre=0.12,
+                popularity=0.04,
+                genre=0.10,
+                recency=0.05,
             ),
         )
 

@@ -4,24 +4,24 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from reelix_watchlist.schemas import (
     ExistsOut,
+    KeysLookupOutItem,
     WatchlistCreate,
     WatchlistItem,
     WatchlistRemoveById,
     WatchlistUpdate,
-    KeysLookupOutItem,
 )
-from reelix_watchlist.supabase_repo import SupabaseWatchlistRepo
+from reelix_watchlist.watchlist_repo import SupabaseWatchlistRepo
 from reelix_watchlist.watchlist_service import WatchlistService
 
 from app.deps.supabase_client import get_current_user_id, get_supabase_client
 from app.schemas import (
+    KeysLookupRequest,
     WatchlistCreateRequest,
     WatchlistUpdateByIdRequest,
     WatchStatus,
-    KeysLookupRequest,
 )
 
-router = APIRouter(prefix="/watchlist", tags=["watchlist"])
+router = APIRouter(prefix="/v2/users/me/watchlist", tags=["watchlist"])
 
 
 def get_service(client=Depends(get_supabase_client)) -> WatchlistService:
@@ -48,7 +48,12 @@ async def update_item(
     user_id: str = Depends(get_current_user_id),
     service: WatchlistService = Depends(get_service),
 ):
-    dto = WatchlistUpdate(user_id=user_id, id=id, rating_set=("rating" in req.model_fields_set), **req.model_dump(exclude_unset=True))
+    dto = WatchlistUpdate(
+        user_id=user_id,
+        id=id,
+        rating_set=("rating" in req.model_fields_set),
+        **req.model_dump(exclude_unset=True),
+    )
     return await service.update(dto)
 
 

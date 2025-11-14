@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
+from datetime import datetime, timezone
 
 from reelix_core.types import UserTasteContext
 from reelix_ranking.types import Candidate, FeatureContribution, ScoreBreakdown
@@ -13,15 +14,16 @@ class NormAnchors:
     rating_floor: float
     rating_ceil: float
     pop_anchor: float  # used with log1p
+    recency_half_life_years: float = 4.0
 
 
 # Module-level defaults
 DEFAULT_ANCHORS: Dict[str, NormAnchors] = {
     "movie": NormAnchors(
-        rating_floor=6.0, rating_ceil=9.0, pop_anchor=31.0
+        rating_floor=6.0, rating_ceil=9.0, pop_anchor=31.0, recency_half_life_years=4.0
     ),  # pop_anchor = ~P99(27)*1.15
     "tv": NormAnchors(
-        rating_floor=7.0, rating_ceil=9.0, pop_anchor=58.0
+        rating_floor=7.0, rating_ceil=9.0, pop_anchor=58.0, recency_half_life_years=2.0
     ),  # pop_anchor = ~P99(50)*1.15
 }
 
@@ -64,6 +66,51 @@ def genre_boost(user_genres: set[str], item_genres: set[str]) -> float:
     return inter / total_user_pref
 
 
+def _parse_release_date_iso(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    try:
+        # Accept "YYYY-MM-DD" or full ISO. If 'Z' present, normalize to +00:00.
+        if s.endswith("Z"):
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        # If date-only, make it midnight UTC to avoid tz drift.
+        if len(s) == 10 and s[4] == "-" and s[7] == "-":
+            return datetime.fromisoformat(s + "T00:00:00+00:00")
+        return datetime.fromisoformat(s if "+" in s else s + "+00:00")
+    except Exception:
+        return None
+
+
+def age_years_from_release_date(payload: dict) -> float | None:
+    rd = _parse_release_date_iso(payload.get("release_date"))
+    if not rd:
+        return None
+    now = datetime.now(timezone.utc)
+    delta_days = max(0, (now - rd).days)
+    return delta_days / 365.0
+
+def norm_recency(age_years: float | None, half_life_years: float) -> float:
+    if age_years is None:
+        return 0.0
+    # Exponential decay with half-life
+    import math
+    return _clamp01(math.exp(-math.log(2) * (age_years / max(1e-6, half_life_years))))
+
+
+def freshness_bonus_days(payload: dict) -> float:
+    """Optional gentle bump for very new titles; keep small to avoid runaway 'new & hyped' bias."""
+    rd = _parse_release_date_iso(payload.get("release_date"))
+    if not rd:
+        return 0.0
+    days = max(0, (datetime.now(timezone.utc) - rd).days)
+    if days < 30:
+        # cap early items at ~0.85 instead of 1.0; smoothly fade the bump over first month
+        return 0.05 * (1.0 - days / 30.0)
+    if days < 90:
+        return 0.05 * (1.0 - (days - 30.0) / 60.0)
+    return 0.0
+
+
 def metadata_rerank(
     *,
     candidates: List[Candidate],
@@ -104,7 +151,10 @@ def metadata_rerank(
             if c_genres and user_genres
             else 0
         )
-        
+
+        age_y = age_years_from_release_date(c.payload or {})
+        rcy = norm_recency(age_y, a.recency_half_life_years) # + freshness_bonus_days(c.payload or {})
+
         feats: Dict[str, FeatureContribution] = {
             "dense": FeatureContribution(
                 feature="dense",
@@ -135,6 +185,12 @@ def metadata_rerank(
                 value=g,
                 weight=float(weights.get("genre", 0.0)),
                 contribution=float(weights.get("genre", 0.0)) * g,
+            ),
+            "recency": FeatureContribution(
+                feature="recency",
+                value=rcy,
+                weight=float(weights.get("recency", 0.0)),
+                contribution=float(weights.get("recency", 0.0)) * rcy,
             ),
         }
 

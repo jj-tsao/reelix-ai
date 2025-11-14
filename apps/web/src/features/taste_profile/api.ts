@@ -5,7 +5,7 @@ export interface TasteProfileHttpError extends Error {
 }
 
 export async function hasTasteProfile(token: string): Promise<boolean> {
-  const response = await fetch(`${BASE_URL}/taste_profile/me`, {
+  const response = await fetch(`${BASE_URL}/v2/users/me/taste_profile`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,

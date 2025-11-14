@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Any
 
 from pydantic import BaseModel, Field, field_validator
 from reelix_core.types import MediaType, QueryFilter
+from reelix_user.taste.schemas import TasteProfileMeta
 from reelix_watchlist.schemas import WatchStatus, WatchlistKey
+from reelix_user.interactions.schemas import InteractionType
 
 
 class ChatMessage(BaseModel):
@@ -59,6 +61,19 @@ class FinalRecsRequest(BaseModel):
     final_recs: List[FinalRec]
 
 
+class TasteProfileExistsOut(TasteProfileMeta):
+    has_profile: bool = True  # route returns 200 only when it exists
+
+
+class TasteProfileRebuildRequest(BaseModel):
+    media_type: MediaType = MediaType.MOVIE
+
+
+class UserPreferencesUpsertRequest(BaseModel):
+    genres_include: list[str] = Field(default_factory=list)
+    keywords_include: list[str] = Field(default_factory=list)
+
+
 class WatchlistCreateRequest(BaseModel):
     media_id: int
     media_type: MediaType = MediaType.MOVIE
@@ -83,3 +98,18 @@ class WatchlistUpdateByIdRequest(BaseModel):
     status: WatchStatus | None = None
     rating: int | None = Field(None, ge=1, le=10)
     notes: str | None = None
+
+
+class InteractionsCreateRequest(BaseModel):
+    media_type: MediaType
+    media_id: int
+    title: str
+    event_type: InteractionType
+    reaction: str | None = None
+    value: float | None = None
+    position: int | None = None
+    source: str | None = None
+    query_id: str | None = None
+    session_id: str | None = None
+    context_json: dict[str, Any] | None = None
+    idempotency_key: str | None = None

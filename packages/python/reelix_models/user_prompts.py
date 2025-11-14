@@ -1,15 +1,18 @@
 from __future__ import annotations
-from typing import Iterable, Mapping, List, Optional
-import re
-from reelix_ranking.types import Candidate
-from reelix_core.types import UserSignals
 
+import re
+from typing import Iterable, List, Mapping, Optional
+from datetime import datetime, timezone
+from reelix_core.types import UserSignals, BuildParams, MediaId
+from reelix_ranking.types import Candidate
+from reelix_user.signals.weights import compute_item_weights
+from reelix_user.signals.selectors import select_titles_for_prompt
 
 DEFAULT_LIMITS = dict(
     genres=7,
     keywords=12,
-    liked=7,
-    disliked=5,
+    pos=7,
+    neg=2,
 )
 
 
@@ -21,6 +24,7 @@ def build_for_you_user_prompt(
     query_text: Optional[str] = None,
     limits: Mapping[str, int] = DEFAULT_LIMITS,
     batch_size: int = 8,
+    params: BuildParams = BuildParams(),
 ) -> str:
     """
     Build the User Prompt for the discover/for-you/why LLM call.
@@ -52,10 +56,26 @@ def build_for_you_user_prompt(
         return re.sub(r"```", "``\u200b`", block or "")
 
     # context attributes
-    pos_titles = [i.title for i in user_signals.loved_titles()]
-    if len(pos_titles) < 7:
-        pos_titles.extend([i.title for i in user_signals.liked_titles()])
-    neg_titles = [i.title for i in user_signals.disliked_titles()]
+    now = datetime.now(timezone.utc)
+
+    # compute canonical weight per title
+    weights = compute_item_weights(user_signals.interactions, now, params)
+
+    # select positive and negative titles by weights
+    pos_ids, neg_ids = select_titles_for_prompt(
+        weights,
+        K_pos=limits.get("pos", 7),
+        K_neg=limits.get("neg", 5),
+    )
+
+    titles_by_media: dict[MediaId, str] = {
+        it.media_id: it.title
+        for it in user_signals.interactions
+        if getattr(it, "title", None)
+    }
+
+    pos_titles = [titles_by_media[mid] for mid in pos_ids if mid in titles_by_media]
+    neg_titles = [titles_by_media[mid] for mid in neg_ids if mid in titles_by_media]
 
     # apply dedupe + caps
     genres = _cap(
@@ -64,11 +84,8 @@ def build_for_you_user_prompt(
     keywords = _cap(
         _dedupe_keep_order(user_signals.keywords_include), limits.get("keywords", 12)
     )
-    liked = _cap(_dedupe_keep_order(pos_titles), limits.get("liked", 7))
-    disliked = _cap(
-        _dedupe_keep_order(neg_titles),
-        limits.get("disliked", 5),
-    )
+    liked = _cap(pos_titles, limits.get("pos", 7))
+    disliked = _cap(neg_titles, limits.get("neg", 5))
 
     parts: list[str] = []
 
@@ -89,7 +106,7 @@ def build_for_you_user_prompt(
     parts.append(f"- Selected Genres: {_csv(genres)}")
     parts.append(f"- Selected Keywords: {_csv(keywords)}")
     parts.append(f"- Liked Titles: {_csv(liked)} ")
-    parts.append(f"- Disliked Titles: {_csv(disliked) or 'None'}")
+    parts.append(f"- Disliked Titles: {_csv(disliked)}")
     parts.append("")
 
     # candidates

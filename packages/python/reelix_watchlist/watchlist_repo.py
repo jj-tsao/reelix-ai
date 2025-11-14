@@ -6,7 +6,7 @@ from typing import Sequence
 from anyio import to_thread
 from postgrest.exceptions import APIError as PostgrestAPIError
 
-from .errors import NotFound, Conflict, Forbidden  # <-- add these
+from reelix_core.errors import NotFound, Conflict, Forbidden
 from .schemas import (
     ExistsOut,
     WatchlistCreate,

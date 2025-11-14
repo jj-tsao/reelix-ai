@@ -12,11 +12,10 @@ from app.deps.deps import (
     get_recipe_registry,
     get_recommend_pipeline,
 )
-from app.deps.supabase_optional import (
-    get_optional_user_id,
-    get_supabase_client_optional,
+from app.deps.supabase_client import (
+    get_current_user_id,
+    get_user_context_service,
 )
-from app.repositories.taste_profile_store import fetch_user_taste_context
 from app.schemas import FinalRecsRequest, InteractiveRequest
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
@@ -28,18 +27,17 @@ ENDPOINT = "recommendations/interactive"
 async def recommend_interactive(
     req: InteractiveRequest,
     batch_size: int = 20,
-    sb=Depends(get_supabase_client_optional),
-    user_id: str | None = Depends(get_optional_user_id),
+    user_id: str | None = Depends(get_current_user_id),
     registry=Depends(get_recipe_registry),
+    user_context_svc=Depends(get_user_context_service),
     pipeline=Depends(get_recommend_pipeline),
     chat_llm=Depends(get_chat_completion_llm),
     logger=Depends(get_logger),
 ):
     recipe = registry.get(kind="interactive")
-    user_context = None
-
-    if user_id:
-        user_context = await fetch_user_taste_context(sb, user_id, req.media_type.value)
+    user_context = await user_context_svc.fetch_user_taste_context(
+        user_id, req.media_type
+    )
 
     def gen():
         yield "[[MODE:recommendation]]\n"

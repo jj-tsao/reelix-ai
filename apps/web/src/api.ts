@@ -68,7 +68,7 @@ export async function rebuildTasteProfile(): Promise<void> {
     throw new Error("Not signed in");
   }
 
-  const res = await fetch(`${BASE_URL}/taste_profile/rebuild`, {
+  const res = await fetch(`${BASE_URL}/v2/users/me/taste_profile/rebuild`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.query_encoder import Encoder
     from reelix_models.llm_completion import OpenAIChatLLM
-    from reelix_logging.logger import TelemetryLogger
+    from reelix_logging.rec_logger import TelemetryLogger
 else:
     RecommendPipeline = Any  # type: ignore
     Encoder = Any  # type: ignore

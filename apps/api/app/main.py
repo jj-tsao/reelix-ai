@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError as PgRestError
-from reelix_watchlist.errors import DomainError
+from reelix_core.errors import DomainError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from qdrant_client import QdrantClient
 

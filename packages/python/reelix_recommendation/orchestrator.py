@@ -37,11 +37,14 @@ def orchestrate(
 
     # server side debug print
     # pipeline.summarize_ranking(final)
-    
+
     ctx_log = recipe.build_context_log(user_context)
 
     llm_prompts = recipe.build_prompt(
-        query_text=query_text, batch_size=batch_size, user_context=user_context, candidates=final
+        query_text=query_text,
+        batch_size=batch_size,
+        user_context=user_context,
+        candidates=final,
     )
 
     return final, traces, ctx_log, llm_prompts
