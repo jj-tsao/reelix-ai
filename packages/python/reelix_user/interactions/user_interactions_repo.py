@@ -59,7 +59,6 @@ class SupabaseInteractionsRepo:
                     .execute()
                 )
             else:
-                print ("idempotency key does not exist")
                 res = (
                     self.client.table(TABLE)
                     .insert(payload, returning="representation")
