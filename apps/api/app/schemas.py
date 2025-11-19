@@ -24,7 +24,8 @@ class DiscoverRequest(BaseModel):
     media_type: MediaType = MediaType.MOVIE
     page: int = 1
     page_size: int = 20
-    include_llm_why: bool = False  # if true, returns markdown “why” in JSON
+    query_filters: QueryFilter = Field(default_factory=QueryFilter)
+    include_llm_why: bool = True  # if true, returns markdown “why” in JSON
     session_id: str
     query_id: str
     device_info: DeviceInfo | None = None

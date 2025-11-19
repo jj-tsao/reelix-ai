@@ -26,6 +26,7 @@ export interface DiscoverRequestOptions {
   includeWhy?: boolean;
   sessionId: string;
   queryId: string;
+  providerIds?: number[];
 }
 
 export type DiscoverStreamEvent =
@@ -49,8 +50,23 @@ export async function getAccessToken(): Promise<string | null> {
 
 export async function fetchDiscoverInitial(
   token: string,
-  { mediaType = "movie", page = 1, pageSize = 12, includeWhy = false, sessionId, queryId }: DiscoverRequestOptions,
+  {
+    mediaType = "movie",
+    page = 1,
+    pageSize = 12,
+    includeWhy = false,
+    sessionId,
+    queryId,
+    providerIds,
+  }: DiscoverRequestOptions,
 ): Promise<DiscoverInitialResponse> {
+  const queryFilters =
+    providerIds && providerIds.length > 0
+      ? {
+          providers: providerIds,
+        }
+      : {};
+
   const response = await fetch(`${BASE_URL}/discovery/for-you`, {
     method: "POST",
     headers: {
@@ -64,6 +80,7 @@ export async function fetchDiscoverInitial(
       include_llm_why: includeWhy,
       session_id: sessionId,
       query_id: queryId,
+      query_filters: queryFilters,
     }),
   });
 

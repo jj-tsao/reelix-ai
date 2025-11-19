@@ -15,7 +15,7 @@ class ForYouFeedRecipe(BaseRecipe):
         *,
         media_type: str,
         query_text: str | None,
-        query_filter: QueryFilter | None,
+        query_filter: QueryFilter,
         user_context: UserTasteContext | None,
     ):
         if not user_context:
@@ -28,7 +28,7 @@ class ForYouFeedRecipe(BaseRecipe):
         )
         sparse_vec = self.query_encoder.encode_sparse(bm25_bag, media_type)
 
-        filters = self.build_discover_filter(user_context)
+        filters = self.build_discover_filter(user_context, query_filter)
 
         return dense_vec, sparse_vec, filters
 

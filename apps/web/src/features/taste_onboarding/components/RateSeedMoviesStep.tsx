@@ -216,13 +216,12 @@ export default function RateSeedMoviesStep({ genres, onBack, onFinish }: Props) 
     const t = upsertTimers.current.get(key);
     if (t) clearTimeout(t);
     if (!m.media_id) return;
+    if (r === "dismiss") {
+      upsertTimers.current.delete(key);
+      return; // We no longer log dismisses during taste onboarding
+    }
     const timer = setTimeout(() => {
-      const promise =
-        r === "dismiss"
-          ? upsertUserInteraction({ media_id: m.media_id!, title: m.title, vibes: m.vibes, rating: r })
-          : logUserRecReaction({ mediaId: m.media_id!, title: m.title, reaction: r });
-
-      promise.catch((err) => {
+      logUserRecReaction({ mediaId: m.media_id!, title: m.title, reaction: r }).catch((err) => {
         console.error("Failed to log reaction", err);
       });
       upsertTimers.current.delete(key);

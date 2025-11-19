@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/useToast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getSessionId } from "@/utils/session";
+import { mapStreamingServiceNamesToIds } from "@/data/streamingServices";
 import type { DiscoverCardData } from "../types";
 import type { DiscoverStreamEvent } from "../api";
 import { fetchDiscoverInitial, getAccessToken, logDiscoverFinalRecs, streamDiscoverWhy } from "../api";
 import DiscoverGridSkeleton from "../components/DiscoverGridSkeleton";
 import StreamStatusBar, { type StreamStatusState } from "../components/StreamStatusBar";
+import StreamingServiceFilterChip from "../components/StreamingServiceFilterChip";
 import {
   logUserRecReaction,
   upsertUserInteraction,
@@ -285,6 +287,7 @@ export default function DiscoverPage() {
   const [pendingFeedback, setPendingFeedback] = useState<Partial<Record<string, boolean>>>({});
   const [watchlistState, setWatchlistState] = useState<Record<string, WatchlistUiState>>({});
   const [activeRatingPrompt, setActiveRatingPrompt] = useState<string | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const queryIdRef = useRef<string | null>(null);
   const loggedQueryIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -321,6 +324,11 @@ export default function DiscoverPage() {
   const orderedCards = useMemo(
     () => order.map((id) => cards[id]).filter((card): card is DiscoverCardData => Boolean(card)),
     [order, cards],
+  );
+
+  const selectedProviderIds = useMemo(
+    () => mapStreamingServiceNamesToIds(selectedProviders),
+    [selectedProviders],
   );
 
   const flushLookupQueue = useCallback(async () => {
@@ -655,6 +663,7 @@ export default function DiscoverPage() {
           page: 1,
           pageSize: 12,
           includeWhy: false,
+          providerIds: selectedProviderIds,
         });
         if (cancelled) return;
 
@@ -713,7 +722,7 @@ export default function DiscoverPage() {
       cancelled = true;
       abortRef.current?.abort();
     };
-  }, [refreshIndex, handleStreamEvent, ensureWatchlistEntries]);
+  }, [refreshIndex, handleStreamEvent, ensureWatchlistEntries, selectedProviderIds]);
 
   const streamPhase: StreamPhase = streamState.status;
   const canCancel = streamPhase === "connecting" || streamPhase === "streaming";
@@ -1185,6 +1194,10 @@ export default function DiscoverPage() {
     navigate(target);
   }, [navigate, user]);
 
+  const handleProviderFilterApply = useCallback((providers: string[]) => {
+    setSelectedProviders(providers);
+  }, []);
+
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-24 pt-8">
       <header className="flex flex-col gap-2">
@@ -1193,6 +1206,10 @@ export default function DiscoverPage() {
           Fresh picks tailored to your taste. Updated live as our agent reasons in real time.
         </p>
       </header>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <StreamingServiceFilterChip selected={selectedProviders} onApply={handleProviderFilterApply} />
+      </div>
 
       {pageState === "loading" && <DiscoverGridSkeleton count={12} />}
 

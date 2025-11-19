@@ -61,6 +61,7 @@ async def discover_for_you(
         recipe=recipe,
         pipeline=pipeline,
         media_type=req.media_type.value,
+        query_filter=req.query_filters,
         batch_size=batch_size,
         user_context=user_context,
     )
@@ -92,6 +93,7 @@ async def discover_for_you(
             user_id=user_id,
             session_id=req.session_id,
             media_type=req.media_type,
+            query_filters=req.query_filters,
             ctx_log=ctx_log,
             pipeline_version="RecommendPipeline@v2",
             batch_size=batch_size,
@@ -115,6 +117,7 @@ async def discover_for_you(
         {
             "query_id": req.query_id,
             "items": [_item_view(c) for c in final_candidates[:batch_size]],
+            "active_subs": user_context.active_subscriptions,
             "stream_url": f"/discovery/for-you/why?query_id={req.query_id}",
         }
     )

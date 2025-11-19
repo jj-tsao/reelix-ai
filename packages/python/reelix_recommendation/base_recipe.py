@@ -19,10 +19,10 @@ class BaseRecipe:
 
         return build_filter(query_filter)
 
-    def build_discover_filter(self, user_context: UserTasteContext):
+    def build_discover_filter(self, user_context: UserTasteContext, query_filter: QueryFilter):
         from reelix_recommendation.recipe_helpers import build_discover_filter
 
-        return build_discover_filter(user_context)
+        return build_discover_filter(user_context, query_filter)
 
     def build_bm25_query(self, genres, keywords):
         from reelix_recommendation.recipe_helpers import build_bm25_query
