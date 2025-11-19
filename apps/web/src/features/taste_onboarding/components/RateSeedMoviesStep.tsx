@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { logUserRecReaction, upsertUserInteraction } from "../api";
+import { logUserRecReaction } from "../api";
 import { rebuildTasteProfile } from "@/api";
 import type { PropsWithChildren } from "react";
 import { SEED_MOVIES } from "../data/seed_movies";
