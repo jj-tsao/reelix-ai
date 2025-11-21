@@ -62,9 +62,13 @@ export default function StreamingServiceFilterChip({ selected, onApply }: Props)
   const handleApply = useCallback(() => {
     const sorted = sortByOptionOrder(pending);
     setPending(sorted);
-    onApply([...sorted]);
+    const isSame =
+      sorted.length === selected.length && sorted.every((value, index) => value === selected[index]);
+    if (!isSame) {
+      onApply([...sorted]);
+    }
     setOpen(false);
-  }, [onApply, pending, sortByOptionOrder]);
+  }, [onApply, pending, sortByOptionOrder, selected]);
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +87,9 @@ export default function StreamingServiceFilterChip({ selected, onApply }: Props)
 
   const handleSelectAll = () => {
     setPending([]);
-    onApply([]);
+    if (selected.length > 0) {
+      onApply([]);
+    }
     setOpen(false);
   };
 

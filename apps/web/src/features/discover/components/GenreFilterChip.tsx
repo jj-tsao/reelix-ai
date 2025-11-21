@@ -47,9 +47,13 @@ export default function GenreFilterChip({ selected, onApply }: Props) {
   const handleApply = useCallback(() => {
     const sorted = sortByOrder(pending);
     setPending(sorted);
-    onApply(sorted);
+    const isSame =
+      sorted.length === selected.length && sorted.every((value, index) => value === selected[index]);
+    if (!isSame) {
+      onApply(sorted);
+    }
     setOpen(false);
-  }, [onApply, pending, sortByOrder]);
+  }, [onApply, pending, sortByOrder, selected]);
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +72,9 @@ export default function GenreFilterChip({ selected, onApply }: Props) {
 
   const handleSelectAll = () => {
     setPending([]);
-    onApply([]);
+    if (selected.length > 0) {
+      onApply([]);
+    }
     setOpen(false);
   };
 
