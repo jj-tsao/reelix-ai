@@ -32,7 +32,7 @@ class Ticket:
     user_id: str
     prompts: Any
     created_at: float | None = None
-    meta: Optional[JsonObj] = None
+    meta: JsonObj | None = None
 
     def ensure_created(self) -> None:
         if self.created_at is None:

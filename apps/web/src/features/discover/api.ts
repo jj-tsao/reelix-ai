@@ -11,11 +11,15 @@ export interface DiscoverInitialItem {
   trailer_key?: string | null;
   genres?: string[];
   providers?: string[];
+  why_md?: string | null;
+  imdb_rating?: number | string | null;
+  rotten_tomatoes_rating?: number | string | null;
+  why_source?: "cache" | "llm";
 }
 
 export interface DiscoverInitialResponse {
   query_id: string;
-  stream_url?: string;
+  stream_url?: string | null;
   items: DiscoverInitialItem[];
 }
 
@@ -159,10 +163,18 @@ export async function streamDiscoverWhy({
 
 export async function logDiscoverFinalRecs({
   queryId,
+  mediaType,
   finalRecs,
 }: {
   queryId: string;
-  finalRecs: { media_id: number; why: string }[];
+  mediaType: "movie" | "tv";
+  finalRecs: {
+    media_id: number;
+    why: string;
+    imdb_rating?: number | null;
+    rt_rating?: number | null;
+    why_source: "cache" | "llm";
+  }[];
 }): Promise<void> {
   const token = await getSupabaseAccessToken();
   const response = await fetch(`${BASE_URL}/discovery/log/final_recs`, {
@@ -173,6 +185,7 @@ export async function logDiscoverFinalRecs({
     },
     body: JSON.stringify({
       query_id: queryId,
+      media_type: mediaType,
       final_recs: finalRecs,
     }),
   });
@@ -285,7 +298,7 @@ function toMediaId(value: unknown): string | null {
   return null;
 }
 
-function normalizeTomatoScore(value: unknown): number | null {
+export function normalizeTomatoScore(value: unknown): number | null {
   let parsed: number | null = null;
 
   if (typeof value === "string") {

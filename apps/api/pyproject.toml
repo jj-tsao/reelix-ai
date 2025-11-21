@@ -15,6 +15,7 @@ dependencies = [
   "torch",
   "rank_bm25",
   "sentence_transformers",
+  "redis>=5.0",
   "openai",
 ]
 

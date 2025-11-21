@@ -23,6 +23,7 @@ type MovieCardExtras = {
   providers?: string[];
   whyMarkdown?: string;
   whyText?: string;
+  whySource?: "cache" | "llm";
   isWhyLoading?: boolean;
   isRatingsLoading?: boolean;
   layout?: "grid" | "wide";

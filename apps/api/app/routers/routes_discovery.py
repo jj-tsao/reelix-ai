@@ -19,28 +19,17 @@ from app.deps.supabase_client import (
     get_user_context_service,
 )
 from app.deps.deps_ticket_store import get_ticket_store
+from app.deps.deps_why_cache import get_why_cache
+from app.infrastructure.cache.why_cache import WhyCache, CachedWhy
 from app.infrastructure.cache.ticket_store import Ticket
 from app.schemas import DiscoverRequest, FinalRecsRequest
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
 ENDPOINT = "discovery/for-you"
+PIPELINE_VERSION = "RecommendPipeline@v2"
 IDLE_TTL_SEC = 15 * 60
 HEARTBEAT_SEC = 15
-
-
-def _item_view(c):
-    p = c.payload or {}
-    return {
-        "id": c.id,
-        "media_id": p.get("media_id"),
-        "title": p.get("title"),
-        "release_year": p.get("release_year"),
-        "genres": p.get("genres", []),
-        "poster_url": p.get("poster_url"),
-        "backdrop_url": p.get("backdrop_url"),
-        "trailer_key": p.get("trailer_key"),
-    }
 
 
 @router.post("/for-you")
@@ -53,11 +42,12 @@ async def discover_for_you(
     pipeline=Depends(get_recommend_pipeline),
     store=Depends(get_ticket_store),
     logger=Depends(get_logger),
+    why_cache: WhyCache = Depends(get_why_cache),
 ):
     recipe = registry.get(kind="for_you_feed")
     user_context = await user_context.fetch_user_taste_context(user_id, req.media_type)
 
-    final_candidates, traces, ctx_log, llm_prompts = orchestrate(
+    final_candidates, traces, ctx_log, _ = orchestrate(
         recipe=recipe,
         pipeline=pipeline,
         media_type=req.media_type.value,
@@ -65,26 +55,66 @@ async def discover_for_you(
         batch_size=batch_size,
         user_context=user_context,
     )
-    ticket = Ticket(
-        user_id=user_id,
-        prompts=llm_prompts,
-        meta={
-            "recipe": "for_you_feed@v1",
-            "items_brief": [
-                {
-                    "media_id": (c.payload or {}).get("media_id"),
-                    "title": (c.payload or {}).get("title"),
-                }
-                for c in final_candidates[:batch_size]
-            ],
-        },
-    )
 
-    await store.put(
-        req.query_id,  # ticket key
-        ticket,
-        ttl_sec=IDLE_TTL_SEC,
-    )
+    media_ids: list[int] = []
+    for c in final_candidates[:batch_size]:
+        media_ids.append(c.id)
+
+    cached_whys_map: dict[int, CachedWhy] = {}
+    if media_ids:
+        cached_whys_map = await why_cache.get_many(
+            user_id=user_id,
+            media_type=req.media_type,
+            media_ids=media_ids,
+        )
+
+    uncached_candidates = []
+    uncached_media_ids: list[int] = []
+    cached_whys_meta: dict[str, dict] = {}
+
+    for c in final_candidates[:batch_size]:
+        cached = cached_whys_map.get(c.id)
+        if cached:
+            cached_whys_meta[str(c.id)] = {
+                "why_md": cached.why_md,
+                "imdb_rating": cached.imdb_rating,
+                "rotten_tomatoes_rating": cached.rt_rating,
+            }
+        else:
+            uncached_candidates.append(c)
+            uncached_media_ids.append(c.id)
+
+    request_meta = {
+        "recipe": "for_you_feed@v1",
+        "items_brief": [
+            {
+                "media_id": (c.payload or {}).get("media_id"),
+                "title": (c.payload or {}).get("title"),
+            }
+            for c in final_candidates[:batch_size]
+        ],
+    }
+
+    llm_prompts: PromptsEnvelope | None = None
+    if uncached_candidates:
+        llm_prompts = recipe.build_prompt(
+            query_text=None,
+            batch_size=len(uncached_candidates),
+            user_context=user_context,
+            candidates=uncached_candidates,
+        )
+
+        ticket = Ticket(
+            user_id=user_id,
+            prompts=llm_prompts,
+            meta=request_meta,
+        )
+
+        await store.put(
+            req.query_id,  # ticket key
+            ticket,
+            ttl_sec=IDLE_TTL_SEC,
+        )
 
     asyncio.create_task(
         logger.log_query_intake(
@@ -95,10 +125,10 @@ async def discover_for_you(
             media_type=req.media_type,
             query_filters=req.query_filters,
             ctx_log=ctx_log,
-            pipeline_version="RecommendPipeline@v2",
+            pipeline_version=PIPELINE_VERSION,
             batch_size=batch_size,
             device_info=req.device_info,
-            request_meta=ticket.meta,
+            request_meta=request_meta,
         )
     )
 
@@ -112,13 +142,23 @@ async def discover_for_you(
             stage="final",
         )
     )
+    
+    items = []
+    for c in final_candidates[:batch_size]:
+        item = _item_view(c)
+        if str(c.id) in cached_whys_meta:
+            item.update(cached_whys_meta[str(c.id)])
+            item["why_source"] = "cache"
+        else:
+            item["why_source"] = "llm"
+        items.append(item)
 
     return JSONResponse(
         {
             "query_id": req.query_id,
-            "items": [_item_view(c) for c in final_candidates[:batch_size]],
+            "items": items,
             "active_subs": user_context.active_subscriptions,
-            "stream_url": f"/discovery/for-you/why?query_id={req.query_id}",
+            "stream_url": f"/discovery/for-you/why?query_id={req.query_id}" if uncached_candidates else None,
         }
     )
 
@@ -247,15 +287,60 @@ async def stream_why(
 @router.post("/log/final_recs")
 async def log_final_recommendations(
     req: FinalRecsRequest,
+    user_id: str = Depends(get_current_user_id),
     logger=Depends(get_logger),
+    why_cache: WhyCache = Depends(get_why_cache),
 ):
-    asyncio.create_task(
-        logger.log_why(
+    # Fire-and-forget logging + cache updates to avoid blocking the client
+    async def _bg() -> None:
+        await logger.log_why(
             endpoint=ENDPOINT,
             query_id=req.query_id,
             final_recs=req.final_recs,
         )
-    )
+        # Best-effort cache write; ignore errors
+        try:
+            values: dict[int, CachedWhy] = {}
+            now = time.time()
+            for r in req.final_recs:
+                # Only cache if this why was newly generated by the LLM
+                if r.why_source.lower() == "cache":
+                    continue
+
+                values[r.media_id] = CachedWhy(
+                    why_md=r.why,
+                    imdb_rating=r.imdb_rating,
+                    rt_rating=r.rt_rating,
+                    created_at=now,
+                    taste_version=PIPELINE_VERSION,
+                )
+
+            if values:
+                await why_cache.set_many(
+                    user_id=user_id,
+                    media_type=req.media_type,
+                    values=values,
+                )
+        except Exception:
+            # Cache errors shouldn't break logging
+            pass
+
+    asyncio.create_task(_bg())
+    return JSONResponse({"ok": True})
+
+
+def _item_view(c):
+    p = c.payload or {}
+    return {
+        "id": c.id,
+        "media_id": p.get("media_id"),
+        "title": p.get("title"),
+        "release_year": p.get("release_year"),
+        "genres": p.get("genres", []),
+        "poster_url": p.get("poster_url"),
+        "backdrop_url": p.get("backdrop_url"),
+        "trailer_key": p.get("trailer_key"),
+    }
 
 
 def _pick_call(env: PromptsEnvelope, batch: int | None) -> dict:

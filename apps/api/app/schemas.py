@@ -55,10 +55,14 @@ class InteractiveRequest(BaseModel):
 class FinalRec(BaseModel):
     media_id: int
     why: str
+    imdb_rating: float | None = None
+    rt_rating: int | None = None
+    why_source: str  # "cache" or "llm"
 
 
 class FinalRecsRequest(BaseModel):
     query_id: str
+    media_type: MediaType
     final_recs: List[FinalRec]
 
 

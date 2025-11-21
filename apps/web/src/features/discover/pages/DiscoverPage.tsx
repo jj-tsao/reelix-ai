@@ -7,8 +7,14 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getSessionId } from "@/utils/session";
 import { mapStreamingServiceNamesToIds } from "@/data/streamingServices";
 import type { DiscoverCardData } from "../types";
-import type { DiscoverStreamEvent } from "../api";
-import { fetchDiscoverInitial, getAccessToken, logDiscoverFinalRecs, streamDiscoverWhy } from "../api";
+import {
+  fetchDiscoverInitial,
+  getAccessToken,
+  logDiscoverFinalRecs,
+  normalizeTomatoScore,
+  streamDiscoverWhy,
+  type DiscoverStreamEvent,
+} from "../api";
 import DiscoverGridSkeleton from "../components/DiscoverGridSkeleton";
 import StreamStatusBar, { type StreamStatusState } from "../components/StreamStatusBar";
 import StreamingServiceFilterChip from "../components/StreamingServiceFilterChip";
@@ -39,10 +45,20 @@ function toDiscoverCard(item: {
   trailer_key?: string | null;
   genres?: unknown;
   providers?: unknown;
+  why_md?: unknown;
+  imdb_rating?: unknown;
+  rotten_tomatoes_rating?: unknown;
+  why_source?: unknown;
 }): DiscoverCardData {
+  const mediaId = normalizeMediaId(item.media_id);
+  const whyMarkdown = toWhyMarkdown(item.why_md);
+  const imdbRating = toOptionalRating(item.imdb_rating);
+  const rottenTomatoesRating = normalizeTomatoScore(item.rotten_tomatoes_rating);
+  const whySource = normalizeWhySource(item.why_source);
+  const isCached = whySource === "cache";
   return {
     id: item.id,
-    mediaId: normalizeMediaId(item.media_id),
+    mediaId,
     title: item.title,
     releaseYear: toOptionalNumber(item.release_year),
     posterUrl: typeof item.poster_url === "string" ? item.poster_url : undefined,
@@ -50,12 +66,13 @@ function toDiscoverCard(item: {
     trailerKey: typeof item.trailer_key === "string" ? item.trailer_key : undefined,
     genres: toStringArray(item.genres),
     providers: toStringArray(item.providers),
-    imdbRating: null,
-    rottenTomatoesRating: null,
-    whyMarkdown: undefined,
+    imdbRating,
+    rottenTomatoesRating,
+    whyMarkdown,
     whyText: undefined,
-    isWhyLoading: true,
-    isRatingsLoading: true,
+    whySource,
+    isWhyLoading: !whyMarkdown && !isCached,
+    isRatingsLoading: !(isCached || imdbRating !== null || rottenTomatoesRating !== null),
   };
 }
 
@@ -101,6 +118,38 @@ function toStringArray(value: unknown): string[] {
     .filter((entry): entry is string => Boolean(entry));
 }
 
+function toOptionalRating(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.round(value * 10) / 10;
+  }
+  if (typeof value === "string") {
+    const cleaned = value.trim().replace(/[^0-9.]/g, "");
+    if (cleaned) {
+      const parsed = Number(cleaned);
+      if (Number.isFinite(parsed)) {
+        return Math.round(parsed * 10) / 10;
+      }
+    }
+  }
+  return null;
+}
+
+function toWhyMarkdown(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeWhySource(value: unknown): "cache" | "llm" {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "cache" || normalized === "llm") {
+      return normalized;
+    }
+  }
+  return "llm";
+}
+
 type CardMap = Record<string, DiscoverCardData>;
 
 type PageState = "idle" | "loading" | "ready" | "error" | "unauthorized" | "missingTasteProfile";
@@ -135,6 +184,7 @@ const MIN_RATINGS_FOR_REBUILD = 2;
 const REBUILD_DELAY_MS = 10_000;
 const REBUILD_COOLDOWN_MS = 2 * 60 * 1000;
 const WATCHLIST_SOURCE = "discover_for_you";
+const DISCOVER_MEDIA_TYPE = "movie" as const;
 const LOOKUP_TRIGGER_SIZE = 12;
 const LOOKUP_MAX_BATCH = 20;
 const LOOKUP_DEBOUNCE_MS = 300;
@@ -576,6 +626,7 @@ export default function DiscoverPage() {
               : existing.rottenTomatoesRating,
           whyMarkdown: event.data.why_you_might_enjoy_it ?? existing.whyMarkdown,
           whyText: event.data.why_you_might_enjoy_it ? undefined : existing.whyText,
+          whySource: existing.whySource ?? "llm",
           isWhyLoading: event.data.why_you_might_enjoy_it ? false : existing.isWhyLoading,
           isRatingsLoading:
             event.data.imdb_rating !== undefined || event.data.rotten_tomatoes_rating !== undefined
@@ -707,6 +758,9 @@ export default function DiscoverPage() {
           } finally {
             abortRef.current = null;
           }
+        } else {
+          setStreamState({ status: "done", message: "Loaded personalized picks from cache" });
+          setCards((prev) => finalizePending(prev));
         }
       } catch (error) {
         if (cancelled) return;
@@ -743,22 +797,44 @@ export default function DiscoverPage() {
 
     const finalRecs = orderedCards
       .map((card) => {
-        const mediaId = Number(card.mediaId);
-        if (!Number.isFinite(mediaId)) {
-          return null;
-        }
-        const why = card.whyMarkdown ?? card.whyText;
-        if (typeof why !== "string" || !why.trim()) {
-          return null;
-        }
-        return { media_id: mediaId, why };
+        const mediaId = toNumericMediaId(card.mediaId);
+        if (mediaId === null) return null;
+        const why = (card.whyMarkdown ?? card.whyText ?? "").trim();
+        if (!why) return null;
+        const whySource = normalizeWhySource(card.whySource);
+        const imdbRating = typeof card.imdbRating === "number" && Number.isFinite(card.imdbRating) ? card.imdbRating : null;
+        const rtRating =
+          typeof card.rottenTomatoesRating === "number" && Number.isFinite(card.rottenTomatoesRating)
+            ? Math.round(card.rottenTomatoesRating)
+            : null;
+        return {
+          media_id: mediaId,
+          why,
+          imdb_rating: imdbRating,
+          rt_rating: rtRating,
+          why_source: whySource,
+        };
       })
-      .filter((entry): entry is { media_id: number; why: string } => entry !== null);
+      .filter(
+        (
+          entry,
+        ): entry is {
+          media_id: number;
+          why: string;
+          imdb_rating: number | null;
+          rt_rating: number | null;
+          why_source: "cache" | "llm";
+        } => entry !== null,
+      );
 
     if (finalRecs.length === 0) return;
 
     loggedQueryIdRef.current = queryId;
-    void logDiscoverFinalRecs({ queryId, finalRecs }).catch((error) => {
+    void logDiscoverFinalRecs({
+      queryId,
+      mediaType: DISCOVER_MEDIA_TYPE,
+      finalRecs,
+    }).catch((error) => {
       console.warn("Failed to log discovery final recommendations", error);
     });
   }, [orderedCards, streamState.status]);

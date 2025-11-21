@@ -20,6 +20,7 @@ from reelix_core.config import (
 )
 from reelix_logging.rec_logger import TelemetryLogger
 from app.infrastructure.cache.ticket_store import make_ticket_store
+from app.infrastructure.cache.why_cache import RedisWhyCache
 from .routers import all_routers
 
 
@@ -31,11 +32,13 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_api_key: str | None = None
     openai_api_key: str | None = None
+    redis_url: str | None = None
     # ticket_store config
     use_redis_ticket_store: bool = False
-    redis_url: str | None = None
-    ticket_namespace: str = "disc:ticket:"
+    ticket_namespace: str = "disco:ticket:"
+    why_cache_namespace: str = "disco:why:"
     ticket_ttl_abs: int = 3600  # 60 min absolute cap
+    why_cache_ttl_sec: int = 7 * 24 * 3600
     # env conifg
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -130,6 +133,11 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         # Optional redis client kwargs for timeouts:
         # client_kwargs={"socket_connect_timeout": 2, "socket_timeout": 3} if use_redis else None,
     )
+    app.state.why_cache = RedisWhyCache(
+        redis_url=app.state.settings.redis_url,
+        namespace=app.state.settings.why_cache_namespace,
+        default_ttl_sec=app.state.settings.why_cache_ttl_sec,
+    )
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
 
@@ -177,15 +185,14 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await http_client.aclose()
+        await app.state.why_cache.aclose()
 
 
 app = FastAPI(title="Reelix Discovery Agent API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://reelixai.netlify.app", "http://localhost:5173"
-    ],
+    allow_origins=["https://reelixai.netlify.app", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

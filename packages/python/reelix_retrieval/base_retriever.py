@@ -75,7 +75,7 @@ class BaseRetriever:
             indices=[int(i) for i in sparse_vec.get("indices", [])],
             values=[float(v) for v in sparse_vec.get("values", [])],
         )
-        
+
         res = self.client.query_points(
             collection_name=self._col(media_type),
             query=sparse_query,
