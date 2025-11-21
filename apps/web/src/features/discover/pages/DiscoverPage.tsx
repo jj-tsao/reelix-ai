@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/useToast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { getSessionId } from "@/utils/session";
 import { mapStreamingServiceNamesToIds } from "@/data/streamingServices";
+import GenreFilterChip from "../components/GenreFilterChip";
 import type { DiscoverCardData } from "../types";
 import {
   fetchDiscoverInitial,
@@ -338,6 +339,7 @@ export default function DiscoverPage() {
   const [watchlistState, setWatchlistState] = useState<Record<string, WatchlistUiState>>({});
   const [activeRatingPrompt, setActiveRatingPrompt] = useState<string | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const queryIdRef = useRef<string | null>(null);
   const loggedQueryIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -380,6 +382,7 @@ export default function DiscoverPage() {
     () => mapStreamingServiceNamesToIds(selectedProviders),
     [selectedProviders],
   );
+  const selectedGenresForQuery = useMemo(() => [...selectedGenres], [selectedGenres]);
 
   const flushLookupQueue = useCallback(async () => {
     if (lookupTimerRef.current) {
@@ -715,6 +718,7 @@ export default function DiscoverPage() {
           pageSize: 12,
           includeWhy: false,
           providerIds: selectedProviderIds,
+          genres: selectedGenresForQuery,
         });
         if (cancelled) return;
 
@@ -776,7 +780,7 @@ export default function DiscoverPage() {
       cancelled = true;
       abortRef.current?.abort();
     };
-  }, [refreshIndex, handleStreamEvent, ensureWatchlistEntries, selectedProviderIds]);
+  }, [refreshIndex, handleStreamEvent, ensureWatchlistEntries, selectedProviderIds, selectedGenresForQuery]);
 
   const streamPhase: StreamPhase = streamState.status;
   const canCancel = streamPhase === "connecting" || streamPhase === "streaming";
@@ -1274,6 +1278,10 @@ export default function DiscoverPage() {
     setSelectedProviders(providers);
   }, []);
 
+  const handleGenreFilterApply = useCallback((genres: string[]) => {
+    setSelectedGenres(genres);
+  }, []);
+
   return (
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-24 pt-8">
       <header className="flex flex-col gap-2">
@@ -1285,6 +1293,7 @@ export default function DiscoverPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <StreamingServiceFilterChip selected={selectedProviders} onApply={handleProviderFilterApply} />
+        <GenreFilterChip selected={selectedGenres} onApply={handleGenreFilterApply} />
       </div>
 
       {pageState === "loading" && <DiscoverGridSkeleton count={12} />}

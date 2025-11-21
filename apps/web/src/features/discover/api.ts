@@ -31,6 +31,7 @@ export interface DiscoverRequestOptions {
   sessionId: string;
   queryId: string;
   providerIds?: number[];
+  genres?: string[];
 }
 
 export type DiscoverStreamEvent =
@@ -62,14 +63,16 @@ export async function fetchDiscoverInitial(
     sessionId,
     queryId,
     providerIds,
+    genres,
   }: DiscoverRequestOptions,
 ): Promise<DiscoverInitialResponse> {
-  const queryFilters =
-    providerIds && providerIds.length > 0
-      ? {
-          providers: providerIds,
-        }
-      : {};
+  const queryFilters: { providers?: number[]; genres?: string[] } = {};
+  if (providerIds && providerIds.length > 0) {
+    queryFilters.providers = providerIds;
+  }
+  if (genres && genres.length > 0) {
+    queryFilters.genres = genres;
+  }
 
   const response = await fetch(`${BASE_URL}/discovery/for-you`, {
     method: "POST",
