@@ -14,7 +14,10 @@ export default function GenreFilterChip({ selected, onApply }: Props) {
   const [pending, setPending] = useState<string[]>(selected);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const order = useMemo(() => new Map(MOVIE_GENRES.map((genre, idx) => [genre, idx])), []);
+  const order = useMemo<Map<string, number>>(
+    () => new Map(MOVIE_GENRES.map((genre, idx) => [genre as string, idx])),
+    [],
+  );
 
   const sortByOrder = useCallback(
     (names: Iterable<string>) =>
