@@ -132,6 +132,10 @@ def build_for_you_user_prompt(
     parts.append(
         f"- Output {batch_size} recommendation lines using the specified format."
     )
+    parts.append(
+        "- For each candidate, you may reference the user's liked and disliked titles as evidence, "
+        "but you must never say the user will like a title because they already like the exact same title."
+    )
 
     return "\n".join(parts)
 
