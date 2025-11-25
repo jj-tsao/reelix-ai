@@ -1,4 +1,4 @@
-# 🎬 Reelix AI – Personalized Movie & TV Show Discovery
+# 🎬 Reelix AI – Personalized Movie & TV Discovery Agent
 
 **Reelix** is an AI-native discovery agent that understands *vibes* and turns them into cinematic picks.
 
@@ -12,17 +12,19 @@
 
 ---
 
-Reelix finds your next favorite movies/shows by learning your **personal taste** and the **vibes** you want (themes, tone, pacing, genres).
+Reelix finds your next favorite watch by learning your **personal taste** and preferred **vibes** (themes, tone, pacing, genres).
 
-Under the hood, it combines:
+Under the hood, it mirrors a modern RAG-driven AI search stack: **candidate recall** → **multi-objective ranking** → **grounded LLM synthesis**, all within strict latency/quality budgets.
 
-- **Taste vector (SentenceTransformers)** to model what you like (and don’t)
-- **Hybrid retrieval (dense embeddings + BM25)** to surface high-signal candidates
-- **Metadata-aware reranking** (quality, popularity, genre overlap, recency)
-- **Cross-Encoder reranker** for precise final ordering
-- **LLM “why you’ll enjoy it”** rationales, streamed via **SSE** to the UI
+- **Query understanding**: Parse natural-language “vibe” queries into **dense** (fine-tuned SentenceTransformers) + **sparse** (BM25) signals.
+- **Hybrid retrieval**: ANN over dense vectors + BM25; RRF/weighted fusion builds a robust top-K.
+- **Two-stage ranking (multi-objective)**:
+  1. **Metadata-aware scorer** (content quality, popularity, freshness, diversity/de-dupe).
+  2. **Cross-Encoder reranker** for precise final order at small K.  
+- **Personalization**: **User-tower** taste vector from interactions (like/watch/skip); cold-start uses content priors.
+- **Grounded LLM synthesis**: Generate “Why you’ll like it” rationales and stream via SSE.
 
-The result is a fast, **personal For-You recommendation feed** and a flexible **“Explore by Vibe”** experience that adapts as you give feedback.
+The result is a fast **For-You feed** and a flexible **“Explore by Vibe”** search experience that adapt in real time as users interact.
 
 👉 Try our **Live Product** here: [**Reelix AI**](https://reelixai.netlify.app/)
 
@@ -30,14 +32,15 @@ The result is a fast, **personal For-You recommendation feed** and a flexible **
 ## ✨ Core Experiences
 
 - **Taste Onboarding (`/taste`)** — Quickly signal your preferences (genre/vibe picks; Love / Like / Dislike; trailer views). We build and store a taste vector that refines as you give more feedback.
-- **For-You Feed (`/discover`)** — A personalized grid of picks. Each card streams a short rationale and a markdown-rich movie/TV card.
 - **Explore by Vibe (`/query`)** — Type “psychological thrillers with a satirical tone,” or tap example chips to see vibe-specific recommendations. Add filters for year range, genres, and streaming services.
+- **For-You Feed (`/discover`)** — A personalized grid of picks. Each card streams a short rationale and a markdown-rich movie/TV card.
+- **Add to Watchlist (`/watchlist`)** - Save titles to watch later, flip to “Watched,” and (optionally) rate 1–10 — all in one flow. Optimistic UI + idempotent API; items hydrate with metadata/artworks and emit signals to refine your taste profile.
 
 ### Quick Look
 
 > Reelix understands your vibe and curates markdown-rich suggestions, trailers, and rationale in real time.
 
-<img src="https://github.com/user-attachments/assets/ef03a55a-b9b5-4136-8654-5d7fa3f4e97d" alt="Reelix Preview" width="100%" />
+<img width="1050" height="890" alt="Image" src="https://github.com/user-attachments/assets/f900b15b-431b-4d0c-8135-0d1bce473c00" />
 
 
 ---
@@ -112,6 +115,27 @@ Uses a **single streaming endpoint**, with a shared **ticket store** (keyed by `
    - Client posts the final chosen items **and** reasoning (after streaming completes).
    - Upserts existing rows with `stage="final"` and the `why_summary`.
 
+### 4) Watchlist (`/watchlist`)
+Lets users save titles to watch later, mark them as watched, and optionally rate them (1–10). Designed to be idempotent and fast, with optimistic UI updates. Stores rows in Supabase (unique on `user_id` + `media_id`) and emits lightweight signals that feed back into the taste profile.
+
+1) `POST /watchlist`
+   - Adds or upserts an item in the user’s watchlist (reactivates if previously soft-deleted).
+   - Input fields like `title`, `poster_url`, etc. are denormalized hints to render immediately; canonical metadata lives in Qdrant/TMDB.
+   - Emits an interaction event (`watchlist_add`) for taste-signal logging.
+  
+2) `GET /watchlist`
+   - Lists the user’s watchlist items, with optional filters/pagination.
+   - Hydrates metadata fields like genres, release_year, artworks, and why_summary, so the client avoids a second fetch.
+
+3) `PATCH /watchlist/{media_id}`
+   - Atomically updates status and/or rating (ideal for “✓ Watched ▾ → quick-rate”).
+   - Emits an interaction event (`rating`) when a rating is present for taste-signal logging.
+
+4) `DELETE /watchlist/{media_id}`
+   - Remove from watchlist.
+   - Soft delete the item. Sets `deleted_at`, `deleted_reason`, and derives `is_active=False`.
+
+
 ### **Frontend details**
 - `/discover` loads a grid of picks, then begins SSE streaming of “why” and ratings, updating each card live.
 - Users can **Love / Like / Not for me** or **watch trailer**; feedback is logged and triggers controlled taste rebuilds.
@@ -121,11 +145,13 @@ Uses a **single streaming endpoint**, with a shared **ticket store** (keyed by `
 ## 🏗️ Recommendation Pipeline Architecture (High‑Level)
 
 ```
-User prompt ──▶ Intent Classifier ──┐
-                                    │ yes
-                                    ▼
-                            Query Encoder (dense + sparse)
+User Interactions ──▶ Taste Vector (user tower)
                                     │
+                                    │
+User Prompt ──▶ Query Encoder ──────┤
+                                    │ 
+                                  Filters (genres, year, streaming provider)
+                                    │ 
                  ┌──────────────────┴──────────────────┐
                  ▼                                     ▼
            Sparse Search                         Dense Search
@@ -157,9 +183,9 @@ User prompt ──▶ Intent Classifier ──┐
 
 **Tunable knobs** (with sensible defaults):
 
-- Retrieval depths: `dense_depth=300`, `sparse_depth=20`
+- Retrieval depths: `dense_depth=300`, `sparse_depth=100`
 - Fusion: `rrf_k=60`
-- Metadata weights: `{dense: 0.60, sparse: 0.15, rating: 0.15, popularity: 0.10}`
+- Metadata weights: `{dense=0.56, sparse=0.14, rating=0.14, popularity=0.04, genre=0.12,}`
 - CE window: `meta_ce_top_n=30`
 - Final size: `final_top_k=20`
 
