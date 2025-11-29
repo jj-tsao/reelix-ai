@@ -4,8 +4,10 @@ from enum import Enum
 from typing import List, Dict, Any
 from pydantic import BaseModel
 
-from reelix_core.types import MediaType, UserTasteContext
+from interactive.prompts import SYSTEM_PROMPT
+from reelix_core.types import MediaType, UserTasteContext, QueryFilter
 from reelix_ranking.types import Candidate
+from reelix_user_context.user_context_service import UserContextService
 
 
 class InteractiveAgentInput(BaseModel):
@@ -13,8 +15,9 @@ class InteractiveAgentInput(BaseModel):
     query_id: str
     session_id: str | None
     media_type: MediaType
-    query_text: str | None
-    query_filters: dict | None
+    query_text: str
+    query_filters: QueryFilter
+    user_context_service: UserContextService
     batch_size: int = 20
     device_info: dict | None = None
 
@@ -71,7 +74,7 @@ class AgentState(BaseModel):
     messages: List[Dict[str, Any]] = []
 
     # Domain state
-    user_context: UserTasteContext | None = None
+    user_context: UserTasteContext
     query_spec: RecQuerySpec | None = None
     candidates: List[Candidate] = []
     final_recs: List[FinalRec] = []
@@ -89,11 +92,11 @@ class AgentState(BaseModel):
     meta: Dict[str, Any] = {}  # recipe, versions, etc.
 
     @classmethod
-    def from_agent_input(cls, agent_input: InteractiveAgentInput) -> "AgentState":
+    def from_agent_input(cls, agent_input: InteractiveAgentInput, user_context: UserTasteContext) -> "AgentState":
         """
         Bootstrap a fresh AgentState from the HTTP-level input.
 
-        This is called at the start of an interactive agent run
+        Called at the start of an interactive agent run
         (new query_id / session), before any tools are invoked.
         """
         # Build the initial user message content the LLM sees
@@ -111,6 +114,7 @@ class AgentState(BaseModel):
             media_type=str(agent_input.media_type) if agent_input.media_type else None,
             device_info=agent_input.device_info,
             messages=messages,
+            user_context=user_context,
             # everything else uses defaults (None / [] / 0 / False)
         )
 
