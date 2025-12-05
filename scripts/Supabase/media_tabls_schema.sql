@@ -1,39 +1,47 @@
 -- == TMDB ↔ IMDb ID mapping ==
 create table if not exists media_ids (
-  tmdb_id   bigint primary key,
-  imdb_id   text unique    -- e.g. 'tt0068646'; unique to avoid duplicate mappings
+  media_type text not null,   -- 'movie' | 'tv'
+  tmdb_id    bigint not null,
+  imdb_id    text,            -- e.g. 'tt0068646'
+
+  primary key (media_type, tmdb_id)
 );
 
-create index if not exists idx_media_ids_imdb_id
-  on media_ids(imdb_id);
+create unique index if not exists idx_media_ids_imdb_id_unique
+  on media_ids(imdb_id)
+  where imdb_id is not null;
 
 
 -- == Ratings, votes, award info from external sources ==
 create table if not exists media_ratings (
-  tmdb_id         bigint primary key,
-  imdb_id         text,
+  media_type       text   not null,   -- 'movie' | 'tv'
+  tmdb_id          bigint not null,
+  imdb_id          text,
 
-  -- IMDb data
-  imdb_rating     numeric(3,1),   -- e.g. 9.2
-  imdb_votes      integer,        -- e.g. 2182094
+  -- IMDb data (from imdb_ratings_raw)
+  imdb_rating      numeric(3,1),   -- e.g. 9.2
+  imdb_votes       integer,        -- e.g. 2182094
 
-  -- Rotten Tomatoes
-  rt_score        numeric(5,2),   -- treat as 0–100; 5,2 gives flexibility
+  -- Rotten Tomatoes (from OMDb)
+  rt_score         numeric(5,2),   -- 0–100; 5,2 gives flexibility
 
-  rt_last_checked timestamptz,    -- when the score was last queried
-  rt_status       text,           -- 'ok' | 'not_found' | 'error' | null
+  rt_last_checked  timestamptz,    -- when RT was last queried
+  rt_status        text,           -- 'ok' | 'not_found' | 'error' | null
 
-  -- Extra signals
-  metascore       integer.    ,   -- Metacritic 0–100
-  awards_summary  text,           -- e.g. 'Won 3 Oscars. 31 wins & 31 nominations total'
+  -- Extra signals we might use from OMDb
+  metascore        integer,        -- Metacritic 0–100
+  awards_summary   text,           -- e.g. 'Won 3 Oscars. 31 wins & 31 nominations total'
 
-  updated_at      timestamptz default now()
+  updated_at       timestamptz default now(),
+
+  primary key (media_type, tmdb_id)
 );
 
--- FK to keep ratings aligned with known titles
+-- Foreign key to keep ratings aligned with known titles
 alter table media_ratings
-  add constraint media_ratings_tmdb_fk
-  foreign key (tmdb_id) references media_ids (tmdb_id)
+  add constraint media_ratings_media_fk
+  foreign key (media_type, tmdb_id)
+  references media_ids (media_type, tmdb_id)
   on delete cascade;
 
 -- Indexes for common lookups / joins
@@ -55,7 +63,7 @@ create table if not exists imdb_ratings_raw (
   numVotes       integer            -- e.g. 2182094
 );
 
--- General performance indexes
+-- General performance indexese
 create index if not exists idx_imdb_ratings_num_votes
   on imdb_ratings_raw(numVotes);
 
