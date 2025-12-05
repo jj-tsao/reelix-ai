@@ -58,13 +58,13 @@ create index if not exists idx_media_ratings_rt_status
 -- == Raw IMDb ratings sync table (direct mirror of title.ratings.tsv.gz) ==
 create table if not exists imdb_ratings_raw (
   tconst         text primary key,  -- IMDb title ID, e.g. 'tt0068646'
-  averageRating  numeric(3,1),      -- e.g. 9.2
-  numVotes       integer            -- e.g. 2182094
+  average_rating  numeric(3,1),      -- e.g. 9.2
+  num_votes       integer            -- e.g. 2182094
 );
 
 -- General performance indexese
 create index if not exists idx_imdb_ratings_num_votes
-  on imdb_ratings_raw(numVotes);
+  on imdb_ratings_raw(num_votes);
 
 create index if not exists idx_imdb_ratings_avg_rating
-  on imdb_ratings_raw(averageRating);
+  on imdb_ratings_raw(average_rating);
