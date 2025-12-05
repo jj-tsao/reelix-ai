@@ -7,9 +7,8 @@ create table if not exists media_ids (
   primary key (media_type, tmdb_id)
 );
 
-create unique index if not exists idx_media_ids_imdb_id_unique
-  on media_ids(imdb_id)
-  where imdb_id is not null;
+create index if not exists idx_media_ids_imdb_id
+  on media_ids(imdb_id);
 
 
 -- == Ratings, votes, award info from external sources ==
