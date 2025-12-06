@@ -32,6 +32,7 @@ create table if not exists media_ratings (
   awards_summary   text,           -- e.g. 'Won 3 Oscars. 31 wins & 31 nominations total'
 
   updated_at       timestamptz default now(),
+  qdrant_synced_at timestamptz,
 
   primary key (media_type, tmdb_id)
 );
