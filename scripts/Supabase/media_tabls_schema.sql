@@ -1,8 +1,9 @@
 -- == TMDB ↔ IMDb ID mapping ==
 create table if not exists media_ids (
-  media_type text not null,   -- 'movie' | 'tv'
-  tmdb_id    bigint not null,
-  imdb_id    text,            -- e.g. 'tt0068646'
+  media_type   text not null,   -- 'movie' | 'tv'
+  tmdb_id      bigint not null,
+  imdb_id.     text,            -- e.g. 'tt0068646'
+  release_date timestamptz,     -- for recency check
 
   primary key (media_type, tmdb_id)
 );
