@@ -17,6 +17,7 @@ create table if not exists media_ratings (
   media_type       text   not null,   -- 'movie' | 'tv'
   tmdb_id          bigint not null,
   imdb_id          text,
+  release_date     timestamptz,
 
   -- IMDb data (from imdb_ratings_raw)
   imdb_rating      numeric(3,1),   -- e.g. 9.2
