@@ -26,8 +26,8 @@ create table if not exists media_ratings (
   -- Rotten Tomatoes (from OMDb)
   rt_score         numeric(5,2),   -- 0–100; 5,2 gives flexibility
 
-  rt_last_checked  timestamptz,    -- when RT was last queried
-  rt_status        text,           -- 'ok' | 'not_found' | 'error' | null
+  omdb_last_checked  timestamptz,    -- when RT was last queried
+  omdb_status        text,           -- 'ok' | 'not_found' | 'error' | null
 
   -- Extra signals we might use from OMDb
   metascore        integer,        -- Metacritic 0–100
@@ -54,8 +54,8 @@ create index if not exists idx_media_ratings_updated_at
   on media_ratings(updated_at);
 
 -- Optional: if you ever filter by status a lot (e.g. 'ok' vs 'not_found')
-create index if not exists idx_media_ratings_rt_status
-  on media_ratings(rt_status);
+create index if not exists idx_media_ratings_omdb_status
+  on media_ratings(omdb_status);
 
 
 -- == Raw IMDb ratings sync table (direct mirror of title.ratings.tsv.gz) ==
