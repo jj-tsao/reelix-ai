@@ -24,7 +24,7 @@ create table if not exists media_ratings (
   imdb_votes       integer,        -- e.g. 2182094
 
   -- Rotten Tomatoes (from OMDb)
-  rt_score         numeric(5,2),   -- 0–100; 5,2 gives flexibility
+  rt_score         integer,   -- 0–100; 5,2 gives flexibility
 
   omdb_last_checked  timestamptz,    -- when RT was last queried
   omdb_status        text,           -- 'ok' | 'not_found' | 'error' | null
