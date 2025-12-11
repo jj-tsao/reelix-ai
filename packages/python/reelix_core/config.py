@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 QDRANT_MOVIE_COLLECTION_NAME = "Movies_BGE_DEC-AGENT"
-QDRANT_TV_COLLECTION_NAME = "TV_Shows_BGE_AUG-RE"
+QDRANT_TV_COLLECTION_NAME = "TV_Shows_BGE_DEC-AGENT"
 
 INTENT_MODEL = "JJTsao/intent-classifier-distilbert-movierec"  # Fine-tuned intent classification model for query intent classifiation
 EMBEDDING_MODEL = "JJTsao/fine-tuned_movie_retriever-bge-base-en-v1.5"  # Fine-tuned sentence transfomer model for dense vector embedding

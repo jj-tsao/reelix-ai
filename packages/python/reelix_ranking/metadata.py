@@ -37,7 +37,34 @@ def _clamp01(x: float) -> float:
     return 0.0 if x <= 0.0 else 1.0 if x >= 1.0 else x
 
 
-def bayes_quality(avg, cnt, mu=7.0, m=2000):
+def select_rating_source(payload: dict) -> tuple[float | None, float | None, str]:
+    """
+    Prefer IMDb; fall back to TMDB.
+    Returns (avg_rating, num_votes, source_tag).
+    """
+    imdb_rating = payload.get("imdb_rating")
+    imdb_votes = payload.get("imdb_votes")
+    tmdb_rating = payload.get("vote_average")
+    tmdb_votes = payload.get("vote_count")
+
+    # Heuristic: prefer IMDb when it has at least some votes
+    if imdb_rating is not None and imdb_votes is not None and imdb_votes > 0:
+        return float(imdb_rating), float(imdb_votes), "imdb"
+
+    # Fallback to TMDB if IMDb missing/empty
+    if tmdb_rating is not None and tmdb_votes is not None and tmdb_votes > 0:
+        return float(tmdb_rating), float(tmdb_votes), "tmdb"
+
+    # Very weak edge case fallbacks (rating but no votes, etc.)
+    if imdb_rating is not None:
+        return float(imdb_rating), float(imdb_votes or 0), "imdb_partial"
+    if tmdb_rating is not None:
+        return float(tmdb_rating), float(tmdb_votes or 0), "tmdb_partial"
+
+    return None, None, "none"
+
+
+def bayes_quality(avg, cnt, mu:float=7.2, m:float =5000.0):
     avg = float(avg or 0.0)
     cnt = float(cnt or 0.0)
     return (mu * m + avg * cnt) / (m + cnt)
@@ -89,11 +116,13 @@ def age_years_from_release_date(payload: dict) -> float | None:
     delta_days = max(0, (now - rd).days)
     return delta_days / 365.0
 
+
 def norm_recency(age_years: float | None, half_life_years: float) -> float:
     if age_years is None:
         return 0.0
     # Exponential decay with half-life
     import math
+
     return _clamp01(math.exp(-math.log(2) * (age_years / max(1e-6, half_life_years))))
 
 
@@ -137,23 +166,40 @@ def metadata_rerank(
 
     out: List[Tuple[Candidate, float, ScoreBreakdown]] = []
     for c in candidates:
+        # Dense + sparese scores
         dense = float(c.dense_score or 0.0)
         raw_s = float(c.sparse_score or 0.0)
         sparse = _clamp01(math.log1p(max(0.0, raw_s)) / max(1e-6, den))
-        raw_r = bayes_quality(
-            (c.payload or {}).get("vote_average"), (c.payload or {}).get("vote_count")
-        )
-        q = norm_rating(raw_r, a.rating_floor, a.rating_ceil)
-        p = norm_popularity((c.payload or {}).get("popularity"), a.pop_anchor)
-        c_genres = (c.payload or {}).get("genres")
+        
+        payload = c.payload or {}
+        
+        # Quality score (IMDB rating + votes, TMDB fallback)
+        r_avg, r_cnt, rating_src = select_rating_source(payload)
+        
+        if rating_src.startswith("imdb"):
+            # Slightly stronger priors: IMDb tends to have more votes
+            mu, m = 7.2, 5000.0
+        elif rating_src.startswith("tmdb"):
+            mu, m = 7.0, 2000.0
+        else:
+            mu, m = 7.2, 5000.0
+
+        raw_r = bayes_quality(r_avg, r_cnt, mu=mu, m=m)
+        q = norm_rating(raw_r, a.rating_floor, a.rating_ceil)        
+
+        # Popularity score (TMDB)
+        p = norm_popularity(payload.get("popularity"), a.pop_anchor)
+        c_genres = payload.get("genres")
         g = (
             genre_boost(set(user_genres), set(c_genres))
             if c_genres and user_genres
             else 0
         )
 
-        age_y = age_years_from_release_date(c.payload or {})
-        rcy = norm_recency(age_y, a.recency_half_life_years) # + freshness_bonus_days(c.payload or {})
+        age_y = age_years_from_release_date(payload)
+        rcy = norm_recency(
+            age_y, a.recency_half_life_years
+        )  # + freshness_bonus_days(payload)
 
         feats: Dict[str, FeatureContribution] = {
             "dense": FeatureContribution(
@@ -173,12 +219,14 @@ def metadata_rerank(
                 value=q,
                 weight=float(weights.get("rating", 0.0)),
                 contribution=float(weights.get("rating", 0.0)) * q,
+                source=rating_src,
             ),
             "popularity": FeatureContribution(
                 feature="popularity",
                 value=p,
                 weight=float(weights.get("popularity", 0.0)),
                 contribution=float(weights.get("popularity", 0.0)) * p,
+                source="tmdb",
             ),
             "genre": FeatureContribution(
                 feature="genre",

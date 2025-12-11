@@ -34,6 +34,7 @@ class FeatureContribution:
     value: float  # feature value (pre-weight, posr-normalization)
     weight: float  # weight used in this run
     contribution: float  # weight * value
+    source: str | None = None # for rating: "imdb", "tmdb", etc.
 
 
 @dataclass(frozen=True)

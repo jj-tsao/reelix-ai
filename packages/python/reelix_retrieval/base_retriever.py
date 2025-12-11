@@ -50,6 +50,9 @@ class BaseRetriever:
                 "poster_url",
                 "backdrop_url",
                 "trailer_key",
+                "imdb_rating",
+                "imdb_votes",
+                "rt_score",
                 "vote_average",
                 "vote_count",
                 "popularity",
@@ -60,7 +63,7 @@ class BaseRetriever:
             with_vectors=False,
         )
         return [
-            Candidate(id=p.id, payload=p.payload, dense_score=float(p.score))
+            Candidate(id=int(p.id), payload=p.payload if p.payload is not None else {}, dense_score=float(p.score))
             for p in res.points
         ]
 
@@ -81,7 +84,6 @@ class BaseRetriever:
             query=sparse_query,
             using=self.sparse_name,
             limit=limit,
-            # Sparse phase does not need CE text; keep payload light
             with_payload=[
                 "llm_context",
                 "embedding_text",
@@ -92,6 +94,9 @@ class BaseRetriever:
                 "poster_url",
                 "backdrop_url",
                 "trailer_key",
+                "imdb_rating",
+                "imdb_votes",
+                "rt_score",
                 "vote_average",
                 "vote_count",
                 "popularity",
@@ -102,6 +107,6 @@ class BaseRetriever:
             with_vectors=False,
         )
         return [
-            Candidate(id=p.id, payload=p.payload, sparse_score=float(p.score))
+            Candidate(id=int(p.id), payload=p.payload if p.payload is not None else {}, sparse_score=float(p.score))
             for p in res.points
         ]
