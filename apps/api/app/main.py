@@ -113,10 +113,10 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
     app.state.query_encoder = query_encoder
     app.state.recommend_pipeline = pipeline
-    app.state.agent_rec_runner = AgentRecRunner(
-        pipeline=pipeline,
-        query_encoder=query_encoder,
-    )
+    # app.state.agent_rec_runner = AgentRecRunner(
+    #     pipeline=pipeline,
+    #     query_encoder=query_encoder,
+    # )
     app.state.recipes = {
         "for_you_feed": ForYouFeedRecipe(query_encoder=app.state.query_encoder),
         "interactive": InteractiveRecipe(query_encoder=app.state.query_encoder),
