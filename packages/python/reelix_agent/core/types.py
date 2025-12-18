@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
+from pydantic import Field
 
 from pydantic import BaseModel, ConfigDict
 from reelix_core.types import MediaType, QueryFilter
@@ -26,23 +27,23 @@ class InteractiveAgentInput(AgentBaseModel):
 
 
 class InteractiveAgentResult(AgentBaseModel):
-    candidates: list[Candidate]
-    final_recs: list[Candidate]
-    summary: str
+    mode: AgentMode
+    message: str | None = None
+    candidates: list[Candidate] = Field(default_factory=list)
+    final_recs: list[Candidate] = Field(default_factory=list)
+    summary: str | None = None
     ctx_log: dict | None = None
-    pipeline_traces: list[dict] = []
-    agent_trace: list[dict] = []
-    meta: dict = {}
+    pipeline_traces: list[dict] = Field(default_factory=list)
+    agent_trace: list[dict] = Field(default_factory=list)
+    meta: dict = Field(default_factory=dict)
 
 
-class AgentMode(str, Enum):
-    RECS = "recs"  # default
-    # EXPLAIN = "explain"    # "why this / why not that"
-    PREFS = "preferences"  # set preferences
+class AgentMode(StrEnum):
+    RECS = "recs"
+    CHAT = "chat"
 
 
 class RecQuerySpec(BaseModel):
-    mode: AgentMode = AgentMode.RECS
     query_text: str  # raw NL query / vibes
     media_type: MediaType = MediaType.MOVIE
     seed_titles: list[str] = []
