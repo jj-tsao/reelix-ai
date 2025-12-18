@@ -106,7 +106,7 @@ async def discover_for_you(
 
         ticket = Ticket(
             user_id=user_id,
-            prompts=llm_prompts,
+            prompts=llm_prompts.model_dump(mode="json") if llm_prompts else {},
             meta=request_meta,
         )
 

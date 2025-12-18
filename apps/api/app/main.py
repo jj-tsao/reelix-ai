@@ -19,13 +19,15 @@ from reelix_core.config import (
     QDRANT_TV_COLLECTION_NAME,
 )
 from reelix_logging.rec_logger import TelemetryLogger
-from app.infrastructure.cache.ticket_store import make_ticket_store
-from app.infrastructure.cache.why_cache import RedisWhyCache
+from app.infrastructure.cache.redis_infra import make_redis_clients
+from app.infrastructure.cache.ticket_store import TicketStore
+from app.infrastructure.cache.why_cache import WhyCache
 from .routers import all_routers
 
 
 class Settings(BaseSettings):
     app_name: str = "Reelix Discovery Agent API"
+
     # credentials
     qdrant_endpoint: str | None = None
     qdrant_api_key: str | None = None
@@ -33,12 +35,14 @@ class Settings(BaseSettings):
     supabase_api_key: str | None = None
     openai_api_key: str | None = None
     redis_url: str | None = None
+
     # ticket_store config
     use_redis_ticket_store: bool = False
-    ticket_namespace: str = "disco:ticket:"
-    why_cache_namespace: str = "disco:why:"
+    ticket_namespace: str = "reelix:ticket:"
+    why_cache_namespace: str = "reelix:why:"
     ticket_ttl_abs: int = 3600  # 60 min absolute cap
     why_cache_ttl_sec: int = 7 * 24 * 3600
+
     # env conifg
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -53,13 +57,12 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
     from reelix_models.custom_models import (
         load_bm25_files,
-        load_cross_encoder,
         load_sentence_model,
-        setup_intent_classifier,
     )
-    from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.base_retriever import BaseRetriever
+    from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.query_encoder import Encoder
+    from reelix_agent.interactive.agent_rec_runner import AgentRecRunner
     from reelix_recommendation.recipes import InteractiveRecipe, ForYouFeedRecipe
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
@@ -67,6 +70,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
 
+    # == Verify required API keys ==
     required = {
         "QDRANT_ENDPOINT": app.state.settings.qdrant_endpoint,
         "QDRANT_API_KEY": app.state.settings.qdrant_api_key,
@@ -80,15 +84,14 @@ def _init_recommendation_stack(app: FastAPI) -> None:
             "Missing API keys in environment: " + ", ".join(sorted(missing))
         )
 
+    # == Initialize recommendation stacks ==
     nltk_data_path = str(NLTK_PATH)
     if nltk_data_path not in nltk.data.path:
         nltk.data.path.append(nltk_data_path)
 
-    intent_classifier = setup_intent_classifier()
     embed_model = load_sentence_model()
     bm25_models, bm25_vocabs = load_bm25_files()
     query_encoder = Encoder(embed_model, bm25_models, bm25_vocabs)
-    cross_encoder = load_cross_encoder()
     openai_client = OpenAI(api_key=app.state.settings.openai_api_key)
     chat_completion_llm = OpenAIChatLLM(
         openai_client, request_timeout=60.0, max_retries=2
@@ -106,35 +109,29 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         dense_vector_name="dense_vector",
         sparse_vector_name="sparse_vector",
     )
-    pipeline = RecommendPipeline(base_retriever, ce_model=cross_encoder, rrf_k=60)
+    pipeline = RecommendPipeline(base_retriever, rrf_k=60)
 
-    app.state.intent_classifier = intent_classifier
-    app.state.embed_model = embed_model
-    app.state.bm25_models = bm25_models
-    app.state.bm25_vocabs = bm25_vocabs
     app.state.query_encoder = query_encoder
-    app.state.cross_encoder = cross_encoder
     app.state.recommend_pipeline = pipeline
+    app.state.agent_rec_runner = AgentRecRunner(
+        pipeline=pipeline,
+        query_encoder=query_encoder,
+    )
     app.state.recipes = {
         "for_you_feed": ForYouFeedRecipe(query_encoder=app.state.query_encoder),
         "interactive": InteractiveRecipe(query_encoder=app.state.query_encoder),
     }
     app.state.chat_completion_llm = chat_completion_llm
 
-    # create the ticket store
-    # use_redis_env = os.getenv("USE_REDIS_TICKET_STORE", "").lower() in {"1", "true", "yes"}
-    # redis_url = os.getenv("REDIS_URL") or (app.state.settings.redis_url or "")
+    # == Initialize Redis caching stores ==
+    redis_clients = make_redis_clients(app.state.settings.redis_url)
 
-    app.state.ticket_store = make_ticket_store(
-        use_redis=app.state.settings.use_redis_ticket_store,
-        redis_url=app.state.settings.redis_url,
-        namespace=app.state.settings.ticket_namespace,
-        absolute_ttl_sec=app.state.settings.ticket_ttl_abs,
-        # Optional redis client kwargs for timeouts:
-        # client_kwargs={"socket_connect_timeout": 2, "socket_timeout": 3} if use_redis else None,
+    app.state.ticket_store = TicketStore(
+        client=redis_clients.bytes,
     )
-    app.state.why_cache = RedisWhyCache(
-        redis_url=app.state.settings.redis_url,
+
+    app.state.why_cache = WhyCache(
+        client=redis_clients.text,
         namespace=app.state.settings.why_cache_namespace,
         default_ttl_sec=app.state.settings.why_cache_ttl_sec,
     )

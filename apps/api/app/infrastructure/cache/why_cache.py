@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Protocol, Dict, List
+from typing import Dict, List
 
-import redis.asyncio as redis  # type: ignore[import]
+from redis.asyncio import Redis  # injected client type
 
 from reelix_core.types import MediaType
 
@@ -22,44 +22,7 @@ class CachedWhy:
     taste_version: str | None = None
 
 
-class WhyCache(Protocol):
-    async def get_many(
-        self,
-        *,
-        user_id: str,
-        media_type: MediaType,
-        media_ids: List[int],
-    ) -> Dict[int, CachedWhy]: ...
-
-    async def set_many(
-        self,
-        *,
-        user_id: str,
-        media_type: MediaType,
-        values: Dict[int, CachedWhy],
-        ttl_sec: int | None = None,
-    ) -> None: ...
-
-    async def get_one(
-        self,
-        *,
-        user_id: str,
-        media_type: MediaType,
-        media_id: int,
-    ) -> CachedWhy | None: ...
-
-    async def set_one(
-        self,
-        *,
-        user_id: str,
-        media_type: MediaType,
-        media_id: int,
-        value: CachedWhy,
-        ttl_sec: int | None = None,
-    ) -> None: ...
-
-
-class RedisWhyCache(WhyCache):
+class WhyCache:
     """
     Redis-backed why cache. One key per (user, media_type, media_id).
     Key:   {namespace}{user_id}:{media_type}:{media_id}
@@ -68,22 +31,16 @@ class RedisWhyCache(WhyCache):
 
     def __init__(
         self,
-        redis_url: str,
         *,
-        namespace: str = "disc:why:",
+        client: Redis,
+        namespace: str = "reelix:why:",
         default_ttl_sec: int = 7 * 24 * 3600,
-        client_kwargs: dict[str, Any] | None = None,
     ) -> None:
-        if not redis_url:
-            raise ValueError("redis_url must be provided for RedisWhyCache")
+        # IMPORTANT: client should be created with decode_responses=True
+        # so get() returns str (JSON) rather than bytes.
+        self._r = client
         self._ns = namespace
         self._default_ttl = int(default_ttl_sec)
-        client_kwargs = client_kwargs or {}
-        self._r = redis.from_url(
-            redis_url,
-            decode_responses=True,  # store JSON as plain strings
-            **client_kwargs,
-        )
 
     def _key(self, user_id: str, media_type: MediaType, media_id: int) -> str:
         return f"{self._ns}{user_id}:{media_type.value}:{media_id}"
@@ -186,6 +143,8 @@ class RedisWhyCache(WhyCache):
         )
 
     async def aclose(self) -> None:
+        # If you're sharing a single Redis client app-wide,
+        # you may choose NOT to call this here.
         try:
             await self._r.aclose()
         except Exception:
