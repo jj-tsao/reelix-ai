@@ -1,5 +1,3 @@
-# app/deps/deps_ticket_store.py
-
 from fastapi import Request
 from typing import cast
 from app.infrastructure.cache.ticket_store import TicketStore

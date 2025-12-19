@@ -29,6 +29,7 @@ class InteractiveAgentInput(AgentBaseModel):
 class InteractiveAgentResult(AgentBaseModel):
     mode: AgentMode
     message: str | None = None
+    query_spec: RecQuerySpec | None = None
     candidates: list[Candidate] = Field(default_factory=list)
     final_recs: list[Candidate] = Field(default_factory=list)
     summary: str | None = None
@@ -46,18 +47,19 @@ class AgentMode(StrEnum):
 class RecQuerySpec(BaseModel):
     query_text: str  # raw NL query / vibes
     media_type: MediaType = MediaType.MOVIE
-    seed_titles: list[str] = []
-    core_genres: list[str] = []
-    exclude_genres: list[str] = []
-    sub_genres: list[str] = []
-    core_tone: list[str] = []
-    narrative_shape: list[str] = []
-    providers: list[str] = []  # e.g. ["netflix", "hulu"]
-    year_range: tuple[int, int] = (1970, 2025)
+    seed_titles: list[str] = Field(default_factory=list)
+    core_genres: list[str] = Field(default_factory=list)
+    exclude_genres: list[str] = Field(default_factory=list)
+    sub_genres: list[str] = Field(default_factory=list)
+    core_tone: list[str] = Field(default_factory=list)
+    narrative_shape: list[str] = Field(default_factory=list)
+    key_themes: list[str] = Field(default_factory=list)
+    providers: list[str] = Field(
+        default_factory=list
+    )  # canonical service names, e.g. ["netflix", "hulu"]
+    year_range: tuple[int, int] = (1970, 2026)
     query_filters: QueryFilter | None = None
     max_runtime_minutes: int | None = None
-    min_rating: float | None = None
-    tone: str | None = None  # "not too dark", "cozy", etc
     num_recs: int = 8
 
 
@@ -71,3 +73,29 @@ class LlmDecision(AgentBaseModel):
     tool_name: str | None = None  # function name if is_tool_call=True
     tool_args: dict[str, Any] = {}  # parsed JSON args if is_tool_call=True
     tool_call_id: str | None = None  # id for the tool call (OpenAI API)
+
+
+class PromptsEnvelope(BaseModel):
+    model: str
+    params: dict[str, Any] = Field(
+        default_factory=dict
+    )  # temp/top_p/seed/max_tokens, etc.
+    recipe: dict[str, Any] = Field(default_factory=dict)
+    output: dict[str, Any] = Field(
+        default_factory=lambda: {"format": "jsonl", "schema_version": "1"}
+    )
+    calls: list["LLMCall"] = Field(
+        default_factory=list
+    )  # one or many calls with caching
+    prompt_hash: str  # sha256 of (mode, calls.messages, model, params)
+    created_at: float
+
+
+class LLMCall(BaseModel):
+    call_id: int | None
+    messages: list[
+        dict[str, Any]
+    ]  # [{"role":"system","content":...}, {"role":"user","content":...}] pair
+    items_brief: list[dict[str, Any]] = Field(
+        default_factory=list
+    )  # [{"media_id","title"}, ...] (for logs)

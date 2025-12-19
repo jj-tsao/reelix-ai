@@ -5,7 +5,7 @@ from typing import Iterator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from reelix_core.types import PromptsEnvelope
+from reelix_agent.core.types import PromptsEnvelope
 from reelix_recommendation.orchestrator import orchestrate
 
 from app.deps.deps import (
