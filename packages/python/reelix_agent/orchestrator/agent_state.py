@@ -7,14 +7,14 @@ from pydantic import Field
 from anyio import to_thread
 from reelix_core.types import UserTasteContext
 from reelix_ranking.types import Candidate, ScoreTrace
-from reelix_agent.core.types import AgentBaseModel, InteractiveAgentInput, RecQuerySpec, LlmDecision
+from reelix_agent.core.types import AgentBaseModel, InteractiveAgentInput, RecQuerySpec, LlmDecision, AgentMode
 from reelix_llm.client import LlmClient
-from reelix_agent.interactive.orchestrator_prompts import ORCHESTRATOR_SYSTEM_PROMPT 
+from reelix_agent.orchestrator.orchestrator_prompts import ORCHESTRATOR_SYSTEM_PROMPT 
 from reelix_agent.curator.curator_agent import run_curator_agent
 from reelix_agent.curator.curator_tiers import apply_curator_tiers
 
 if TYPE_CHECKING:
-    from reelix_agent.interactive.agent_rec_pipeline import AgentRecRunner
+    from reelix_agent.orchestrator.agent_rec_runner import AgentRecRunner
 else:
     AgentRecRunner = Any  # type: ignore
 
@@ -28,27 +28,31 @@ class AgentState(AgentBaseModel):
     device_info: Any | None = None
 
     # LLM conversational state
-    messages: list[dict[str, Any]] = []
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    
+    # Per-turn routing + output
+    turn_mode: AgentMode | None = None
+    turn_message: str | None = None
 
     # Domain state
     user_context: UserTasteContext
     query_spec: RecQuerySpec | None = None
-    candidates: list[Candidate] = []
+    candidates: list[Candidate] = Field(default_factory=list)
     curator_opening: str | None = None
     curator_eval: list = Field(default_factory=list)
-    final_recs: list[Candidate] = []
+    final_recs: list[Candidate] = Field(default_factory=list)
     final_summary: str | None = None
 
     # Control
     step_count: int = 0
-    max_steps: int = 3
+    max_steps: int = 3 # Maximun turns. Reserved for multipple tool calls per turn
     done: bool = False
 
     # Telemetry / traces
     ctx_log: dict[str, Any] | None = None  # whatever you log today
-    pipeline_traces: list[dict[int, ScoreTrace]] = []  # dense/sparse/meta traces, etc.
-    agent_trace: list[dict[str, Any]] = []  # sequence of tool calls
-    meta: dict[str, Any] = {}  # recipe, versions, etc.
+    pipeline_traces: list[dict[int, ScoreTrace]] = Field(default_factory=list)  # dense/sparse/meta traces, etc.
+    agent_trace: list[dict[str, Any]] = Field(default_factory=list)  # sequence of tool calls
+    meta: dict[str, Any] = Field(default_factory=dict)  # recipe, versions, etc.
 
     @classmethod
     def from_agent_input(
@@ -131,7 +135,8 @@ class AgentState(AgentBaseModel):
         tool_call_id = decision.tool_call_id
         tool_args = decision.tool_args or {}
 
-        if tool_name == "recommendations_pipeline":
+        if tool_name == "recommendation_agent":
+            self.turn_mode = AgentMode.RECS
             await self._exec_recommendations_pipeline(tool_call_id, tool_args, agent_rec_runner=agent_rec_runner, llm_client=llm_client)
             return
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any, Optional
 
 from openai import AsyncOpenAI
@@ -63,3 +64,61 @@ class LlmClient:
         # Using Chat Completions API with tools
         resp = await self._client.chat.completions.create(**kwargs)
         return resp
+
+
+    async def chat_stream(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        model: Optional[str] = None,
+        tools: Optional[list[dict[str, Any]]] = None,
+        tool_choice: Optional[str] = "auto",
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        extra_args: Optional[dict[str, Any]] = None,
+        include_usage: bool = False,
+        top_p: float = 1.0,
+    ) -> AsyncIterator[str]:
+        """
+        Stream content deltas from the OpenAI chat completion endpoint.
+
+        Yields:
+            Strings (content deltas) suitable for SSE streaming.
+        """
+        kwargs: dict[str, Any] = dict(
+            model=model or self._default_model,
+            messages=messages,
+            temperature=temperature,
+            top_p=top_p,
+            stream=True,
+        )
+
+        if include_usage:
+            # When supported, the final chunk includes usage.
+            kwargs["stream_options"] = {"include_usage": True}
+
+        if tools is not None:
+            kwargs["tools"] = tools
+            if tool_choice is not None:
+                kwargs["tool_choice"] = tool_choice
+
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+
+        if extra_args:
+            kwargs.update(extra_args)
+
+        stream = await self._client.chat.completions.create(**kwargs)
+
+        async for chunk in stream:
+            choices = getattr(chunk, "choices", None)
+            if not choices:
+                continue
+
+            delta = getattr(choices[0], "delta", None)
+            if not delta:
+                continue
+
+            content = getattr(delta, "content", None)
+            if content:
+                yield content
