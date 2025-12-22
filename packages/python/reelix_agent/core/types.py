@@ -21,6 +21,7 @@ class InteractiveAgentInput(AgentBaseModel):
     media_type: MediaType
     query_text: str
     query_filters: QueryFilter
+    session_memory: dict | None
     user_context_service: UserContextService
     batch_size: int = 20
     device_info: Any | None = None
@@ -33,6 +34,7 @@ class InteractiveAgentResult(AgentBaseModel):
     candidates: list[Candidate] = Field(default_factory=list)
     final_recs: list[Candidate] = Field(default_factory=list)
     summary: str | None = None
+    turn_memory: dict | None = None
     ctx_log: dict | None = None
     pipeline_traces: list[dict] = Field(default_factory=list)
     agent_trace: list[dict] = Field(default_factory=list)

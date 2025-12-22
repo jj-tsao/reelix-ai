@@ -9,7 +9,7 @@ from reelix_core.types import UserTasteContext
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_agent.core.types import AgentBaseModel, InteractiveAgentInput, RecQuerySpec, LlmDecision, AgentMode
 from reelix_llm.client import LlmClient
-from reelix_agent.orchestrator.orchestrator_prompts import ORCHESTRATOR_SYSTEM_PROMPT 
+from reelix_agent.orchestrator.orchestrator_prompts_memory import ORCHESTRATOR_SYSTEM_PROMPT 
 from reelix_agent.curator.curator_agent import run_curator_agent
 from reelix_agent.curator.curator_tiers import apply_curator_tiers
 
@@ -29,10 +29,14 @@ class AgentState(AgentBaseModel):
 
     # LLM conversational state
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    session_memory: dict[str, Any] | None = None
+    prior_spec: RecQuerySpec | None = None
+    slot_map: dict[str, Any] | None = None
     
     # Per-turn routing + output
     turn_mode: AgentMode | None = None
     turn_message: str | None = None
+    turn_memory: dict[str, Any] | None = None
 
     # Domain state
     user_context: UserTasteContext
@@ -162,7 +166,11 @@ class AgentState(AgentBaseModel):
     async def _exec_recommendations_pipeline(
         self, tool_call_id, tool_args: dict[str, Any], agent_rec_runner: AgentRecRunner, llm_client: LlmClient,
     ) -> None:
-        # 1) Parse RecQuerySpec from tool args
+        # 1) Parse tool_args for turn_memory and RecQuerySpec
+        mem = tool_args.get("memory_delta")
+        if isinstance(mem, dict):
+            self.turn_memory = mem
+        
         raw_spec = tool_args.get("rec_query_spec") or {}
         spec = RecQuerySpec(**raw_spec)
         self.query_spec = spec

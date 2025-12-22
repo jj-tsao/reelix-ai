@@ -34,13 +34,13 @@ class WhyCache:
         *,
         client: Redis,
         namespace: str = "reelix:why:",
-        default_ttl_sec: int = 7 * 24 * 3600,
+        absolute_ttl_sec: int = 14 * 24 * 3600,
     ) -> None:
         # IMPORTANT: client should be created with decode_responses=True
         # so get() returns str (JSON) rather than bytes.
         self._r = client
         self._ns = namespace
-        self._default_ttl = int(default_ttl_sec)
+        self._default_ttl = int(absolute_ttl_sec)
 
     def _key(self, user_id: str, media_type: MediaType, media_id: int) -> str:
         return f"{self._ns}{user_id}:{media_type.value}:{media_id}"
