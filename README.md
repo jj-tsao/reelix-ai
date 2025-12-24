@@ -33,7 +33,7 @@ The result is a fast **For-You feed** and a flexible **“Explore by Vibe”** s
 
 - **Taste Onboarding (`/taste`)** — Quickly signal your preferences (genre/vibe picks; Love / Like / Dislike; trailer views). We build and store a taste vector that refines as you give more feedback.
 - **Explore by Vibe (`/query`)** — Type “psychological thrillers with a satirical tone,” or tap example chips to see vibe-specific recommendations. Add filters for year range, genres, and streaming services.
-- **For-You Feed (`/discover`)** — A personalized grid of picks. Each card streams a short rationale and a markdown-rich movie/TV card.
+- **For-You Feed (`/discover/for-you`)** — A personalized grid of picks. Each card streams a short rationale and a markdown-rich movie/TV card.
 - **Add to Watchlist (`/watchlist`)** - Save titles to watch later, flip to “Watched,” and (optionally) rate 1–10 — all in one flow. Optimistic UI + idempotent API; items hydrate with metadata/artworks and emit signals to refine your taste profile.
 
 ### Quick Look
@@ -83,7 +83,7 @@ Build and maintain a personalized **taste vector** from your interactions and pr
    
 Under the hood, the rebuild process fetches user signals, loads item embeddings from Qdrant, and calls `build_taste_vector(...)`, then upserts the profile.
 
-### 2) For-You Feed (`/discover`)
+### 2) For-You Feed (`/discover/for-you`)
 Your **For-You** page streams personalized reasons (and a markdown-rich movie/TV profile) per item in real time. Uses a **ticket store** (keyed by `query_id`) with **idle** and **absolute** TTLs to bound prompt/candidate lifespan and prevent stale cross-user access.
 
 1) `POST /discovery/for-you`
@@ -137,7 +137,7 @@ Lets users save titles to watch later, mark them as watched, and optionally rate
 
 
 ### **Frontend details**
-- `/discover` loads a grid of picks, then begins SSE streaming of “why” and ratings, updating each card live.
+- `/discover/for-you` loads a grid of picks, then begins SSE streaming of “why” and ratings, updating each card live.
 - Users can **Love / Like / Not for me** or **watch trailer**; feedback is logged and triggers controlled taste rebuilds.
 - **Smart rebuild controller**: after any rating, start/refresh a 10s timer; if ≥2 ratings when the timer fires, rebuild—**max 1 rebuild per 2 minutes**; queue one pending rebuild during cooldown.
 

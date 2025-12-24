@@ -20,7 +20,7 @@ class InteractiveAgentInput(AgentBaseModel):
     session_id: str | None
     media_type: MediaType
     query_text: str
-    query_filters: QueryFilter
+    query_filters: QueryFilter | None
     session_memory: dict | None
     user_context_service: UserContextService
     batch_size: int = 20

@@ -7,9 +7,19 @@ from pydantic import Field
 from anyio import to_thread
 from reelix_core.types import UserTasteContext
 from reelix_ranking.types import Candidate, ScoreTrace
-from reelix_agent.core.types import AgentBaseModel, InteractiveAgentInput, RecQuerySpec, LlmDecision, AgentMode
+from reelix_agent.core.types import (
+    AgentBaseModel,
+    InteractiveAgentInput,
+    RecQuerySpec,
+    LlmDecision,
+    AgentMode,
+)
 from reelix_llm.client import LlmClient
-from reelix_agent.orchestrator.orchestrator_prompts_memory import ORCHESTRATOR_SYSTEM_PROMPT 
+from reelix_agent.orchestrator.orchestrator_prompts import (
+    ORCHESTRATOR_SYSTEM_PROMPT,
+    build_orchestrator_user_prompt,
+    build_session_memory_message,
+)
 from reelix_agent.curator.curator_agent import run_curator_agent
 from reelix_agent.curator.curator_tiers import apply_curator_tiers
 
@@ -30,11 +40,13 @@ class AgentState(AgentBaseModel):
     # LLM conversational state
     messages: list[dict[str, Any]] = Field(default_factory=list)
     session_memory: dict[str, Any] | None = None
+    seen_media_ids: list[int] = Field(default_factory=list)
     prior_spec: RecQuerySpec | None = None
     slot_map: dict[str, Any] | None = None
-    
+
     # Per-turn routing + output
     turn_mode: AgentMode | None = None
+    turn_kind: str | None = None
     turn_message: str | None = None
     turn_memory: dict[str, Any] | None = None
 
@@ -49,13 +61,17 @@ class AgentState(AgentBaseModel):
 
     # Control
     step_count: int = 0
-    max_steps: int = 3 # Maximun turns. Reserved for multipple tool calls per turn
+    max_steps: int = 3  # Maximun turns. Reserved for multipple tool calls per turn
     done: bool = False
 
     # Telemetry / traces
     ctx_log: dict[str, Any] | None = None  # whatever you log today
-    pipeline_traces: list[dict[int, ScoreTrace]] = Field(default_factory=list)  # dense/sparse/meta traces, etc.
-    agent_trace: list[dict[str, Any]] = Field(default_factory=list)  # sequence of tool calls
+    pipeline_traces: list[dict[int, ScoreTrace]] = Field(
+        default_factory=list
+    )  # dense/sparse/meta traces, etc.
+    agent_trace: list[dict[str, Any]] = Field(
+        default_factory=list
+    )  # sequence of tool calls
     meta: dict[str, Any] = Field(default_factory=dict)  # recipe, versions, etc.
 
     @classmethod
@@ -69,12 +85,23 @@ class AgentState(AgentBaseModel):
         (new query_id / session), before any tools are invoked.
         """
         # Build the initial user message content the LLM sees
-        user_msg_content = cls._build_initial_user_message(agent_input)
+        user_msg_content = build_orchestrator_user_prompt(agent_input)
+        mem_msg, prior_spec, slot_map = build_session_memory_message(agent_input.session_memory)
+        
+        print ("memory message: ", mem_msg)
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": ORCHESTRATOR_SYSTEM_PROMPT},
+            *([{"role": "system", "content": mem_msg}] if mem_msg else []),
             {"role": "user", "content": user_msg_content},
         ]
+    
+        # Pull seen_media_ids from session memory for pipeline exclusion (intent-scoped)
+        seen_ids: list[int] = []
+        if isinstance(agent_input.session_memory, dict):
+            raw = agent_input.session_memory.get("seen_media_ids") or []
+            if isinstance(raw, list):
+                seen_ids = [int(x) for x in raw if isinstance(x, (int, str)) and str(x).isdigit()]
 
         return cls(
             user_id=agent_input.user_id,
@@ -84,39 +111,9 @@ class AgentState(AgentBaseModel):
             device_info=agent_input.device_info,
             messages=messages,
             user_context=user_context,
+            session_memory=agent_input.session_memory,
+            seen_media_ids=seen_ids,          
         )
-
-    @staticmethod
-    def _build_initial_user_message(agent_input: InteractiveAgentInput) -> str:
-        """
-        Normalize the HTTP request into a single user message string
-        that includes both free-text query and structured filters.
-        """
-        parts: list[str] = []
-
-        if agent_input.query_text:
-            parts.append(f"User query: {agent_input.query_text}")
-
-        if agent_input.media_type:
-            parts.append(f"Media type: {agent_input.media_type}")
-
-        if agent_input.query_filters:
-            parts.append("Structured filters (JSON):")
-            # you can safely stringify; model will still parse it fine
-            import json
-
-            filters = (
-                agent_input.query_filters.model_dump()
-                if hasattr(agent_input.query_filters, "model_dump")
-                else agent_input.query_filters
-            )
-            parts.append(json.dumps(filters, ensure_ascii=False))
-
-        # Fallback if nothing was set
-        if not parts:
-            parts.append("User is asking for personalized recommendations.")
-
-        return "\n\n".join(parts)
 
     async def execute_tool_call(
         self,
@@ -141,7 +138,12 @@ class AgentState(AgentBaseModel):
 
         if tool_name == "recommendation_agent":
             self.turn_mode = AgentMode.RECS
-            await self._exec_recommendations_pipeline(tool_call_id, tool_args, agent_rec_runner=agent_rec_runner, llm_client=llm_client)
+            await self._exec_recommendations_pipeline(
+                tool_call_id,
+                tool_args,
+                agent_rec_runner=agent_rec_runner,
+                llm_client=llm_client,
+            )
             return
 
         # Unknown tool: record and return a small error payload
@@ -162,15 +164,20 @@ class AgentState(AgentBaseModel):
                 "content": json.dumps(payload),
             }
         )
-        
+
     async def _exec_recommendations_pipeline(
-        self, tool_call_id, tool_args: dict[str, Any], agent_rec_runner: AgentRecRunner, llm_client: LlmClient,
+        self,
+        tool_call_id,
+        tool_args: dict[str, Any],
+        agent_rec_runner: AgentRecRunner,
+        llm_client: LlmClient,
     ) -> None:
         # 1) Parse tool_args for turn_memory and RecQuerySpec
         mem = tool_args.get("memory_delta")
         if isinstance(mem, dict):
             self.turn_memory = mem
-        
+            self.turn_kind = mem.get("turn_kind")
+
         raw_spec = tool_args.get("rec_query_spec") or {}
         spec = RecQuerySpec(**raw_spec)
         self.query_spec = spec
@@ -188,6 +195,8 @@ class AgentState(AgentBaseModel):
             return agent_rec_runner.run_for_agent(
                 user_context=self.user_context,
                 spec=spec,
+                seen_media_ids=self.seen_media_ids,
+                turn_kind= self.turn_kind,
             )
 
         candidates, traces, ctx_log = await to_thread.run_sync(_run_agent_sync)
@@ -207,10 +216,10 @@ class AgentState(AgentBaseModel):
             user_signals=None,
         )
         curator_output = json.loads(curator_output)
-        
+
         self.curator_opening = curator_output.get("opening", "")
         self.curator_eval = curator_output.get("evaluation_results", [])
-        
+
         self.final_recs, stats = apply_curator_tiers(
             evaluation_results=self.curator_eval,
             candidates=self.candidates,

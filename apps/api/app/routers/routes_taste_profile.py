@@ -36,7 +36,7 @@ async def get_my_taste_profile(
 ):
     meta = await service.get_meta(user_id, media_type)
     if not meta:
-        # important: DiscoverPage expects 404 when no profile exists
+        # important: ForYouPage expects 404 when no profile exists
         raise HTTPException(status_code=404, detail="Taste profile not found")
     return TasteProfileExistsOut(**meta.model_dump(), has_profile=True)
 

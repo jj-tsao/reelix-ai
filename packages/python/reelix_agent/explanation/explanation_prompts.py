@@ -18,7 +18,7 @@ write concise, high-precision “Why you might enjoy it” rationales for the us
 Principles:
 1) Use ONLY the provided candidates, in the SAME order.
 2) Be specific and spoiler-light (tone, themes, craft, performances, pacing, storytelling).
-3) Style: concise, authoritative; 2–3 sentences per item. Avoid clichés and generic praise.
+3) Style: concise, authoritative; 2-3 sentences per item. Avoid clichés and generic praise.
 
 ## Output Format (JSONL; streamable)
 For each input item, output EXACTLY one JSON object on its own line (JSON Lines). 
