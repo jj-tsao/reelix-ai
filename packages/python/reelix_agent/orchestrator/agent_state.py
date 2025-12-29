@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 from pydantic import Field
+from datetime import datetime
 
 from anyio import to_thread
 from reelix_core.types import UserTasteContext
@@ -44,20 +45,22 @@ class AgentState(AgentBaseModel):
     prior_spec: RecQuerySpec | None = None
     slot_map: dict[str, Any] | None = None
 
-    # Per-turn routing + output
+    # Current turn routing + output
     turn_mode: AgentMode | None = None
     turn_kind: str | None = None
+    turn_memory: dict | None = None
     turn_message: str | None = None
-    turn_memory: dict[str, Any] | None = None
 
     # Domain state
-    user_context: UserTasteContext
+    user_context: UserTasteContext | None = None
     query_spec: RecQuerySpec | None = None
+    user_text: str | None = None
     candidates: list[Candidate] = Field(default_factory=list)
     curator_opening: str | None = None
     curator_eval: list = Field(default_factory=list)
     final_recs: list[Candidate] = Field(default_factory=list)
     final_summary: str | None = None
+    current_year: int
 
     # Control
     step_count: int = 0
@@ -76,7 +79,7 @@ class AgentState(AgentBaseModel):
 
     @classmethod
     def from_agent_input(
-        cls, agent_input: InteractiveAgentInput, user_context: UserTasteContext
+        cls, agent_input: InteractiveAgentInput, user_context: UserTasteContext | None = None
     ) -> "AgentState":
         """
         Bootstrap a fresh AgentState from the HTTP-level input.
@@ -85,13 +88,16 @@ class AgentState(AgentBaseModel):
         (new query_id / session), before any tools are invoked.
         """
         # Build the initial user message content the LLM sees
+        current_year=datetime.now().year
+        system_prompt = ORCHESTRATOR_SYSTEM_PROMPT.replace("{{CURRENT_YEAR}}", str(current_year))
+        
         user_msg_content = build_orchestrator_user_prompt(agent_input)
         mem_msg, prior_spec, slot_map = build_session_memory_message(agent_input.session_memory)
         
         print ("memory message: ", mem_msg)
 
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": ORCHESTRATOR_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             *([{"role": "system", "content": mem_msg}] if mem_msg else []),
             {"role": "user", "content": user_msg_content},
         ]
@@ -110,9 +116,13 @@ class AgentState(AgentBaseModel):
             media_type=str(agent_input.media_type) if agent_input.media_type else None,
             device_info=agent_input.device_info,
             messages=messages,
-            user_context=user_context,
+            # user_context=user_context,
             session_memory=agent_input.session_memory,
-            seen_media_ids=seen_ids,          
+            prior_spec=prior_spec,
+            slot_map=slot_map,
+            seen_media_ids=seen_ids,
+            user_text=agent_input.query_text,  
+            current_year=current_year,  
         )
 
     async def execute_tool_call(
@@ -130,7 +140,7 @@ class AgentState(AgentBaseModel):
         - Records an entry in agent_trace.
 
         Tools supported:
-          - call_rec_engine(rec_query_spec)
+          - recommendation_agent(rec_query_spec)
         """
         tool_name = decision.tool_name
         tool_call_id = decision.tool_call_id
@@ -173,17 +183,17 @@ class AgentState(AgentBaseModel):
         llm_client: LlmClient,
     ) -> None:
         # 1) Parse tool_args for turn_memory and RecQuerySpec
-        mem = tool_args.get("memory_delta")
-        if isinstance(mem, dict):
-            self.turn_memory = mem
-            self.turn_kind = mem.get("turn_kind")
+        turn_mem = tool_args.get("memory_delta")
+        if isinstance(turn_mem, dict):
+            self.turn_memory = turn_mem
+            self.turn_kind = turn_mem.get("turn_kind")
 
         raw_spec = tool_args.get("rec_query_spec") or {}
         spec = RecQuerySpec(**raw_spec)
         self.query_spec = spec
 
         # 2) Make sure user_context exists
-        if self.user_context is None and self.user_id is not None:
+        if self.user_id is not None:
             pass
 
         # 3) Call rec pipeline

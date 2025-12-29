@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import Field
 
 from pydantic import BaseModel, ConfigDict
-from reelix_core.types import MediaType, QueryFilter
+from reelix_core.types import MediaType
 from reelix_ranking.types import Candidate
 from reelix_user_context.user_context_service import UserContextService
 
@@ -20,7 +20,7 @@ class InteractiveAgentInput(AgentBaseModel):
     session_id: str | None
     media_type: MediaType
     query_text: str
-    query_filters: QueryFilter | None
+    # query_filters: QueryFilter | None
     session_memory: dict | None
     user_context_service: UserContextService
     batch_size: int = 20
@@ -30,7 +30,7 @@ class InteractiveAgentInput(AgentBaseModel):
 class InteractiveAgentResult(AgentBaseModel):
     mode: AgentMode
     message: str | None = None
-    query_spec: RecQuerySpec | None = None
+    query_spec: RecQuerySpec | None
     candidates: list[Candidate] = Field(default_factory=list)
     final_recs: list[Candidate] = Field(default_factory=list)
     summary: str | None = None
@@ -59,8 +59,8 @@ class RecQuerySpec(BaseModel):
     providers: list[str] = Field(
         default_factory=list
     )  # canonical service names, e.g. ["netflix", "hulu"]
-    year_range: tuple[int, int] = (1970, 2026)
-    query_filters: QueryFilter | None = None
+    year_range: tuple[int, int] | None = None
+    # query_filters: QueryFilter | None = None
     max_runtime_minutes: int | None = None
     num_recs: int = 8
 
