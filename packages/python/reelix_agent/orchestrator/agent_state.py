@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import TYPE_CHECKING, Any
 from pydantic import Field
 from datetime import datetime
@@ -93,8 +94,6 @@ class AgentState(AgentBaseModel):
         
         user_msg_content = build_orchestrator_user_prompt(agent_input)
         mem_msg, prior_spec, slot_map = build_session_memory_message(agent_input.session_memory)
-        
-        print ("memory message: ", mem_msg)
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -209,7 +208,10 @@ class AgentState(AgentBaseModel):
                 turn_kind= self.turn_kind,
             )
 
+        pipeline_start = time.perf_counter()
         candidates, traces, ctx_log = await to_thread.run_sync(_run_agent_sync)
+        pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
+        print(f"[timing] rec_pipeline_sync_ms={pipeline_ms:.1f}")
 
         self.candidates = candidates
         if traces:
@@ -218,6 +220,7 @@ class AgentState(AgentBaseModel):
             self.ctx_log = ctx_log
 
         # 4) Call the curator agent llm
+        curator_start = time.perf_counter()
         curator_output = await run_curator_agent(
             query_text=spec.query_text,
             spec=self.query_spec,
@@ -225,16 +228,24 @@ class AgentState(AgentBaseModel):
             llm_client=llm_client,
             user_signals=None,
         )
+        curator_ms = (time.perf_counter() - curator_start) * 1000
+        print(f"[timing] curator_llm_ms={curator_ms:.1f}")
+        parse_start = time.perf_counter()
         curator_output = json.loads(curator_output)
+        parse_ms = (time.perf_counter() - parse_start) * 1000
+        print(f"[timing] curator_parse_ms={parse_ms:.1f}")
 
-        self.curator_opening = curator_output.get("opening", "")
+        self.curator_opening = curator_output.get("opening", "") or "Here are the curated selections."
         self.curator_eval = curator_output.get("evaluation_results", [])
 
+        tiers_start = time.perf_counter()
         self.final_recs, stats = apply_curator_tiers(
             evaluation_results=self.curator_eval,
             candidates=self.candidates,
             limit=spec.num_recs or 8,
         )
+        tiers_ms = (time.perf_counter() - tiers_start) * 1000
+        print(f"[timing] curator_tiers_ms={tiers_ms:.1f}")
 
         # 5) Record trace + append tool result message for multi-turn requests
         self.agent_trace.append(
