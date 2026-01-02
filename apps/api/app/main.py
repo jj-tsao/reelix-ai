@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     use_redis_ticket_store: bool = False
     ticket_namespace: str = "reelix:ticket:"
     why_cache_namespace: str = "reelix:why:"
-    ticket_ttl_abs: int = 3600  # 60 min absolute cap
+    ticket_ttl_sec: int = 3600  # 60 min absolute cap
     why_cache_ttl_sec: int = 7 * 24 * 3600
 
     # env conifg
