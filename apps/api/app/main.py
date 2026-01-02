@@ -123,12 +123,14 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
     app.state.ticket_store = TicketStore(
         client=redis_clients.bytes,
+        namespace=app.state.settings.ticket_namespace,
+        absolute_ttl_sec=app.state.settings.ticket_ttl_sec,
     )
 
     app.state.why_cache = WhyCache(
         client=redis_clients.text,
         namespace=app.state.settings.why_cache_namespace,
-        default_ttl_sec=app.state.settings.why_cache_ttl_sec,
+        absolute_ttl_sec=app.state.settings.why_cache_ttl_sec,
     )
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
