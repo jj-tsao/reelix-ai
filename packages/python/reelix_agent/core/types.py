@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from pydantic import Field
+from dataclasses import dataclass
+
 
 from pydantic import BaseModel, ConfigDict
 from reelix_core.types import MediaType
@@ -75,6 +77,14 @@ class LlmDecision(AgentBaseModel):
     tool_name: str | None = None  # function name if is_tool_call=True
     tool_args: dict[str, Any] = {}  # parsed JSON args if is_tool_call=True
     tool_call_id: str | None = None  # id for the tool call (OpenAI API)
+
+
+@dataclass(frozen=True)
+class OrchestratorPlan:
+    mode: AgentMode
+    decision: LlmDecision | None
+    opening_summary: str | None
+    message: str | None
 
 
 class PromptsEnvelope(BaseModel):

@@ -93,14 +93,17 @@ class AgentState(AgentBaseModel):
         system_prompt = ORCHESTRATOR_SYSTEM_PROMPT.replace("{{CURRENT_YEAR}}", str(current_year))
         
         user_msg_content = build_orchestrator_user_prompt(agent_input)
+        print ("session memory: ", agent_input.session_memory)
         mem_msg, prior_spec, slot_map = build_session_memory_message(agent_input.session_memory)
-
+        
+        print (mem_msg)
+        
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             *([{"role": "system", "content": mem_msg}] if mem_msg else []),
             {"role": "user", "content": user_msg_content},
         ]
-    
+        
         # Pull seen_media_ids from session memory for pipeline exclusion (intent-scoped)
         seen_ids: list[int] = []
         if isinstance(agent_input.session_memory, dict):
@@ -235,7 +238,6 @@ class AgentState(AgentBaseModel):
         parse_ms = (time.perf_counter() - parse_start) * 1000
         print(f"[timing] curator_parse_ms={parse_ms:.1f}")
 
-        self.curator_opening = curator_output.get("opening", "") or "Here are the curated selections."
         self.curator_eval = curator_output.get("evaluation_results", [])
 
         tiers_start = time.perf_counter()
