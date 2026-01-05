@@ -1,7 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
 import json
-from functools import partial
 from pydantic import BaseModel, ValidationError
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,151 +33,9 @@ from app.schemas import InteractiveRequest, ExploreRerunRequest
 
 router = APIRouter(prefix="/discovery", tags=["explore"])
 
-ENDPOINT = "discover/explore"
+ENDPOINT = "discovery/explore"
 IDLE_TTL_SEC = 15 * 60
 HEARTBEAT_SEC = 15
-
-
-# @router.post("/explore")
-# async def agent_interactive(
-#     req: InteractiveRequest,
-#     batch_size: int = 20,
-#     user_id: str = Depends(get_current_user_id),
-#     agent_rec_runner=Depends(get_agent_rec_runner),
-#     user_context_svc=Depends(get_user_context_service),
-#     chat_llm=Depends(get_chat_completion_llm),
-#     logger=Depends(get_logger),
-#     ticket_store=Depends(get_ticket_store),
-#     state_store=Depends(get_state_store),
-# ):
-#     """
-#     Interactive explore-by-vibe endpoint backed by the LLM agent orchestrator.
-#     """
-#     # Returns None for new session; get & touches for existing session
-#     session_state = await state_store.get_session(session_id=req.session_id, touch=True)
-
-#     # === 1) Build an agent input payload ===
-#     agent_input = InteractiveAgentInput(
-#         user_id=user_id,
-#         query_id=req.query_id,
-#         session_id=req.session_id,
-#         media_type=req.media_type,
-#         query_text=req.query_text,
-#         # query_filters=req.query_filters,
-#         session_memory=session_state.to_orchestrator() if session_state else None,
-#         user_context_service=user_context_svc,
-#         batch_size=batch_size,
-#         device_info=req.device_info,
-#     )
-
-#     # === 2) Call the orchestrator agent ===
-#     agent_result = await run_orchestrator_agent(
-#         agent_input=agent_input,
-#         agent_rec_runner=agent_rec_runner,
-#         user_context_service=user_context_svc,
-#         llm_client=chat_llm,
-#     )
-
-#     # upsert session memory to state store
-#     await upsert_session_memory(
-#         state_store=state_store,
-#         session_id=req.session_id,
-#         user_id=user_id,
-#         agent_result=agent_result,
-#     )
-
-#     mode = agent_result.mode
-#     ctx_log = agent_result.ctx_log
-#     traces = agent_result.pipeline_traces
-#     meta = agent_result.meta
-
-#     # === 3) Logging (always log intake; conditionally log candidates) ===
-#     log_request = partial(
-#         logger.log_query_intake,
-#         endpoint=ENDPOINT,
-#         query_id=req.query_id,
-#         user_id=user_id,
-#         session_id=req.session_id,
-#         media_type=req.media_type,
-#         query_text=req.query_text,
-#         # query_filters=req.query_filters,
-#         ctx_log=ctx_log,
-#         pipeline_version="RecommendPipeline@v4",
-#         batch_size=batch_size,
-#         device_info=req.device_info,
-#         request_meta=meta,
-#     )
-#     asyncio.create_task(
-#         asyncio.to_thread(log_request)
-#     )  # Fire-and-forget logging; run in background threads so request isn't blocked
-
-#     if str(mode) == "recs":
-#         log_results = partial(
-#             logger.log_candidates,
-#             endpoint=ENDPOINT,
-#             query_id=req.query_id,
-#             media_type=req.media_type,
-#             candidates=agent_result.candidates,
-#             traces=traces,
-#             stage="prompt_context",
-#         )
-
-#         asyncio.create_task(asyncio.to_thread(log_results))
-
-#     # === 4) Response branching ===
-
-#     # -- CHAT mode: return chat message only --
-#     if str(mode) != "recs":
-#         return JSONResponse(
-#             {
-#                 "query_id": req.query_id,
-#                 "mode": "CHAT",
-#                 "message": agent_result.message or "",
-#             }
-#         )
-
-#     # -- REC mode: insert why_agent setup to ticket store & return full candidate slate --
-#     final_recs = agent_result.final_recs
-#     query_spec = agent_result.query_spec
-#     active_spec = None
-
-#     why_agent_prompts: PromptsEnvelope | None = None
-#     if final_recs and query_spec:
-#         why_agent_prompts = build_why_prompt_envelope(
-#             candidates=final_recs,
-#             query_spec=query_spec,
-#             batch_size=8,
-#         )
-
-#         ticket = Ticket(
-#             user_id=user_id,
-#             prompts=why_agent_prompts.model_dump(mode="json")
-#             if why_agent_prompts
-#             else {},
-#         )
-
-#         await ticket_store.put(
-#             req.query_id,  # ticket key
-#             ticket,
-#             ttl_sec=IDLE_TTL_SEC,
-#         )
-
-#     active_spec = craft_active_spec(query_spec) if query_spec else None
-
-#     print(active_spec)
-
-#     items = [_item_view(c) for c in agent_result.final_recs]
-#     return JSONResponse(
-#         {
-#             "query_id": req.query_id,
-#             "mode": "RECS",
-#             "active_spec": active_spec.model_dump(mode="json") if active_spec else None,
-#             "opening": agent_result.summary,
-#             "items": items,
-#             "stream_url": f"/discovery/explore/why?query_id={req.query_id}",
-#         }
-#     )
-
 
 
 @router.post("/explore")
@@ -194,15 +51,14 @@ async def agent_interactive_stream(
     state_store=Depends(get_state_store),
 ):
     """
-    Streaming explore-by-vibe endpoint.
+    Streaming /discover/explore endpoint.
 
-    Emits SSE events so the UI can render an opening summary + active_spec immediately,
-    while the curator runs in the background.
+    Emits SSE events so the UI can render an opening summary + active_spec immediately, while the curator runs in the background.
 
     Events:
       - started: {query_id}
       - opening: {query_id, opening_summary, active_spec}
-      - recs: {query_id, items, stream_url, curator_opening?}
+      - recs: {query_id, items, stream_url}
       - done / error
     """
     session_state = await state_store.get_session(session_id=req.session_id, touch=True)
@@ -224,15 +80,24 @@ async def agent_interactive_stream(
 
         try:
             # 1) Orchestrator "plan" step (fast) — get tool args (spec + opening_summary)
-            state, plan = await plan_orchestrator_agent(agent_input=agent_input, llm_client=chat_llm)
-                        
+            state, plan = await plan_orchestrator_agent(
+                agent_input=agent_input, llm_client=chat_llm
+            )
+
             # fast UI paint with opening summary + active_spec for chip display in RECS mode
             if plan.mode == "recs":
-                yield _sse("opening", {
-                    "query_id": req.query_id,
-                    "opening_summary": plan.opening_summary,
-                    "active_spec": craft_active_spec(state.query_spec).model_dump(mode="json") if state.query_spec else None,
-                })
+                yield _sse(
+                    "opening",
+                    {
+                        "query_id": req.query_id,
+                        "opening_summary": plan.opening_summary,
+                        "active_spec": craft_active_spec(state.query_spec).model_dump(
+                            mode="json"
+                        )
+                        if state.query_spec
+                        else None,
+                    },
+                )
 
             # 2) Execute the recommendation agent, but keep SSE connection alive with heartbeats.
             task = asyncio.create_task(
@@ -270,48 +135,49 @@ async def agent_interactive_stream(
                 )
             )
 
-            # 4) Logging
+            # 4) Query/recs logging
             mode = agent_result.mode
             ctx_log = agent_result.ctx_log
-            traces = agent_result.pipeline_traces
+            traces = agent_result.pipeline_traces[-1] if agent_result.pipeline_traces else {}
             meta = agent_result.meta
 
-            log_request = partial(
-                logger.log_query_intake,
-                endpoint=ENDPOINT,
-                query_id=req.query_id,
-                user_id=user_id,
-                session_id=req.session_id,
-                media_type=req.media_type,
-                query_text=req.query_text,
-                ctx_log=ctx_log,
-                pipeline_version="RecommendPipeline@v4",
-                batch_size=batch_size,
-                device_info=req.device_info,
-                request_meta=meta,
-            )
-            asyncio.create_task(asyncio.to_thread(log_request))
-
-            if str(mode) == "recs":
-                log_results = partial(
-                    logger.log_candidates,
+            asyncio.create_task(
+                logger.log_query_intake(
                     endpoint=ENDPOINT,
                     query_id=req.query_id,
+                    user_id=user_id,
+                    session_id=req.session_id,
                     media_type=req.media_type,
-                    candidates=agent_result.candidates,
-                    traces=traces,
-                    stage="prompt_context",
+                    query_text=req.query_text,
+                    ctx_log=ctx_log,
+                    pipeline_version="RecommendPipeline@v4",
+                    batch_size=batch_size,
+                    device_info=req.device_info,
+                    request_meta=meta,
                 )
-                asyncio.create_task(asyncio.to_thread(log_results))
-                
-           # 5) Branch response for CHAT / RECS mode
-            
-           # == CHAT mode: return message + done ==
+            )
+
+            # also log final recs for RECS mode
+            if str(mode) == "recs":
+                asyncio.create_task(
+                    logger.log_candidates(
+                        endpoint=ENDPOINT,
+                        query_id=req.query_id,
+                        media_type=req.media_type,
+                        candidates=agent_result.candidates,
+                        traces=traces,
+                        stage="prompt_context",
+                    )
+                )
+
+            # 5) Branch response for CHAT / RECS mode
+
+            # == CHAT mode: stream chat message & done ==
             if str(mode) == "chat":
                 yield _sse("chat", {"query_id": req.query_id, "message": plan.message})
                 yield _sse("done", {"ok": True})
                 return
-            
+
             # == RECS mode: write ticket store and stream final recs ==
             final_recs = agent_result.final_recs
             query_spec = agent_result.query_spec
@@ -354,7 +220,7 @@ async def agent_interactive_stream(
             "Connection": "keep-alive",
         },
     )
-    
+
 
 @router.post("/explore/rerun")
 async def agent_explore_rerun(
@@ -390,7 +256,9 @@ async def agent_explore_rerun(
     spec = base_spec.model_copy(deep=True)
 
     if _field_provided(req.patch, "providers"):
-        spec.providers = list(req.patch.providers or [])  # null => clear, list => replace
+        spec.providers = list(
+            req.patch.providers or []
+        )  # null => clear, list => replace
 
     if _field_provided(req.patch, "year_range"):
         if req.patch.year_range is None:
@@ -437,35 +305,35 @@ async def agent_explore_rerun(
 
     # 7) Logging (same as /explore)
     ctx_log = agent_result.ctx_log
-    traces = agent_result.pipeline_traces
+    traces = agent_result.pipeline_traces[-1] if agent_result.pipeline_traces else {}
     meta = agent_result.meta
 
-    log_request = partial(
-        logger.log_query_intake,
-        endpoint=ENDPOINT,
-        query_id=req.query_id,
-        user_id=user_id,
-        session_id=req.session_id,
-        media_type=str(spec.media_type),
-        query_text=spec.query_text,
-        ctx_log=ctx_log,
-        pipeline_version="RecommendPipeline@v4",
-        batch_size=batch_size,
-        device_info=req.device_info,
-        request_meta=meta,
+    asyncio.create_task(
+        logger.log_query_intake(
+            endpoint=ENDPOINT,
+            query_id=req.query_id,
+            user_id=user_id,
+            session_id=req.session_id,
+            media_type=str(spec.media_type),
+            query_text=spec.query_text,
+            ctx_log=ctx_log,
+            pipeline_version="RecommendPipeline@v4",
+            batch_size=batch_size,
+            device_info=req.device_info,
+            request_meta=meta,
+        )
     )
-    asyncio.create_task(asyncio.to_thread(log_request))
 
-    log_results = partial(
-        logger.log_candidates,
-        endpoint=ENDPOINT,
-        query_id=req.query_id,
-        media_type=str(spec.media_type),
-        candidates=agent_result.candidates,
-        traces=traces,
-        stage="chip_rerun",
+    asyncio.create_task(
+        logger.log_candidates(
+            endpoint=ENDPOINT,
+            query_id=req.query_id,
+            media_type=str(spec.media_type),
+            candidates=agent_result.candidates,
+            traces=traces,
+            stage="chip_rerun",
+        )
     )
-    asyncio.create_task(asyncio.to_thread(log_results))
 
     # 8) WHY ticket (same as /explore)
     final_recs = agent_result.final_recs

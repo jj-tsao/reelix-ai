@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Literal
+from typing import Any, Literal, Mapping
 
 import httpx
 from fastapi.encoders import jsonable_encoder
@@ -9,7 +9,11 @@ from pydantic import BaseModel
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_core.types import QueryFilter
 
-Endpoint = Literal["discovery", "recommendations"]
+Endpoint = Literal[
+    "discovery/for-you",
+    "discovery/explore",
+    "recommendations/interactive",
+]
 
 
 # ---------- Public models (optional typing nicety) ----------
@@ -143,7 +147,7 @@ class TelemetryLogger:
         query_id: str,
         media_type: str,
         candidates: list[Candidate],
-        traces: list[ScoreTrace],
+        traces: Mapping[int, ScoreTrace],
         stage: str,
     ) -> None:
         """
@@ -154,6 +158,7 @@ class TelemetryLogger:
         rows = []
         for r, c in enumerate(candidates, start=1):
             cid = c.id
+            trace = traces.get(cid)
             row = {
                 "endpoint": endpoint,
                 "query_id": query_id,
@@ -161,10 +166,12 @@ class TelemetryLogger:
                 "media_id": cid,
                 "rank": r,
                 "title": c.payload.get("title"),
-                "score_final": traces[cid].final_score,
-                "score_dense": traces[cid].dense_score,
-                "score_sparse": traces[cid].sparse_score,
-                "meta_breakdown": self.to_jsonable(traces[cid].meta_breakdown),
+                "score_final": trace.final_score if trace else None,
+                "score_dense": trace.dense_score if trace else None,
+                "score_sparse": trace.sparse_score if trace else None,
+                "meta_breakdown": self.to_jsonable(trace.meta_breakdown)
+                if trace
+                else None,
                 "stage": stage,
             }
             rows.append(row)

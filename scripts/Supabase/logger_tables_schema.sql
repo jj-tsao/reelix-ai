@@ -2,7 +2,7 @@
 create table if not exists rec_queries (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
-  endpoint text not null check (endpoint in ('discovery/for-you','recommendations/interactive')),
+  endpoint text not null check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive')),
   query_id text not null,
   user_id uuid,
   session_id text not null,
@@ -22,7 +22,7 @@ create index if not exists idx_rec_queries_qid on rec_queries (query_id);
 create table if not exists rec_results (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
-  endpoint text not null check (endpoint in ('discovery/for-you','recommendations/interactive')),
+  endpoint text not null check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive')),
   query_id text not null,
   media_type text,
   media_id int not null,
