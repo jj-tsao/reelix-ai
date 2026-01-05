@@ -18,13 +18,12 @@ from app.deps.supabase_client import (
     get_current_user_id,
     get_user_context_service,
 )
-from app.deps.deps_ticket_store import get_ticket_store
-from app.deps.deps_why_cache import get_why_cache
+from app.deps.deps_redis_caches import get_ticket_store, get_why_cache
 from app.infrastructure.cache.why_cache import WhyCache, CachedWhy
 from app.infrastructure.cache.ticket_store import Ticket
 from app.schemas import DiscoverRequest, FinalRecsRequest
 
-router = APIRouter(prefix="/discovery", tags=["discovery"])
+router = APIRouter(prefix="/discovery", tags=["for-you"])
 
 ENDPOINT = "discovery/for-you"
 PIPELINE_VERSION = "RecommendPipeline@v2"
@@ -142,7 +141,7 @@ async def discover_for_you(
             stage="final",
         )
     )
-    
+
     items = []
     for c in final_candidates[:batch_size]:
         item = _item_view(c)
@@ -158,7 +157,9 @@ async def discover_for_you(
             "query_id": req.query_id,
             "items": items,
             "active_subs": user_context.active_subscriptions,
-            "stream_url": f"/discovery/for-you/why?query_id={req.query_id}" if uncached_candidates else None,
+            "stream_url": f"/discovery/for-you/why?query_id={req.query_id}"
+            if uncached_candidates
+            else None,
         }
     )
 

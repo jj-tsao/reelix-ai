@@ -60,12 +60,14 @@ export default function StreamingServiceFilterChip({ selected, onApply }: Props)
   };
 
   const handleApply = useCallback(() => {
-    const sorted = sortByOptionOrder(pending);
-    setPending(sorted);
+    const sortedPending = sortByOptionOrder(pending);
+    const sortedSelected = sortByOptionOrder(selected);
+    setPending(sortedPending);
     const isSame =
-      sorted.length === selected.length && sorted.every((value, index) => value === selected[index]);
+      sortedPending.length === sortedSelected.length &&
+      sortedPending.every((value, index) => value === sortedSelected[index]);
     if (!isSame) {
-      onApply([...sorted]);
+      onApply([...sortedPending]);
     }
     setOpen(false);
   }, [onApply, pending, sortByOptionOrder, selected]);

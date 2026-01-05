@@ -8,8 +8,8 @@ import { signOut } from "@/features/auth/api";
 import { isAnonymousUser } from "@/lib/session";
 
 const NAV_ITEMS = [
-  { label: "For You", to: "/discover" },
-  { label: "Explore by vibe", to: "/query" },
+  { label: "Explore", to: "/discover/explore" },
+  { label: "For You", to: "/discover/for-you" },
   { label: "Watchlist", to: "/watchlist" },
 ] as const;
 

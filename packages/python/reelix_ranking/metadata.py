@@ -196,10 +196,11 @@ def metadata_rerank(
             else 0
         )
 
+        # Recency score
         age_y = age_years_from_release_date(payload)
         rcy = norm_recency(
             age_y, a.recency_half_life_years
-        )  # + freshness_bonus_days(payload)
+        )  + freshness_bonus_days(payload)
 
         feats: Dict[str, FeatureContribution] = {
             "dense": FeatureContribution(

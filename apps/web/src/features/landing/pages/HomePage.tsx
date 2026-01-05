@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { getAccessToken } from "@/features/discover/api";
+import { getAccessToken } from "@/features/discover/for_you/api";
 import { hasTasteProfile } from "@/features/taste_profile/api";
+import { getExploreRedirectFlag } from "@/utils/exploreRedirect";
 import LandingPage from "./LandingPage";
 
 type HomeState = "checking" | "landing";
@@ -22,6 +23,12 @@ export default function HomePage() {
     }
 
     if (!user) {
+      if (getExploreRedirectFlag()) {
+        navigate("/discover/explore", { replace: true });
+        return () => {
+          cancelled = true;
+        };
+      }
       setState("landing");
       return () => {
         cancelled = true;
@@ -41,7 +48,12 @@ export default function HomePage() {
         const profileExists = await hasTasteProfile(token);
         if (cancelled) return;
         if (profileExists) {
-          navigate("/discover", { replace: true });
+          navigate("/discover/for-you", { replace: true });
+          return;
+        }
+
+        if (getExploreRedirectFlag()) {
+          navigate("/discover/explore", { replace: true });
           return;
         }
 
@@ -49,6 +61,10 @@ export default function HomePage() {
       } catch (error) {
         void error;
         if (!cancelled) {
+          if (getExploreRedirectFlag()) {
+            navigate("/discover/explore", { replace: true });
+            return;
+          }
           setState("landing");
         }
       }

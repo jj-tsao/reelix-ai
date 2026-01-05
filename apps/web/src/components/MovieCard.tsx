@@ -29,8 +29,9 @@ type MovieCardExtras = {
   layout?: "grid" | "wide";
 };
 
-type MovieCardInput = Partial<ParsedMovie> &
+type MovieCardInput = Omit<Partial<ParsedMovie>, "mediaId" | "imdbRating" | "rottenTomatoesRating"> &
   MovieCardExtras & {
+    mediaId?: string | number;
     title: string;
     imdbRating?: number | string | null;
     rottenTomatoesRating?: number | string | null;
@@ -131,7 +132,7 @@ export default function MovieCard({
     >
       {backdropUrl ? (
         <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-xl">
-          {/* Backdrop image with consistent opacity across /query and /discover */}
+          {/* Backdrop image with consistent opacity across /query and /discover/for-you */}
           <div
             className="h-full w-full bg-cover bg-center blur-[1px] opacity-15 transition-opacity duration-300 group-hover:opacity-20"
             style={{ backgroundImage: `url(${backdropUrl})` }}

@@ -327,7 +327,7 @@ class DiscoverRebuildController {
   }
 }
 
-export default function DiscoverPage() {
+export default function ForYouPage() {
   const [pageState, setPageState] = useState<PageState>("idle");
   const [cards, setCards] = useState<CardMap>({});
   const [order, setOrder] = useState<string[]>([]);

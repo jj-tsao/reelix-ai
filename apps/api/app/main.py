@@ -21,6 +21,7 @@ from reelix_core.config import (
 from reelix_logging.rec_logger import TelemetryLogger
 from app.infrastructure.cache.redis_infra import make_redis_clients
 from app.infrastructure.cache.ticket_store import TicketStore
+from app.infrastructure.cache.state_store import StateStore
 from app.infrastructure.cache.why_cache import WhyCache
 from .routers import all_routers
 
@@ -37,13 +38,14 @@ class Settings(BaseSettings):
     redis_url: str | None = None
 
     # ticket_store config
-    use_redis_ticket_store: bool = False
     ticket_namespace: str = "reelix:ticket:"
     why_cache_namespace: str = "reelix:why:"
-    ticket_ttl_abs: int = 3600  # 60 min absolute cap
-    why_cache_ttl_sec: int = 7 * 24 * 3600
+    session_namespace: str = "reelix:agent:session:"
+    ticket_ttl_sec: int = 3600  # 60 min cap
+    session_ttl_sec: int = 7 * 24 * 3600  # 7d cap
+    why_cache_ttl_sec: int = 14 * 24 * 3600 # 2 weeks cap
 
-    # env conifg
+    # env config
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -62,6 +64,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_retrieval.base_retriever import BaseRetriever
     from reelix_recommendation.recommend import RecommendPipeline
     from reelix_retrieval.query_encoder import Encoder
+    from reelix_agent.orchestrator.agent_rec_runner import AgentRecRunner
     from reelix_recommendation.recipes import InteractiveRecipe, ForYouFeedRecipe
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
@@ -69,18 +72,21 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
 
-    # == Verify required API keys ==
+    # == Verify required credits ==
     required = {
         "QDRANT_ENDPOINT": app.state.settings.qdrant_endpoint,
         "QDRANT_API_KEY": app.state.settings.qdrant_api_key,
+        "SUPABASE_URL": app.state.settings.supabase_url,
+        "SUPABASE_API_KEY": app.state.settings.supabase_api_key,
         "OPENAI_API_KEY": app.state.settings.openai_api_key,
+        "REDIS_URL": app.state.settings.redis_url,
     }
     missing = [
         name for name, value in required.items() if not (value and value.strip())
     ]
     if missing:
         raise RuntimeError(
-            "Missing API keys in environment: " + ", ".join(sorted(missing))
+            "Missing credentials in environment: " + ", ".join(sorted(missing))
         )
 
     # == Initialize recommendation stacks ==
@@ -112,23 +118,35 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
     app.state.query_encoder = query_encoder
     app.state.recommend_pipeline = pipeline
+    app.state.agent_rec_runner = AgentRecRunner(
+        pipeline=pipeline,
+        query_encoder=query_encoder,
+    )
     app.state.recipes = {
         "for_you_feed": ForYouFeedRecipe(query_encoder=app.state.query_encoder),
         "interactive": InteractiveRecipe(query_encoder=app.state.query_encoder),
     }
     app.state.chat_completion_llm = chat_completion_llm
 
-    # == Initialize Redis caching stores ==
+    # == Initialize Redis stores ==
     redis_clients = make_redis_clients(app.state.settings.redis_url)
 
     app.state.ticket_store = TicketStore(
         client=redis_clients.bytes,
+        namespace=app.state.settings.ticket_namespace,
+        absolute_ttl_sec=app.state.settings.ticket_ttl_sec,
+    )
+    
+    app.state.state_store = StateStore(
+        client=redis_clients.bytes,
+        namespace=app.state.settings.session_namespace,
+        absolute_ttl_sec=app.state.settings.session_ttl_sec,
     )
 
     app.state.why_cache = WhyCache(
         client=redis_clients.text,
         namespace=app.state.settings.why_cache_namespace,
-        default_ttl_sec=app.state.settings.why_cache_ttl_sec,
+        absolute_ttl_sec=app.state.settings.why_cache_ttl_sec,
     )
 
     print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")

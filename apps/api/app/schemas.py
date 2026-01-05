@@ -39,7 +39,7 @@ class InteractiveRequest(BaseModel):
             "Mind-bending sci-fi with philosophical undertones and existential stakes"
         ],
     )
-    history: List[ChatMessage] | None = Field(default_factory=list, examples=[[]])
+    # history: List[ChatMessage] | None = Field(default_factory=list, examples=[[]])
     query_filters: QueryFilter = Field(default_factory=QueryFilter)
     session_id: str
     query_id: str
@@ -50,6 +50,21 @@ class InteractiveRequest(BaseModel):
         if not v.strip():
             raise ValueError("Query cannot be empty")
         return v
+
+
+class ExploreRerunPatch(BaseModel):
+    # If field is omitted => keep existing.
+    # If field is present as null => clear.
+    # If field is present as [] or list => replace with exactly that list.
+    providers: list[str] | None = Field(default=None)
+    year_range: tuple[int, int] | None = Field(default=None) 
+
+
+class ExploreRerunRequest(BaseModel):
+    session_id: str
+    query_id: str
+    device_info: dict | None = None
+    patch: ExploreRerunPatch = Field(default_factory=ExploreRerunPatch)
 
 
 class FinalRec(BaseModel):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple
+import time
 from reelix_core.types import UserTasteContext
 from reelix_ranking.rrf import rrf
 from reelix_ranking.metadata import metadata_rerank
@@ -44,7 +45,9 @@ class RecommendPipeline:
         ),
         final_top_k: int = 20,
     ) -> Tuple[List[Candidate], Dict[int, ScoreTrace]]:
+        total_start = time.perf_counter()
         # 1) retrieve - parallelize Qdrant searches to reduce network latency
+        retrieval_start = time.perf_counter()
         with ThreadPoolExecutor(max_workers=2) as ex:
             f_dense = ex.submit(
                 self.ret.dense,
@@ -58,6 +61,8 @@ class RecommendPipeline:
             )
             dense = f_dense.result()
             sparse = f_sparse.result()
+        retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
+        print(f"[timing] recommend_retrieval_ms={retrieval_ms:.1f}")
 
         dense_ids = [c.id for c in dense]
         sparse_ids = [c.id for c in sparse]
@@ -71,18 +76,23 @@ class RecommendPipeline:
         pool = merge_by_id(dense, sparse, pool_ids)
 
         # 4) metadata rerank
+        meta_start = time.perf_counter()
         meta_scored = metadata_rerank(
             candidates=pool,
             media_type=media_type,
             user_context=user_context,
             weights=weights,
         )
+        meta_ms = (time.perf_counter() - meta_start) * 1000
+        print(f"[timing] recommend_metadata_ms={meta_ms:.1f}")
         meta_sorted = [c for c, m_score, m_trace in meta_scored][:meta_top_n]
-        
+        diversify_start = time.perf_counter()
         meta_sorted, _ = diversify_by_collection(
             meta_sorted,
             per_collection_cap=1,
         )
+        diversify_ms = (time.perf_counter() - diversify_start) * 1000
+        print(f"[timing] recommend_diversify_ms={diversify_ms:.1f}")
         
         meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
 
@@ -115,9 +125,12 @@ class RecommendPipeline:
                     weights_used=weights.copy(),
                     title=c.payload.get("title", ""),
                 )
+            total_ms = (time.perf_counter() - total_start) * 1000
+            print(f"[timing] recommend_total_ms={total_ms:.1f}")
             return final, traces
 
         # 5) CE over dense top-K2
+        ce_start = time.perf_counter()
         dense_top = dense[:meta_ce_top_n]
         if self.ce:
             docs = [(c.payload or {}).get("embedding_text") or "" for c in dense_top]
@@ -136,8 +149,11 @@ class RecommendPipeline:
         else:
             ce_order = [c.id for c in dense_top]
             ce_score_map = {}
+        ce_ms = (time.perf_counter() - ce_start) * 1000
+        print(f"[timing] recommend_ce_ms={ce_ms:.1f}")
 
         # 6) final fusion
+        fusion_start = time.perf_counter()
         final_rrf = rrf([meta_top_ids, ce_order], k=self.rrf_k)
         final_ids = [i for i, _ in final_rrf]
 
@@ -157,6 +173,10 @@ class RecommendPipeline:
                 ce_score=ce_score_map.get(cid),
                 final_score=final_rrf_map.get(cid),
             )
+        fusion_ms = (time.perf_counter() - fusion_start) * 1000
+        print(f"[timing] recommend_fusion_ms={fusion_ms:.1f}")
+        total_ms = (time.perf_counter() - total_start) * 1000
+        print(f"[timing] recommend_total_ms={total_ms:.1f}")
         return final, traces
 
     def summarize_ranking(self, ranking: List[Candidate], top_k: int = 20):

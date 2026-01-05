@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-QDRANT_MOVIE_COLLECTION_NAME = "Movies_BGE_DEC-AGENT"
+QDRANT_MOVIE_COLLECTION_NAME = "Movies_BGE_JAN-AGENT"
 QDRANT_TV_COLLECTION_NAME = "TV_Shows_BGE_DEC-AGENT"
 
 INTENT_MODEL = "JJTsao/intent-classifier-distilbert-movierec"  # Fine-tuned intent classification model for query intent classifiation

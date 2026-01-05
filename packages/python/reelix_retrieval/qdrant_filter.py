@@ -1,4 +1,5 @@
 from typing import Optional, Tuple, Iterable, Literal
+from datetime import datetime
 from qdrant_client.models import (
     Filter as QFilter,
     models as qmodels,
@@ -35,7 +36,7 @@ def build_qfilter(
     exclude_ids: Optional[list[int]] = None,
     genres: Optional[list[str]] = None,
     providers: Optional[list[int]] = None,
-    year_range: Optional[Tuple[int, int]] = (1970, 2025),
+    year_range: Optional[Tuple[int, int]] = (1970, datetime.now().year),
     titles: Optional[list[str]] = None,
     release_year: Optional[int] = None,
 ) -> QFilter:

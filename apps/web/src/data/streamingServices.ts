@@ -10,7 +10,7 @@ export type StreamingServiceOption = {
 const STREAMING_SERVICE_NAMES = [
   "Netflix",
   "Hulu",
-  "Max",
+  "HBO Max",
   "Disney+",
   "Apple TV+",
   "Amazon Prime Video",
