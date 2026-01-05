@@ -101,7 +101,7 @@ export default function MovieCard({
 
   const contentClass = clsx(
     "relative z-10 flex flex-col gap-3 px-4 py-3 md:flex-row",
-    isWide && "gap-5 px-6 py-5"
+    isWide && "gap-5 px-6 py-3"
   );
 
   const posterWrapperClass = clsx(
