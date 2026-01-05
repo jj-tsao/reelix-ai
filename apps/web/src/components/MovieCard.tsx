@@ -100,8 +100,8 @@ export default function MovieCard({
   );
 
   const contentClass = clsx(
-    "relative z-10 flex flex-col gap-4 p-4 md:flex-row",
-    isWide && "gap-6 p-6"
+    "relative z-10 flex flex-col gap-3 px-4 py-3 md:flex-row",
+    isWide && "gap-5 px-6 py-5"
   );
 
   const posterWrapperClass = clsx(
@@ -157,12 +157,12 @@ export default function MovieCard({
           )}
         </div>
 
-        <div className="flex flex-1 flex-col gap-4 text-sm">
+        <div className="flex flex-1 flex-col gap-3 text-sm">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-baseline gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 className={titleClass}>{movie.title}</h2>
               {movie.releaseYear ? (
-                <span className="rounded-full border border-white/20 px-3 py-0.5 text-xs text-white/70">
+                <span className="inline-flex items-center rounded-full border border-white/20 px-3 py-0.5 text-xs leading-none text-white/70">
                   {movie.releaseYear}
                 </span>
               ) : null}

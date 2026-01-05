@@ -448,10 +448,10 @@ export default function LandingPage() {
   );
 
   return (
-    <main className="mx-auto flex min-h-[70vh] w-full max-w-7xl flex-col items-center gap-10 px-4 pb-16 pt-10 text-center sm:px-6 sm:pt-12">
+    <main className="mx-auto flex min-h-[70vh] w-full max-w-7xl flex-col items-center gap-12 px-4 pb-16 pt-14 text-center sm:px-6 sm:pt-16">
       {/* HERO */}
       <section className="w-full max-w-7xl px-0">
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-8">
           <div className="space-y-4">
             <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-4xl">
               Find your next watch. Personalized to your taste.
@@ -462,7 +462,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="w-full max-w-2xl space-y-3">
+          <div className="w-full max-w-2xl space-y-2">
             <form onSubmit={handleExploreSubmit} role="search" className="w-full">
               <label className="sr-only" htmlFor="landing-vibe-input">
                 Explore
@@ -544,7 +544,7 @@ export default function LandingPage() {
       </section>
 
       {/* RECOMMENDATION TEASER */}
-      <section className="w-full max-w-7xl space-y-6 px-0 text-left">
+      <section className="w-full max-w-7xl space-y-6 px-0 pt-2 text-left">
         <div className="text-center">
           <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Here’s how recommendations look.
@@ -596,7 +596,7 @@ export default function LandingPage() {
                 Personalize my feed
               </button>
               <span className="text-xs text-muted-foreground">
-                Takes under a minute. Get a personal feed instantly.
+                Want better picks over time? Build personalized feed in ~1 minute.
               </span>
             </div>
           </div>
