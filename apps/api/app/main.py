@@ -40,10 +40,8 @@ class Settings(BaseSettings):
     # ticket_store config
     ticket_namespace: str = "reelix:ticket:"
     why_cache_namespace: str = "reelix:why:"
-    session_namespace: str = "reelix:agent:session:"
-    ticket_ttl_sec: int = 3600  # 60 min cap
-    session_ttl_sec: int = 7 * 24 * 3600  # 7d cap
-    why_cache_ttl_sec: int = 14 * 24 * 3600 # 2 weeks cap
+    ticket_ttl_abs: int = 3600  # 60 min absolute cap
+    why_cache_ttl_sec: int = 7 * 24 * 3600
 
     # env config
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -133,14 +131,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
     app.state.ticket_store = TicketStore(
         client=redis_clients.bytes,
-        namespace=app.state.settings.ticket_namespace,
-        absolute_ttl_sec=app.state.settings.ticket_ttl_sec,
-    )
-    
-    app.state.state_store = StateStore(
-        client=redis_clients.bytes,
-        namespace=app.state.settings.session_namespace,
-        absolute_ttl_sec=app.state.settings.session_ttl_sec,
     )
 
     app.state.why_cache = WhyCache(
