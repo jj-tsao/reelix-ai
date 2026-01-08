@@ -586,17 +586,17 @@ export default function LandingPage() {
           <div className="flex flex-col items-center gap-6">
             <div className="flex flex-col items-center gap-3">
               <p className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                Ready to build your own feed?
+                Want a personalized feed?
               </p>
               <button
                 type="button"
                 onClick={handleBuildTaste}
                 className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                Personalize my feed
+                Customize my feed
               </button>
               <span className="text-xs text-muted-foreground">
-                Want better picks over time? Build personalized feed in ~1 minute.
+                Tell Reelix what you like. Build personalized feed in ~1 minute.
               </span>
             </div>
           </div>

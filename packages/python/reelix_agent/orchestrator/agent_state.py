@@ -93,7 +93,6 @@ class AgentState(AgentBaseModel):
         system_prompt = ORCHESTRATOR_SYSTEM_PROMPT.replace("{{CURRENT_YEAR}}", str(current_year))
         
         user_msg_content = build_orchestrator_user_prompt(agent_input)
-        print ("session memory: ", agent_input.session_memory)
         mem_msg, prior_spec, slot_map = build_session_memory_message(agent_input.session_memory)
         
         print (mem_msg)

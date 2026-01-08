@@ -676,6 +676,10 @@ export default function ExplorePage() {
       const value = (text ?? query).trim();
       if (!value) return;
 
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
       setExploreRedirectFlag();
       exploreAbortRef.current?.abort();
       exploreAbortRef.current = null;

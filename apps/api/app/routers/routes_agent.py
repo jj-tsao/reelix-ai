@@ -6,9 +6,8 @@ from pydantic import BaseModel, ValidationError
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from reelix_agent.core.types import PromptsEnvelope, RecQuerySpec
-from reelix_agent.orchestrator.orchestrator_agent_v1 import (
+from reelix_agent.orchestrator.orchestrator_agent import (
     InteractiveAgentInput,
-    # run_orchestrator_agent,
     run_rec_engine_direct,
     plan_orchestrator_agent,
     execute_orchestrator_plan,
