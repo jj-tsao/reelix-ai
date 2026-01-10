@@ -337,17 +337,6 @@ def build_orchestrator_user_prompt(agent_input: InteractiveAgentInput) -> str:
     if agent_input.media_type:
         parts.append(f"Media type: {agent_input.media_type.value}")
 
-    # if agent_input.query_filters:
-    #     parts.append("Structured filters (JSON):")
-    #     # you can safely stringify; model will still parse it fine
-
-    #     filters = (
-    #         agent_input.query_filters.model_dump()
-    #         if hasattr(agent_input.query_filters, "model_dump")
-    #         else agent_input.query_filters
-    #     )
-    #     parts.append(json.dumps(filters, ensure_ascii=False))
-
     # Fallback if nothing was set
     if not parts:
         parts.append("User is asking for personalized recommendations.")
@@ -401,7 +390,7 @@ def build_session_memory_message(
 
     msg_parts: list[str] = [
         "SESSION MEMORY (server-provided; do NOT reveal to the user).",
-        "Use this to interpret short follow-ups (e.g., 'darker') and references (e.g., '#3').",
+        "Use this to interpret short follow-ups and references.",
     ]
 
     if summary:
