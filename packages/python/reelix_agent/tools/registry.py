@@ -6,14 +6,14 @@ from .types import ToolSpec
 
 @dataclass
 class ToolRegistry:
-    _tools: dict[str, ToolSpec] = field(default_factory=dict)
+    _tools: dict[str, ToolSpec[Any]] = field(default_factory=dict)
 
-    def register(self, spec: ToolSpec) -> None:
+    def register(self, spec: ToolSpec[Any]) -> None:
         if spec.name in self._tools:
             raise ValueError(f"Tool already registered: {spec.name}")
         self._tools[spec.name] = spec
 
-    def get(self, name: str) -> ToolSpec | None:
+    def get(self, name: str) -> ToolSpec[Any] | None:
         return self._tools.get(name)
 
     def openai_tools(self) -> list[dict[str, Any]]:
