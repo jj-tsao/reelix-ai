@@ -779,7 +779,7 @@ export default function ExplorePage() {
           mediaId: card.mediaId,
           title: card.title,
           reaction: rating,
-          source: "discovery_explore",
+          source: "vibe_query",
           mediaType: "movie",
           position: ordinal,
           queryId: queryIdRef.current,
