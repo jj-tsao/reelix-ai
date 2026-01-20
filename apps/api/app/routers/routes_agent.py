@@ -139,7 +139,8 @@ async def agent_interactive_stream(
             ctx_log = agent_result.ctx_log
             traces = agent_result.pipeline_traces[-1] if agent_result.pipeline_traces else {}
             meta = agent_result.meta
-
+            
+            # log query intake
             asyncio.create_task(
                 logger.log_query_intake(
                     endpoint=ENDPOINT,
@@ -156,7 +157,7 @@ async def agent_interactive_stream(
                 )
             )
 
-            # also log final recs for RECS mode
+            # log final recs (RECS mode only)
             if str(mode) == "recs":
                 asyncio.create_task(
                     logger.log_candidates(
