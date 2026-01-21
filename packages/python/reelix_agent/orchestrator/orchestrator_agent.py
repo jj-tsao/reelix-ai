@@ -66,8 +66,8 @@ async def plan_orchestrator_agent(
     Args:
         agent_input: User input for this turn
         llm_client: LLM client for API calls
-        tool_registry: Tool registry for tool discovery (required)
-        tool_runner: Tool runner for tool execution (required)
+        tool_registry: Tool registry for tool discovery
+        tool_runner: Tool runner for tool execution
         max_steps: Maximum planning steps (default: 3)
 
     Returns:

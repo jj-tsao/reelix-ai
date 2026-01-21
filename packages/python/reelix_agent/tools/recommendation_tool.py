@@ -6,6 +6,7 @@ Runs the full recommendation pipeline: retrieval → ranking → curator LLM eva
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -19,6 +20,29 @@ from reelix_agent.tools.types import ToolCategory, ToolContext, ToolResult, Tool
 
 # JSON Schema for the recommendation_agent tool parameters
 # Migrated from orchestrator_prompts.py TOOLS constant
+def _merge_curator_outputs(output1: str, output2: str) -> str:
+    """Merge two curator JSON outputs into a single output.
+
+    Args:
+        output1: JSON string from first batch
+        output2: JSON string from second batch
+
+    Returns:
+        Merged JSON string with combined evaluation_results
+    """
+    try:
+        data1 = json.loads(output1)
+        data2 = json.loads(output2)
+
+        merged = {
+            "evaluation_results": data1.get("evaluation_results", []) + data2.get("evaluation_results", [])
+        }
+
+        return json.dumps(merged)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to merge curator outputs: {e}")
+
+
 RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -244,17 +268,39 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     if ctx_log:
         state.ctx_log = ctx_log
 
-    # 3) Run curator agent
+    # 3) Run curator agent with parallel batching
     curator_start = time.perf_counter()
-    curator_output = await run_curator_agent(
-        query_text=spec.query_text,
-        spec=state.query_spec,
-        candidates=candidates,
-        llm_client=ctx.llm_client,
-        user_signals=None,
+
+    # Split candidates into 2 batches of ~6 each for parallel evaluation
+    mid_point = len(candidates) // 2
+    batch_1 = candidates[:mid_point]
+    batch_2 = candidates[mid_point:]
+
+    print(f"[curator] Running parallel batches: {len(batch_1)} + {len(batch_2)} candidates")
+
+    # Run both batches in parallel
+    batch_1_output, batch_2_output = await asyncio.gather(
+        run_curator_agent(
+            query_text=spec.query_text,
+            spec=state.query_spec,
+            candidates=batch_1,
+            llm_client=ctx.llm_client,
+            user_signals=None,
+        ),
+        run_curator_agent(
+            query_text=spec.query_text,
+            spec=state.query_spec,
+            candidates=batch_2,
+            llm_client=ctx.llm_client,
+            user_signals=None,
+        ),
     )
+
+    # Merge results
+    curator_output = _merge_curator_outputs(batch_1_output, batch_2_output)
+
     curator_ms = (time.perf_counter() - curator_start) * 1000
-    print(f"[timing] curator_llm_ms={curator_ms:.1f}")
+    print(f"[timing] curator_llm_ms={curator_ms:.1f} (parallel batches)")
 
     # 4) Parse curator output
     parse_start = time.perf_counter()
