@@ -130,6 +130,12 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     }
     app.state.chat_completion_llm = chat_completion_llm
 
+    # == Initialize Tool Infrastructure ==
+    from reelix_agent.tools import build_registry, ToolRunner
+
+    app.state.tool_registry = build_registry()
+    app.state.tool_runner = ToolRunner(app.state.tool_registry)
+
     # == Initialize Redis stores ==
     redis_clients = make_redis_clients(app.state.settings.redis_url)
 

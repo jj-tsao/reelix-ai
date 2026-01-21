@@ -1,42 +1,179 @@
+"""
+MCP-compatible tool type definitions.
+
+These types follow the Model Context Protocol (MCP) specification structure
+while adding Reelix-specific extensions for orchestrator flow control.
+"""
+
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, TypeVar, Generic
 
-from pydantic import BaseModel
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
-# from reelix_agent.orchestrator.agent_state import AgentState
+from pydantic import BaseModel, Field
 
-Json = dict[str, Any]
+if TYPE_CHECKING:
+    from reelix_agent.orchestrator.agent_rec_runner import AgentRecRunner
+    from reelix_agent.orchestrator.agent_state import AgentState
+    from reelix_llm.client import LlmClient
 
-@dataclass(frozen=True)
-class ToolContext:
-    state: Any                  # AgentState
-    agent_rec_runner: Any       # AgentRecRunner
-    llm_client: Any             # LlmClient
+
+class ToolCategory(StrEnum):
+    """Tool execution behavior category.
+
+    This is orchestrator-level flow control metadata, not part of MCP spec.
+    The orchestrator uses this to determine whether to loop back to the LLM
+    after tool execution.
+    """
+
+    TERMINAL = "terminal"  # Ends the orchestrator turn (e.g., recommendation_agent)
+    INTERMEDIATE = "intermediate"  # Returns result to LLM for further processing
+
+
+class ToolResultStatus(StrEnum):
+    """Status of a tool execution."""
+
+    SUCCESS = "success"
+    ERROR = "error"
+
 
 class ToolResult(BaseModel):
-    payload: Json = {}
-    state_patch: Json = {}      # patch AgentState fields deterministically
-    terminal: bool = True       # whether orchestrator should stop after this tool
+    """Result of a tool execution.
 
-TArgs = TypeVar("TArgs", bound=BaseModel)
-ToolHandler = Callable[[ToolContext, TArgs], Awaitable[ToolResult]]
+    MCP-compatible with:
+    - payload: the actual result data (maps to MCP's content)
+    - is_error: whether execution failed
 
-@dataclass(frozen=True)
-class ToolSpec(Generic[TArgs]):
-    name: str
-    description: str
-    args_model: type[TArgs]
-    handler: ToolHandler[TArgs]
-    terminal: bool = True
+    Extended with:
+    - status: more granular status enum
+    - metadata: execution metadata (timing, traces)
+    """
 
-    def openai_tool_schema(self) -> Json:
-        schema = self.args_model.model_json_schema()
+    status: ToolResultStatus = Field(default=ToolResultStatus.SUCCESS)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    is_error: bool = Field(default=False)
+    error_message: str | None = Field(default=None)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def success(cls, payload: dict[str, Any], **metadata: Any) -> ToolResult:
+        """Create a successful result."""
+        return cls(
+            status=ToolResultStatus.SUCCESS,
+            payload=payload,
+            metadata=metadata,
+        )
+
+    @classmethod
+    def error(cls, message: str, **metadata: Any) -> ToolResult:
+        """Create an error result."""
+        return cls(
+            status=ToolResultStatus.ERROR,
+            is_error=True,
+            error_message=message,
+            metadata=metadata,
+        )
+
+    def to_tool_message(self, tool_call_id: str, tool_name: str) -> dict[str, Any]:
+        """Format for LLM tool result message (OpenAI format)."""
+        import json
+
+        content = self.payload if not self.is_error else {"error": self.error_message}
+        return {
+            "role": "tool",
+            "name": tool_name,
+            "tool_call_id": tool_call_id,
+            "content": json.dumps(content) if isinstance(content, dict) else str(content),
+        }
+
+
+# Type alias for tool handler function
+ToolHandler = Callable[["ToolContext", dict[str, Any]], Awaitable[ToolResult]]
+
+
+class ToolSpec(BaseModel):
+    """MCP-compatible tool specification.
+
+    Mirrors the MCP Tool type:
+    - name: unique identifier
+    - description: human-readable description for LLM
+    - input_schema: JSON Schema for parameters
+
+    Extended with:
+    - category: terminal/intermediate behavior (orchestrator flow control)
+    - handler: async function that executes the tool
+    """
+
+    name: str = Field(..., description="Unique tool identifier")
+    description: str = Field(..., description="Human-readable description for LLM")
+    input_schema: dict[str, Any] = Field(
+        ...,
+        alias="inputSchema",
+        description="JSON Schema object describing tool parameters",
+    )
+    category: ToolCategory = Field(
+        default=ToolCategory.INTERMEDIATE,
+        description="Execution behavior category",
+    )
+
+    # Handler is not serialized - it's the implementation
+    handler: ToolHandler | None = Field(default=None, exclude=True)
+
+    model_config = {"populate_by_name": True}
+
+    def to_openai_function(self) -> dict[str, Any]:
+        """Convert to OpenAI function calling format."""
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": schema,
+                "parameters": self.input_schema,
             },
         }
+
+    def to_mcp_tool(self) -> dict[str, Any]:
+        """Convert to MCP tool format (for future server integration)."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "inputSchema": self.input_schema,
+        }
+
+
+class ToolContext(BaseModel):
+    """Execution context passed to tool handlers.
+
+    Contains all dependencies a tool might need:
+    - state: current AgentState (mutable)
+    - agent_rec_runner: recommendation pipeline runner
+    - llm_client: for tools that need LLM calls (e.g., curator)
+
+    Designed for dependency injection - tools declare what they need,
+    context provides it.
+    """
+
+    # Use Any to avoid circular imports; runtime types are checked
+    state: Any = Field(..., description="AgentState instance")
+    agent_rec_runner: Any = Field(..., description="AgentRecRunner instance")
+    llm_client: Any = Field(..., description="LlmClient instance")
+
+    # Extensible metadata for future needs
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @property
+    def user_id(self) -> str:
+        """Get user ID from state."""
+        return self.state.user_id
+
+    @property
+    def query_id(self) -> str:
+        """Get query ID from state."""
+        return self.state.query_id
+
+    @property
+    def session_id(self) -> str | None:
+        """Get session ID from state."""
+        return self.state.session_id

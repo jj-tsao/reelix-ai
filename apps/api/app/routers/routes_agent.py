@@ -22,6 +22,7 @@ from app.deps.deps import (
 )
 from app.deps.deps_llm import get_chat_completion_llm
 from app.deps.deps_redis_caches import get_ticket_store, get_state_store
+from app.deps.deps_tools import get_tool_registry, get_tool_runner
 from app.deps.supabase_client import (
     get_current_user_id,
     get_user_context_service,
@@ -48,6 +49,8 @@ async def agent_interactive_stream(
     logger=Depends(get_logger),
     ticket_store=Depends(get_ticket_store),
     state_store=Depends(get_state_store),
+    tool_registry=Depends(get_tool_registry),
+    tool_runner=Depends(get_tool_runner),
 ):
     """
     Streaming /discover/explore endpoint.
@@ -80,7 +83,10 @@ async def agent_interactive_stream(
         try:
             # 1) Orchestrator "plan" step (fast) — get tool args (spec + opening_summary)
             state, plan = await plan_orchestrator_agent(
-                agent_input=agent_input, llm_client=chat_llm
+                agent_input=agent_input,
+                llm_client=chat_llm,
+                tool_registry=tool_registry,
+                tool_runner=tool_runner,
             )
 
             # fast UI paint with opening summary + active_spec for chip display in RECS mode
@@ -106,6 +112,8 @@ async def agent_interactive_stream(
                     agent_rec_runner=agent_rec_runner,
                     user_context_service=user_context_svc,
                     llm_client=chat_llm,
+                    tool_registry=tool_registry,
+                    tool_runner=tool_runner,
                 )
             )
 
@@ -233,6 +241,8 @@ async def agent_explore_rerun(
     logger=Depends(get_logger),
     ticket_store=Depends(get_ticket_store),
     state_store=Depends(get_state_store),
+    tool_registry=Depends(get_tool_registry),
+    tool_runner=Depends(get_tool_runner),
 ):
     """
     Chip rerun endpoint: patch provider/year filters and rerun the SAME pipeline path
@@ -293,6 +303,8 @@ async def agent_explore_rerun(
         agent_rec_runner=agent_rec_runner,
         user_context_service=user_context_svc,
         llm_client=chat_llm,
+        tool_registry=tool_registry,
+        tool_runner=tool_runner,
     )
 
     # 6) Upsert session memory using existing code

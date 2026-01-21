@@ -1,22 +1,42 @@
+"""
+LLM utility functions for the agent system.
+"""
+
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from reelix_llm.client import LlmClient
-from reelix_agent.orchestrator.orchestrator_prompts import TOOLS
 from reelix_agent.core.types import LlmDecision
-from reelix_agent.orchestrator.agent_state import AgentState
+
+if TYPE_CHECKING:
+    from reelix_agent.orchestrator.agent_state import AgentState
+    from reelix_llm.client import LlmClient
 
 
-async def call_llm_with_tools(state: AgentState, llm_client: LlmClient) -> LlmDecision:
+async def call_llm_with_tools(
+    state: "AgentState",
+    llm_client: "LlmClient",
+    tools: list[dict[str, Any]] | None = None,
+) -> LlmDecision:
     """
     Call the LLM with the current AgentState.messages and tool definitions.
     Mutates `state.messages` by appending the assistant message returned by the LLM.
 
+    Args:
+        state: AgentState containing conversation messages
+        llm_client: LLM client for API calls
+        tools: Optional list of tool definitions in OpenAI format.
+               If not provided, imports from orchestrator_prompts (legacy behavior).
+
     Returns:
         LlmDecision indicating whether this is a tool call or a final response.
     """
+    # Get tools from registry if not provided (backward compatibility)
+    if tools is None:
+        from reelix_agent.orchestrator.orchestrator_prompts import TOOLS
+
+        tools = TOOLS
 
     # 1) Prepare messages for the model.
     messages: list[dict[str, Any]] = state.messages
@@ -24,7 +44,7 @@ async def call_llm_with_tools(state: AgentState, llm_client: LlmClient) -> LlmDe
     # 2) Call LLM client with tools.
     resp = await llm_client.chat(
         messages=messages,
-        tools=TOOLS,
+        tools=tools,
         tool_choice="auto",
         model="gpt-4.1-mini",
     )

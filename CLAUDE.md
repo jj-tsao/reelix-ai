@@ -1,0 +1,183 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Reelix is an AI-native movie discovery agent that uses a **multi-agent RAG system** for personalized recommendations. Three specialized agents collaborate:
+- **Orchestrator**: Routes queries, plans structured retrieval specs, and manages session memory
+- **Recommendation**: Run recommendation pipeline, and evaluates candidates on genre/tone/theme fit
+- **Explanation**: Generates personalized "why you'll like it" rationales
+
+The system combines dense embeddings (fine-tuned bge-base-en-v1.5), BM25 sparse search, cross-encoder reranking, and streaming LLM explanations.
+
+## Repository Structure
+
+This is a pnpm monorepo using Turborepo:
+- **apps/api** - FastAPI backend (Python 3.11+, managed with `uv`)
+- **apps/web** - React frontend (Vite + TypeScript + Tailwind)
+- **packages/python** - Shared Python packages (reelix_agent, reelix_core, reelix_ranking, reelix_retrieval, etc.)
+- **packages/js/ts-sdk** - TypeScript SDK generated from OpenAPI spec via Orval
+- **packages/py-sdk** - Python SDK for API client
+
+## Development Commands
+
+### Monorepo (root)
+```bash
+pnpm install              # Install all dependencies
+pnpm dev                  # Run all services via Turborepo
+pnpm build                # Build all packages
+pnpm lint                 # Lint all packages
+pnpm typecheck            # Type check all packages
+pnpm generate             # Regenerate TypeScript SDK from OpenAPI spec
+```
+
+### Frontend (apps/web)
+```bash
+cd apps/web
+pnpm dev                  # Start Vite dev server (localhost:5173)
+pnpm build                # Build for production
+pnpm lint                 # ESLint
+pnpm typecheck            # TypeScript check
+pnpm gen:db-types         # Regenerate Supabase types
+```
+
+### Backend (apps/api)
+```bash
+cd apps/api
+uv sync                   # Install Python dependencies
+source .venv/bin/activate # Activate venv
+
+# Run API server
+uvicorn app.main:app --reload --port 7860
+
+# Run tests
+pytest                           # Run all tests
+pytest tests/test_first_recommendation.py  # Run specific test file
+pytest -k "test_name"            # Run tests matching pattern
+
+# Skip model loading for faster startup during development
+REELIX_SKIP_RECOMMENDER_INIT=1 uvicorn app.main:app --reload --port 7860
+```
+
+### Linting and Formatting (Python)
+```bash
+ruff check .              # Lint
+ruff format .             # Format
+black .                   # Alternative formatter
+```
+
+## Architecture
+
+### Multi-Agent System (3 Collaborating Agents)
+
+The system uses a sophisticated **multi-agent architecture** where specialized agents collaborate to deliver personalized recommendations:
+
+#### 1. Orchestrator Agent (`reelix_agent/orchestrator/`)
+- **Role**: Route and plan user interactions
+- **Modes**: CHAT (conversational) vs RECS (recommendations)
+- **Flow**:
+  1. Receives user query → determines mode (CHAT vs RECS)
+  2. In RECS mode: produces structured `RecQuerySpec` + **opening_summary** (2 sentences, fast)
+  3. Calls `recommendation_agent` tool to execute retrieval/ranking
+  4. Manages session memory and conversation state across turns
+- **Key files**: `orchestrator_agent.py`, `agent_state.py`, `orchestrator_prompts.py`
+- **Opening summary**: The orchestrator generates this upfront (before curator runs) for fast UI paint
+
+#### 2. Curator Agent (`reelix_agent/curator/`)
+- **Role**: Evaluate and tier candidates
+- **Input**: Raw candidates from recommendation pipeline + query spec
+- **Scoring**: Evaluates each candidate on three dimensions (0-2 scale):
+  - `genre_fit`: How well the genres/sub-genres match the request
+  - `tone_fit`: How well the emotional vibe/tone matches
+  - `theme_fit`: How well the thematic ideas align
+- **Output**:
+  - Tiered evaluations (strong_match, moderate_match, no_match)
+  - Final curated list using tier-based selection logic
+- **Key files**: `curator_agent.py`, `curator_tiers.py`, `curator_prompts.py`
+
+#### 3. Explanation Agent (`reelix_agent/explanation/`)
+- **Role**: Generate personalized "why" explanations
+- **Input**: Final recommendations + user context
+- **Output**: Streaming JSONL with `{media_id, why}` for each item
+- **Key files**: `explanation_agent.py`, `explanation_prompts.py`
+
+### Agent Execution Flow
+```
+User Query
+  → Orchestrator (plan: mode, spec, opening_summary)
+    → Recommendation Tool
+      → Retrieval Pipeline (dense + sparse + ranking)
+      → Curator Agent (tier & evaluate candidates)
+    → Return: final_recs + opening_summary
+  → SSE Stream: Explanation Agent (generate "why" for each item)
+```
+
+### Recommendation Pipeline (Under the Hood)
+1. **Query Encoding** - `reelix_retrieval/query_encoder.py`: Dense (fine-tuned bge-base-en-v1.5) + sparse (BM25)
+2. **Retrieval** - `reelix_retrieval/base_retriever.py`: Hybrid search via Qdrant (dense + sparse vectors)
+3. **Ranking** - `reelix_ranking/`: Multi-stage reranking (metadata scorer + cross-encoder)
+4. **Recommendation** - `reelix_recommendation/recommend.py`: Orchestrates retrieval + ranking + RRF fusion
+
+### API Routes (apps/api/app/routers/)
+- **`routes_agent.py`** - **New agent-based explore endpoint** (`/discovery/explore`)
+  - Streams SSE: started → opening → recs → done
+  - Orchestrator plans quickly → streams opening_summary + active_spec
+  - Background: executes recommendation tool + curator
+  - Returns final recs with stream URL for explanations
+- `routes_discovery.py` - Legacy For-You feed endpoint
+- `routes_recommendations.py` - Legacy interactive vibe query endpoint
+- `routes_taste_profile.py` - User taste vector management
+- `routes_watchlist.py` - Watchlist CRUD
+
+### Frontend Features (apps/web/src/features/)
+- `discover/` - For-You personalized feed
+- `recommendation/` - Vibe query search
+- `taste_onboarding/` - User preference collection
+- `watchlist/` - Saved items management
+- `agent/` - Agent chat interface
+
+### Key Patterns
+- **Agent Tools** (`reelix_agent/tools/`): Pluggable tool system with registry, validation, and execution
+  - `recommendation_tool.py`: Terminal tool that runs pipeline → curator → returns final_recs
+  - `base.py`: Tool spec, registry, and runner infrastructure
+- **Recipes** (`reelix_recommendation/recipes.py`): Define retrieval configurations (depths, weights, fusion params)
+- **Ticket Store**: Redis-based temporary storage for LLM prompts/candidates between request phases
+- **State Store**: Redis-based session memory storage for multi-turn agent conversations
+- **SSE Streaming**: Two-phase streaming
+  1. Orchestrator streams opening summary (fast)
+  2. Explanation agent streams individual "why" explanations (JSONL over SSE)
+
+## Environment Variables
+
+Required in `apps/api/.env`:
+```
+QDRANT_ENDPOINT=
+QDRANT_API_KEY=
+SUPABASE_URL=
+SUPABASE_API_KEY=
+OPENAI_API_KEY=
+REDIS_URL=
+```
+
+## TypeScript SDK Generation
+
+The frontend uses a generated TypeScript SDK from the OpenAPI spec:
+```bash
+# From root
+pnpm generate
+
+# Or directly
+cd packages/js/ts-sdk
+pnpm generate
+```
+
+The spec lives in `packages/schemas/openapi.yaml`.
+
+## Python Package Dependencies
+
+The API depends on local packages via `uv` editable installs:
+- `reelix-core` from `packages/python`
+- `reelix-discovery-agent-api-client` from `packages/py-sdk`
+
+Pyright is configured via `pyrightconfig.json` at the root to resolve these paths.

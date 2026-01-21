@@ -1,33 +1,231 @@
+"""
+Recommendation agent tool implementation.
+
+Runs the full recommendation pipeline: retrieval → ranking → curator LLM evaluation → tier selection.
+"""
+
 from __future__ import annotations
+
 import json
 import time
 from typing import Any
 
-from pydantic import BaseModel, Field
+from anyio import to_thread
 
-from reelix_agent.core.types import RecQuerySpec, AgentMode
+from reelix_agent.core.types import AgentMode, RecQuerySpec
 from reelix_agent.curator.curator_agent import run_curator_agent
 from reelix_agent.curator.curator_tiers import apply_curator_tiers
-from .types import ToolContext, ToolResult
+from reelix_agent.tools.types import ToolCategory, ToolContext, ToolResult, ToolSpec
 
-class RecommendationArgs(BaseModel):
-    rec_query_spec: RecQuerySpec
-    opening_summary: str = Field(..., description="2 sentences")
-    memory_delta: dict[str, Any] | None = None
+# JSON Schema for the recommendation_agent tool parameters
+# Migrated from orchestrator_prompts.py TOOLS constant
+RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "rec_query_spec": {
+            "type": "object",
+            "description": (
+                "Structured rec_query_spec describing the recommendation query: "
+                "intent, media type, core genres, sub-genres, tone, and structural/thematic preferences."
+            ),
+            "properties": {
+                "query_text": {
+                    "type": "string",
+                    "description": (
+                        "Compact retrieval-oriented description of what the user wants. "
+                        "Include genre/vibe/tone/structure. Exclude greetings and meta-instructions."
+                    ),
+                },
+                "media_type": {
+                    "type": "string",
+                    "description": "Type of media to recommend. Use 'movie'",
+                    "enum": ["movie"],
+                },
+                "core_genres": {
+                    "type": "array",
+                    "description": (
+                        "List of canonical genre names to prioritize/include "
+                        "(e.g., 'Drama', 'Comedy', 'Science Fiction')."
+                    ),
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "Action",
+                            "Comedy",
+                            "Drama",
+                            "Romance",
+                            "Science Fiction",
+                            "Thriller",
+                            "Adventure",
+                            "Animation",
+                            "Crime",
+                            "Documentary",
+                            "Family",
+                            "Fantasy",
+                            "History",
+                            "Horror",
+                            "Music",
+                            "Mystery",
+                            "War",
+                            "Western",
+                        ],
+                    },
+                },
+                "sub_genres": {
+                    "type": "array",
+                    "description": (
+                        "List of more specific sub-genre descriptors such as "
+                        "'psychological thriller', 'romantic comedy', 'neo-noir', 'dark fantasy'."
+                    ),
+                    "items": {"type": "string"},
+                },
+                "core_tone": {
+                    "type": "array",
+                    "description": (
+                        "List of tone/vibe adjectives for how the content should feel emotionally, "
+                        "such as 'satirical', 'cozy', 'bleak', 'uplifting'."
+                    ),
+                    "items": {"type": "string"},
+                },
+                "narrative_shape": {
+                    "type": "array",
+                    "description": (
+                        "List of requested narrative or structural properties, such as "
+                        "'plot twists', 'slow-burn', 'nonlinear', 'fast-paced'."
+                    ),
+                    "items": {"type": "string"},
+                },
+                "key_themes": {
+                    "type": "array",
+                    "description": (
+                        "List of thematic ideas or subject-matter concerns, such as "
+                        "'existential', 'class satire', 'coming-of-age', 'identity'."
+                    ),
+                    "items": {"type": "string"},
+                },
+                "providers": {
+                    "type": "array",
+                    "description": "Optional list of streaming providers to include.",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "Netflix",
+                            "Hulu",
+                            "HBO Max",
+                            "Disney+",
+                            "Apple TV+",
+                            "Amazon Prime Video",
+                            "Paramount+",
+                            "Peacock Premium",
+                            "MGM+",
+                            "Starz",
+                            "AMC+",
+                            "Crunchyroll",
+                            "BritBox",
+                            "Acorn TV",
+                            "Criterion Channel",
+                            "Tubi TV",
+                            "Pluto TV",
+                            "The Roku Channel",
+                        ],
+                    },
+                },
+                "year_range": {
+                    "description": (
+                        "Optional release-year range as [start_year, end_year] (inclusive). "
+                        "If the user does not specify a year range, set to null."
+                    ),
+                    "anyOf": [
+                        {
+                            "type": "array",
+                            "items": {"type": "integer", "minimum": 1970, "maximum": 2100},
+                            "minItems": 2,
+                            "maxItems": 2,
+                        },
+                        {"type": "null"},
+                    ],
+                    "default": None,
+                },
+            },
+            "required": ["query_text"],
+            "additionalProperties": False,
+        },
+        "memory_delta": {
+            "type": "object",
+            "description": "Minimal session memory delta for this turn.",
+            "properties": {
+                "turn_kind": {
+                    "type": "string",
+                    "enum": ["new", "refine", "chat"],
+                },
+                "recent_feedback": {
+                    "type": ["object", "null"],
+                    "description": (
+                        "Only include when user is reacting to prior recommendations "
+                        "or iterating on the last slate. Otherwise null."
+                    ),
+                    "properties": {
+                        "liked_slots": {"type": "array", "items": {"type": "string"}},
+                        "disliked_slots": {"type": "array", "items": {"type": "string"}},
+                        "notes": {"type": "string"},
+                    },
+                    "required": ["liked_slots", "disliked_slots", "notes"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["turn_kind", "recent_feedback"],
+            "additionalProperties": False,
+        },
+        "opening_summary": {
+            "type": "string",
+            "description": (
+                "Exactly 2 sentences (max ~220 chars). "
+                "Summarize the user's current request based on rec_query_spec. "
+                "Do NOT name specific titles. Do NOT promise outcomes."
+            ),
+        },
+    },
+    "required": ["rec_query_spec", "memory_delta", "opening_summary"],
+    "additionalProperties": False,
+}
 
-async def recommendation_handler(ctx: ToolContext, args: RecommendationArgs) -> ToolResult:
+
+async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
+    """Execute the recommendation agent tool.
+
+    The main rec tool that:
+    1. Parses RecQuerySpec from args
+    2. Runs the recommendation pipeline
+    3. Runs curator LLM agent for evaluation
+    4. Applies curator tiers for final selection
+    5. Updates AgentState with results
+
+    Args:
+        ctx: ToolContext with state, agent_rec_runner, llm_client
+        args: Tool arguments containing rec_query_spec, memory_delta, opening_summary
+
+    Returns:
+        ToolResult with count and tier_stats in payload
+    """
     state = ctx.state
-    spec = args.rec_query_spec
 
-    # Apply “turn memory” into state (so session_memory builder can write it)
-    turn_mem = args.memory_delta or {}
-    state.turn_memory = turn_mem
-    state.turn_kind = turn_mem.get("turn_kind")
-    state.turn_mode = AgentMode.RECS
+    # 1) Parse arguments
+    turn_mem = args.get("memory_delta")
+    if isinstance(turn_mem, dict):
+        state.turn_memory = turn_mem
+        state.turn_kind = turn_mem.get("turn_kind") # for rec engine to apply seen_id penalty when refining
+
+    raw_spec = args.get("rec_query_spec") or {}
+    try:
+        spec = RecQuerySpec(**raw_spec)
+    except Exception as e:
+        return ToolResult.error(f"Invalid rec_query_spec: {e}")
+
     state.query_spec = spec
+    state.turn_mode = AgentMode.RECS
 
-    # 1) Rec pipeline (sync runner wrapped)
-    def _run_agent_sync():
+    # 2) Run recommendation pipeline
+    def _run_pipeline_sync():
         return ctx.agent_rec_runner.run_for_agent(
             user_context=state.user_context,
             spec=spec,
@@ -35,46 +233,81 @@ async def recommendation_handler(ctx: ToolContext, args: RecommendationArgs) -> 
             turn_kind=state.turn_kind,
         )
 
-    t0 = time.perf_counter()
-    candidates, traces, ctx_log = await ctx.state.to_thread.run_sync(_run_agent_sync)  # or anyio.to_thread
-    pipeline_ms = (time.perf_counter() - t0) * 1000
+    pipeline_start = time.perf_counter()
+    candidates, traces, ctx_log = await to_thread.run_sync(_run_pipeline_sync)
+    pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
+    print(f"[timing] rec_pipeline_sync_ms={pipeline_ms:.1f}")
 
-    # 2) Curator
-    t1 = time.perf_counter()
-    raw = await run_curator_agent(
+    state.candidates = candidates
+    if traces:
+        state.pipeline_traces.append(traces)
+    if ctx_log:
+        state.ctx_log = ctx_log
+
+    # 3) Run curator agent
+    curator_start = time.perf_counter()
+    curator_output = await run_curator_agent(
         query_text=spec.query_text,
-        spec=spec,
+        spec=state.query_spec,
         candidates=candidates,
         llm_client=ctx.llm_client,
         user_signals=None,
     )
-    curator_ms = (time.perf_counter() - t1) * 1000
+    curator_ms = (time.perf_counter() - curator_start) * 1000
+    print(f"[timing] curator_llm_ms={curator_ms:.1f}")
 
+    # 4) Parse curator output
+    parse_start = time.perf_counter()
     try:
-        curator_payload = json.loads(raw)
-    except Exception:
-        curator_payload = {"evaluation_results": []}
+        curator_data = json.loads(curator_output)
+    except json.JSONDecodeError as e:
+        return ToolResult.error(f"Curator output parse error: {e}")
+    parse_ms = (time.perf_counter() - parse_start) * 1000
+    print(f"[timing] curator_parse_ms={parse_ms:.1f}")
 
-    final_recs, stats = apply_curator_tiers(
-        evaluation_results=curator_payload.get("evaluation_results", []),
-        candidates=candidates,
+    state.curator_eval = curator_data.get("evaluation_results", [])
+
+    # 5) Apply curator tiers for final selection
+    tiers_start = time.perf_counter()
+    state.final_recs, tier_stats = apply_curator_tiers(
+        evaluation_results=state.curator_eval,
+        candidates=state.candidates,
         limit=spec.num_recs or 8,
     )
+    tiers_ms = (time.perf_counter() - tiers_start) * 1000
+    print(f"[timing] curator_tiers_ms={tiers_ms:.1f}")
 
-    # Patch state (single place)
-    patch = {
-        "candidates": candidates,
-        "final_recs": final_recs,
-        "ctx_log": ctx_log,
-        # keep traces small; you can stash full traces elsewhere
-        "curator_opening": args.opening_summary,
-    }
+    # 6) Record trace for multi-turn (appended to messages by orchestrator if needed)
+    state.agent_trace.append(
+        {
+            "step": state.step_count,
+            "tool": "recommendation_agent",
+            "args": args,
+            "result": {"count": len(state.final_recs)},
+        }
+    )
 
-    # Return minimal tool payload (don’t dump 20 full items back into the LLM unless needed)
-    payload = {
-        "ok": True,
-        "counts": {"candidates": len(candidates), "final_recs": len(final_recs)},
-        "timing_ms": {"pipeline": pipeline_ms, "curator": curator_ms},
-    }
+    # 7) Build result payload
+    return ToolResult.success(
+        payload={
+            "count": len(state.final_recs),
+            "tier_stats": tier_stats,
+        },
+        pipeline_ms=pipeline_ms,
+        curator_ms=curator_ms,
+        tiers_ms=tiers_ms,
+    )
 
-    return ToolResult(payload=payload, state_patch=patch, terminal=True)
+
+# Create the ToolSpec instance for registration
+# NOTE: This must be after the handler function is defined
+recommendation_agent_spec = ToolSpec(
+    name="recommendation_agent",
+    description=(
+        "Run the Reelix recommendation pipeline for the current user using a rec_query_spec. "
+        "Use this to retrieve, rank, and curate recommendations based on the user's request."
+    ),
+    input_schema=RECOMMENDATION_AGENT_SCHEMA,
+    category=ToolCategory.TERMINAL,
+    handler=handle_recommendation_agent,
+)

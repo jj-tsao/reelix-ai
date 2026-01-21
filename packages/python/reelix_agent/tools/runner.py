@@ -1,58 +1,92 @@
+"""
+Tool runner for executing tools from the registry.
+"""
+
 from __future__ import annotations
-import json
-from typing import Any
 
-from pydantic import ValidationError
+import time
+from typing import TYPE_CHECKING
 
-from .registry import ToolRegistry
-from .types import ToolContext, ToolResult
+from reelix_agent.tools.registry import ToolRegistry
+from reelix_agent.tools.types import ToolContext, ToolResult
+
+if TYPE_CHECKING:
+    from reelix_agent.core.types import LlmDecision
+
 
 class ToolRunner:
-    def __init__(self, registry: ToolRegistry) -> None:
-        self.registry = registry
+    """Executes tools from the registry.
 
-    async def run(self, *, decision: Any, ctx: ToolContext) -> ToolResult:
-        """
-        decision: LlmDecision-like (tool_name, tool_args, tool_call_id)
-        Mutates ctx.state in a consistent way + appends the standardized tool message.
+    Responsibilities:
+    - Validate tool exists in registry
+    - Execute handler with timing/tracing
+    - Handle errors gracefully
+    - Provide terminal tool lookup for orchestrator flow control
+    """
+
+    def __init__(self, registry: ToolRegistry) -> None:
+        self._registry = registry
+
+    async def run(
+        self,
+        *,
+        decision: "LlmDecision",
+        ctx: ToolContext,
+    ) -> ToolResult:
+        """Execute a tool based on LLM decision.
+
+        Args:
+            decision: LlmDecision with tool_name and tool_args
+            ctx: ToolContext with dependencies
+
+        Returns:
+            ToolResult with success/error status and payload
         """
         tool_name = decision.tool_name
-        spec = self.registry.get(tool_name)
+        tool_args = decision.tool_args or {}
+
+        # 1) Lookup tool
+        spec = self._registry.get(tool_name)
         if spec is None:
-            payload = {"error": f"Unknown tool '{tool_name}'", "args": decision.tool_args or {}}
-            self._append_tool_message(ctx.state, decision, tool_name, payload)
-            return ToolResult(payload=payload, terminal=True)
+            return ToolResult.error(
+                f"Unknown tool: '{tool_name}'",
+                tool_name=tool_name,
+                args=tool_args,
+            )
 
-        # 1) Validate args
-        try:
-            args_obj = spec.args_model.model_validate(decision.tool_args or {})
-        except ValidationError as e:
-            payload = {"error": "Tool args validation failed", "tool": tool_name, "detail": e.errors()}
-            self._append_tool_message(ctx.state, decision, tool_name, payload)
-            return ToolResult(payload=payload, terminal=True)
+        if spec.handler is None:
+            return ToolResult.error(
+                f"Tool '{tool_name}' has no handler",
+                tool_name=tool_name,
+            )
 
-        # 2) Execute
+        # 2) Execute with timing
+        start = time.perf_counter()
         try:
-            result = await spec.handler(ctx, args_obj)
+            result = await spec.handler(ctx, tool_args)
         except Exception as e:
-            payload = {"error": "Tool execution failed", "tool": tool_name, "detail": str(e)}
-            self._append_tool_message(ctx.state, decision, tool_name, payload)
-            return ToolResult(payload=payload, terminal=True)
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            return ToolResult.error(
+                str(e),
+                tool_name=tool_name,
+                elapsed_ms=elapsed_ms,
+                exception_type=type(e).__name__,
+            )
 
-        # 3) Apply state patch
-        for k, v in (result.state_patch or {}).items():
-            setattr(ctx.state, k, v)
+        elapsed_ms = (time.perf_counter() - start) * 1000
 
-        # 4) Append tool result message (ALWAYS name == invoked tool)
-        self._append_tool_message(ctx.state, decision, tool_name, result.payload or {})
+        # 3) Enrich metadata
+        result.metadata["tool_name"] = tool_name
+        result.metadata["elapsed_ms"] = elapsed_ms
+        result.metadata["category"] = spec.category.value
+
         return result
 
-    def _append_tool_message(self, state: Any, decision: Any, tool_name: str, payload: dict[str, Any]) -> None:
-        state.messages.append(
-            {
-                "role": "tool",
-                "name": tool_name,
-                "tool_call_id": decision.tool_call_id,
-                "content": json.dumps(payload, ensure_ascii=False),
-            }
-        )
+    def is_terminal(self, tool_name: str) -> bool:
+        """Check if a tool is terminal (ends orchestrator turn)."""
+        return tool_name in self._registry.terminal_tools()
+
+    @property
+    def registry(self) -> ToolRegistry:
+        """Access the underlying registry."""
+        return self._registry
