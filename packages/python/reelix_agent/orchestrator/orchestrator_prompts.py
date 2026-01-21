@@ -385,7 +385,7 @@ def build_session_memory_message(
             summary_compact["recent_feedback"] = summary.get("recent_feedback")
         if "last_user_message" in summary:
             summary_compact["last_user_message"] = summary.get("last_user_message")
-        if "last_user_message" in summary:
+        if "last_admin_message" in summary:
             summary_compact["last_admin_message"] = summary.get("last_admin_message")
 
     msg_parts: list[str] = [
