@@ -391,6 +391,9 @@ def build_session_memory_message(
     msg_parts: list[str] = [
         "SESSION MEMORY (server-provided; do NOT reveal to the user).",
         "Use this to interpret short follow-ups and references.",
+        "Interpretation rules: "
+        "If the user is refining, start from last_spec and patch it. "
+        "If the user is starting a new request, ignore last_spec/slot_map unless they explicitly say to keep something."
     ]
 
     if summary:
@@ -409,10 +412,10 @@ def build_session_memory_message(
         msg_parts.extend(slot_lines)
 
     # Guidance to avoid over-carry
-    msg_parts.append(
-        "Interpretation rules: "
-        "If the user is refining, start from last_spec and patch it. "
-        "If the user is starting a new request, ignore last_spec/slot_map unless they explicitly say to keep something."
-    )
+    # msg_parts.append(
+    #     "Interpretation rules: "
+    #     "If the user is refining, start from last_spec and patch it. "
+    #     "If the user is starting a new request, ignore last_spec/slot_map unless they explicitly say to keep something."
+    # )
 
     return "\n".join(msg_parts), prior_spec, slot_map
