@@ -1,4 +1,5 @@
 import { BASE_URL } from "@/api";
+import { getResponseErrorMessage } from "@/lib/errors";
 import { getSupabaseAccessToken } from "@/lib/session";
 import type { DeviceInfo } from "@/types/types";
 import { normalizeTomatoScore } from "../for_you/api";
@@ -155,8 +156,9 @@ export async function streamExplore({
   });
 
   if (!response.ok) {
-    const detail = await safeReadText(response);
-    throw new Error(detail || `Explore request failed (${response.status})`);
+    throw new Error(
+      getResponseErrorMessage(response, `Explore request failed (${response.status})`)
+    );
   }
 
   const body = response.body;
@@ -222,8 +224,9 @@ export async function rerunExplore({
   });
 
   if (!response.ok) {
-    const detail = await safeReadText(response);
-    throw new Error(detail || `Explore rerun failed (${response.status})`);
+    throw new Error(
+      getResponseErrorMessage(response, `Explore rerun failed (${response.status})`)
+    );
   }
 
   const payload = (await response.json()) as ExploreRecsResponse;
@@ -263,8 +266,9 @@ export async function streamExploreWhy({
   });
 
   if (!response.ok) {
-    const detail = await safeReadText(response);
-    throw new Error(detail || `Explore why stream failed (${response.status})`);
+    throw new Error(
+      getResponseErrorMessage(response, `Explore why stream failed (${response.status})`)
+    );
   }
 
   const body = response.body;
@@ -420,15 +424,6 @@ function parseSseEvent(raw: string): ExploreWhyEvent | null {
 function safeJsonParse<T>(value: string): T | null {
   try {
     return JSON.parse(value) as T;
-  } catch (error) {
-    void error;
-    return null;
-  }
-}
-
-async function safeReadText(response: Response): Promise<string | null> {
-  try {
-    return await response.text();
   } catch (error) {
     void error;
     return null;

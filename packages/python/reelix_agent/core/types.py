@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Any, Literal
-from pydantic import Field
+from pydantic import Field, field_validator
 from dataclasses import dataclass
 
 
@@ -65,6 +65,23 @@ class RecQuerySpec(BaseModel):
     # query_filters: QueryFilter | None = None
     max_runtime_minutes: int | None = None
     num_recs: int = 8
+
+    @field_validator(
+        "seed_titles",
+        "core_genres",
+        "exclude_genres",
+        "sub_genres",
+        "core_tone",
+        "narrative_shape",
+        "key_themes",
+        "providers",
+        mode="before",
+    )
+    @classmethod
+    def _none_to_list(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        return value
 
 
 class LlmDecision(AgentBaseModel):

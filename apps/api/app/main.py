@@ -44,8 +44,6 @@ class Settings(BaseSettings):
     ticket_ttl_sec: int = 3600  # 60 min cap
     session_ttl_sec: int = 7 * 24 * 3600  # 7d cap
     why_cache_ttl_sec: int = 14 * 24 * 3600  # 2 weeks cap
-    ticket_ttl_sec: int = 3600  # 60 min absolute cap
-    why_cache_ttl_sec: int = 7 * 24 * 3600
 
     # env config
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

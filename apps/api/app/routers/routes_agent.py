@@ -1,6 +1,8 @@
 import asyncio
 from collections.abc import AsyncIterator
 import json
+import logging
+import uuid
 from pydantic import BaseModel, ValidationError
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,6 +38,7 @@ router = APIRouter(prefix="/discovery", tags=["explore"])
 ENDPOINT = "discovery/explore"
 IDLE_TTL_SEC = 15 * 60
 HEARTBEAT_SEC = 15
+log = logging.getLogger(__name__)
 
 
 @router.post("/explore")
@@ -217,8 +220,16 @@ async def agent_interactive_stream(
             )
             yield _sse("done", {"ok": True})
 
-        except Exception as e:
-            yield _sse("error", {"message": str(e)})
+        except Exception:
+            error_id = str(uuid.uuid4())
+            log.exception("Explore stream failed (error_id=%s)", error_id)
+            yield _sse(
+                "error",
+                {
+                    "message": "Something went wrong. Please try again.",
+                    "error_id": error_id,
+                },
+            )
 
     return StreamingResponse(
         gen(),
@@ -436,8 +447,16 @@ async def stream_why(
 
             yield _sse("done", {"ok": True})
 
-        except Exception as e:
-            yield _sse("error", {"message": str(e)})
+        except Exception:
+            error_id = str(uuid.uuid4())
+            log.exception("Explore why stream failed (error_id=%s)", error_id)
+            yield _sse(
+                "error",
+                {
+                    "message": "Something went wrong. Please try again.",
+                    "error_id": error_id,
+                },
+            )
 
     return StreamingResponse(
         gen(),

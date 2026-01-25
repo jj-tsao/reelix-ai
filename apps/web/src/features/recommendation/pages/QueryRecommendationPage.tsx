@@ -13,6 +13,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { getDefaultYearRange, YEAR_RANGE_MAX, YEAR_RANGE_MIN } from "@/utils/yearRange";
 
 function ActiveFilterPill({
   label,
@@ -41,7 +42,7 @@ export default function QueryRecommendationPage() {
     media_type: "movie",
     genres: [],
     providers: [],
-    year_range: [1970, 2025],
+    year_range: getDefaultYearRange(),
   });
 
   const [question, setQuestion] = useState("");
@@ -105,7 +106,7 @@ export default function QueryRecommendationPage() {
       media_type: "movie",
       genres: [],
       providers: [],
-      year_range: [1970, 2025],
+      year_range: getDefaultYearRange(),
     });
 
     const signature = `${location.key ?? "root"}|${incomingQuery}`;
@@ -156,8 +157,8 @@ export default function QueryRecommendationPage() {
     !showFilters &&
     (filters.genres.length > 0 ||
       filters.providers.length > 0 ||
-      filters.year_range[0] !== 1970 ||
-      filters.year_range[1] !== 2025);
+      filters.year_range[0] !== YEAR_RANGE_MIN ||
+      filters.year_range[1] !== YEAR_RANGE_MAX);
 
   return (
     <main className="pt-8 px-4 sm:px-6 lg:px-8 pb-6 flex flex-col gap-8 min-h-[100dvh]">
@@ -269,14 +270,14 @@ export default function QueryRecommendationPage() {
               />
             ))}
 
-            {(filters.year_range[0] !== 1970 ||
-              filters.year_range[1] !== 2025) && (
+            {(filters.year_range[0] !== YEAR_RANGE_MIN ||
+              filters.year_range[1] !== YEAR_RANGE_MAX) && (
               <ActiveFilterPill
                 label={`Year: ${filters.year_range[0]}–${filters.year_range[1]}`}
                 onClear={() =>
                   setFilters((prev) => ({
                     ...prev,
-                    year_range: [1970, 2025],
+                    year_range: getDefaultYearRange(),
                   }))
                 }
               />
@@ -289,7 +290,7 @@ export default function QueryRecommendationPage() {
                   ...prev,
                   genres: [],
                   providers: [],
-                  year_range: [1970, 2025],
+                  year_range: getDefaultYearRange(),
                 }))
               }
             >

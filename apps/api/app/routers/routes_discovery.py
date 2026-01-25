@@ -1,6 +1,8 @@
 import json
 import time
 import asyncio
+import logging
+import uuid
 from typing import Iterator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -29,6 +31,7 @@ ENDPOINT = "discovery/for-you"
 PIPELINE_VERSION = "RecommendPipeline@v2"
 IDLE_TTL_SEC = 15 * 60
 HEARTBEAT_SEC = 15
+log = logging.getLogger(__name__)
 
 
 @router.post("/for-you")
@@ -262,8 +265,16 @@ async def stream_why(
                     pass
 
             yield _sse("done", {"ok": True})
-        except Exception as e:
-            yield _sse("error", {"message": str(e)})
+        except Exception:
+            error_id = str(uuid.uuid4())
+            log.exception("Discovery why stream failed (error_id=%s)", error_id)
+            yield _sse(
+                "error",
+                {
+                    "message": "Something went wrong. Please try again.",
+                    "error_id": error_id,
+                },
+            )
 
     return StreamingResponse(
         gen(),
