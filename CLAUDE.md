@@ -124,7 +124,7 @@ User Query
   - Streams SSE: started → opening → recs → done
   - Orchestrator plans quickly → streams opening_summary + active_spec
   - Background: executes recommendation tool + curator
-  - Returns final recs with stream URL for explanations
+  - Returns final recs with why URL for explanations
 - `routes_discovery.py` - Legacy For-You feed endpoint
 - `routes_recommendations.py` - Legacy interactive vibe query endpoint
 - `routes_taste_profile.py` - User taste vector management

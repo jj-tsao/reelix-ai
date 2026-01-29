@@ -493,11 +493,11 @@ export default function ExplorePage() {
   );
 
   const startWhyStream = useCallback(
-    async (streamUrl: string | null | undefined, token: string) => {
+    async (whyUrl: string | null | undefined, token: string) => {
       whyAbortRef.current?.abort();
       whyAbortRef.current = null;
 
-      if (!streamUrl) {
+      if (!whyUrl) {
         setCards((prev) => finalizeWhyLoading(prev));
         setIsWhyStreaming(false);
         return;
@@ -509,7 +509,7 @@ export default function ExplorePage() {
       try {
         await streamExploreWhy({
           token,
-          streamUrl,
+          streamUrl: whyUrl,
           signal: controller.signal,
           onEvent: handleWhyStreamEvent,
         });
@@ -640,7 +640,7 @@ export default function ExplorePage() {
         setHasRecsResponse(true);
         setIsExploreStreaming(false);
         void loadWatchlistState(newOrder);
-        void startWhyStream(event.data.stream_url ?? null, token);
+        void startWhyStream(event.data.why_url ?? null, token);
         return;
       }
 
@@ -1109,7 +1109,7 @@ export default function ExplorePage() {
         setIsAwaitingRecs(false);
         setHasRecsResponse(true);
         void loadWatchlistState(newOrder);
-        void startWhyStream(response.stream_url, token);
+        void startWhyStream(response.why_url, token);
       } catch (error) {
         setCards(previousCards);
         setOrder(previousOrder);

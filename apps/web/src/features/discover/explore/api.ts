@@ -57,7 +57,7 @@ export interface ExploreRecsResponse {
   mode: "RECS";
   opening?: string | null;
   items: ExploreItem[];
-  stream_url?: string | null;
+  why_url?: string | null;
   active_spec?: ActiveSpecEnvelope | null;
 }
 
@@ -110,7 +110,7 @@ export type ExploreStreamEvent =
       data: {
         query_id: string;
         items: ExploreItem[];
-        stream_url?: string | null;
+        why_url?: string | null;
         curator_opening?: string | null;
       };
     }
@@ -239,7 +239,10 @@ export async function rerunExplore({
     mode: "RECS",
     opening: payload.opening ?? "",
     items: payload.items,
-    stream_url: payload.stream_url ?? null,
+    why_url:
+      payload.why_url ??
+      (payload as { stream_url?: string | null }).stream_url ??
+      null,
     active_spec: payload.active_spec ?? null,
   };
 }
@@ -368,8 +371,12 @@ function parseExploreSseEvent(raw: string): ExploreStreamEvent | null {
       const queryId = typeof json?.query_id === "string" ? json.query_id : null;
       if (!queryId) return null;
       const items = Array.isArray(json?.items) ? (json.items as ExploreItem[]) : [];
-      const streamUrl =
-        typeof json?.stream_url === "string" ? json.stream_url : null;
+      const whyUrl =
+        typeof json?.why_url === "string"
+          ? json.why_url
+          : typeof json?.stream_url === "string"
+            ? json.stream_url
+            : null;
       const curatorOpening =
         typeof json?.curator_opening === "string" ? json.curator_opening : null;
       return {
@@ -377,7 +384,7 @@ function parseExploreSseEvent(raw: string): ExploreStreamEvent | null {
         data: {
           query_id: queryId,
           items,
-          stream_url: streamUrl,
+          why_url: whyUrl,
           curator_opening: curatorOpening,
         },
       };

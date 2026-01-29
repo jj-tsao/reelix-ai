@@ -58,12 +58,12 @@ async def agent_interactive_stream(
     """
     Streaming /discover/explore endpoint.
 
-    Emits SSE events so the UI can render an opening summary + active_spec immediately, while the curator runs in the background.
+    Emits SSE events so the UI can render an opening summary + active_spec immediately, followed by final recs, as well as why_url for WHY explanations.
 
     Events:
       - started: {query_id}
       - opening: {query_id, opening_summary, active_spec}
-      - recs: {query_id, items, stream_url}
+      - recs: {query_id, items, why_url}
       - done / error
     """
     session_state = await state_store.get_session(session_id=req.session_id, touch=True)
@@ -215,7 +215,7 @@ async def agent_interactive_stream(
                     "query_id": req.query_id,
                     "curator_opening": agent_result.summary,
                     "items": items,
-                    "stream_url": f"/discovery/explore/why?query_id={req.query_id}",
+                    "why_url": f"/discovery/explore/why?query_id={req.query_id}",
                 },
             )
             yield _sse("done", {"ok": True})
@@ -385,7 +385,7 @@ async def agent_explore_rerun(
             "mode": "RECS",
             "active_spec": active_spec.model_dump(mode="json") if active_spec else None,
             "items": items,
-            "stream_url": f"/discovery/explore/why?query_id={req.query_id}",
+            "why_url": f"/discovery/explore/why?query_id={req.query_id}",
         }
     )
 

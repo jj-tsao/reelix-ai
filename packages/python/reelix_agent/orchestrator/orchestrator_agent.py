@@ -64,7 +64,7 @@ async def plan_orchestrator_agent(
     - RECS mode: produce a plan with tool call
 
     Args:
-        agent_input: User input for this turn
+        agent_input: User query input for this turn
         llm_client: LLM client for API calls
         tool_registry: Tool registry for tool discovery
         tool_runner: Tool runner for tool execution
