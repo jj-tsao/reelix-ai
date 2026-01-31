@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 from pydantic import Field, field_validator
 from dataclasses import dataclass
 
@@ -9,27 +9,24 @@ from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict
 from reelix_core.types import MediaType
 from reelix_ranking.types import Candidate
-from reelix_user_context.user_context_service import UserContextService
 
 
 class AgentBaseModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class InteractiveAgentInput(AgentBaseModel):
+class ExploreAgentInput(AgentBaseModel):
     user_id: str
     query_id: str
-    session_id: str | None
+    session_id: str
     media_type: MediaType
     query_text: str
-    # query_filters: QueryFilter | None
     session_memory: dict | None
-    user_context_service: UserContextService
     batch_size: int = 20
     device_info: Any | None = None
 
 
-class InteractiveAgentResult(AgentBaseModel):
+class RecAgentResult(AgentBaseModel):
     mode: AgentMode
     message: str | None = None
     query_spec: RecQuerySpec | None
@@ -85,10 +82,6 @@ class RecQuerySpec(BaseModel):
 
 
 class LlmDecision(AgentBaseModel):
-    """
-    Normalized result of a single LLM call with tools.
-    """
-
     is_tool_call: bool
     content: str | None = None
     tool_name: str | None = None  # function name if is_tool_call=True

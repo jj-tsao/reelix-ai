@@ -1,7 +1,7 @@
 import json
 from typing import Any
 
-from reelix_agent.core.types import InteractiveAgentInput
+from reelix_agent.core.types import ExploreAgentInput
 from reelix_agent.core.types import RecQuerySpec
 
 ORCHESTRATOR_SYSTEM_PROMPT = """
@@ -94,6 +94,12 @@ It has fields like:
   - The current year is {{CURRENT_YEAR}}. Use this as the end_year for "from the past 10 years", "after 2010".
   - If you include year_range, you MUST provide both start_year and end_year. Ensure start_year <= end_year.
 
+- mentioned_titles:
+  - Extract movie titles explicitly mentioned by the user as examples or comparisons.
+  - Include titles from phrases like: "I like X", "something like X".
+  - Extract the title only, not descriptors (e.g., "The Matrix" not "The Matrix trilogy").
+  - These titles will be automatically excluded from results.
+
 ---
 ## Session memory delta (critical, minimal)
 
@@ -133,199 +139,8 @@ Requirements:
 - Contextualize the overall the theme and the overall viewing experience and constraints to the user.
 """
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "recommendation_agent",
-            "description": (
-                "Run the Reelix recommendation_agent for the current user using a rec_query_spec. "
-                "Use this to retrieve, rank, and curate recommendations based on the user's request."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "rec_query_spec": {
-                        "type": "object",
-                        "description": (
-                            "Structured rec_query_spec describing the recommendation query: "
-                            "intent, media type, core genres, sub-genres, tone, and structural/thematic preferences."
-                        ),
-                        "properties": {
-                            "query_text": {
-                                "type": "string",
-                                "description": (
-                                    "Compact retrieval-oriented description of what the user wants. "
-                                    "Include genre/vibe/tone/structure. Exclude greetings and meta-instructions."
-                                ),
-                            },
-                            "media_type": {
-                                "type": "string",
-                                "description": "Type of media to recommend. Use 'movie'",
-                                "enum": ["movie"],
-                            },
-                            "core_genres": {
-                                "type": "array",
-                                "description": (
-                                    "List of canonical genre names to prioritize/include "
-                                    "(e.g., 'Drama', 'Comedy', 'Science Fiction')."
-                                ),
-                                "items": {
-                                    "type": "string",
-                                    "enum": [
-                                        "Action",
-                                        "Comedy",
-                                        "Drama",
-                                        "Romance",
-                                        "Science Fiction",
-                                        "Thriller",
-                                        "Adventure",
-                                        "Animation",
-                                        "Crime",
-                                        "Documentary",
-                                        "Family",
-                                        "Fantasy",
-                                        "History",
-                                        "Horror",
-                                        "Music",
-                                        "Mystery",
-                                        "War",
-                                        "Western",
-                                    ],
-                                },
-                            },
-                            "sub_genres": {
-                                "type": "array",
-                                "description": (
-                                    "List of more specific sub-genre descriptors such as "
-                                    "'psychological thriller', 'romantic comedy', 'neo-noir', 'dark fantasy'."
-                                ),
-                                "items": {"type": "string"},
-                            },
-                            "core_tone": {
-                                "type": "array",
-                                "description": (
-                                    "List of tone/vibe adjectives for how the content should feel emotionally, "
-                                    "such as 'satirical', 'cozy', 'bleak', 'uplifting'."
-                                ),
-                                "items": {"type": "string"},
-                            },
-                            "narrative_shape": {
-                                "type": "array",
-                                "description": (
-                                    "List of requested narrative or structural properties, such as "
-                                    "'plot twists', 'slow-burn', 'nonlinear', 'fast-paced'."
-                                ),
-                                "items": {"type": "string"},
-                            },
-                            "key_themes": {
-                                "type": "array",
-                                "description": (
-                                    "List of thematic ideas or subject-matter concerns, such as "
-                                    "'existential', 'class satire', 'coming-of-age', 'identity'."
-                                ),
-                                "items": {"type": "string"},
-                            },
-                            "providers": {
-                                "type": "array",
-                                "description": (
-                                    "Optional list of streaming providers to include. "
-                                ),
-                                "items": {
-                                    "type": "string",
-                                    "enum": [
-                                        "Netflix",
-                                        "Hulu",
-                                        "HBO Max",
-                                        "Disney+",
-                                        "Apple TV+",
-                                        "Amazon Prime Video",
-                                        "Paramount+",
-                                        "Peacock Premium",
-                                        "MGM+",
-                                        "Starz",
-                                        "AMC+",
-                                        "Crunchyroll",
-                                        "BritBox",
-                                        "Acorn TV",
-                                        "Criterion Channel",
-                                        "Tubi TV",
-                                        "Pluto TV",
-                                        "The Roku Channel",
-                                    ],
-                                },
-                            },
-                            "year_range": {
-                                "description": "Optional release-year range as [start_year, end_year] (inclusive). If the user does not specify a year range, set to null.",
-                                "anyOf": [
-                                    {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "integer",
-                                            "minimum": 1970,
-                                            "maximum": 2100,
-                                        },
-                                        "minItems": 2,
-                                        "maxItems": 2,
-                                    },
-                                    {"type": "null"},
-                                ],
-                                "default": None,
-                            },
-                        },
-                        "required": ["query_text"],
-                        "additionalProperties": False,
-                    },
-                    "memory_delta": {
-                        "type": "object",
-                        "description": "Minimal session memory delta for this turn.",
-                        "properties": {
-                            "turn_kind": {
-                                "type": "string",
-                                "enum": ["new", "refine", "chat"],
-                            },
-                            "recent_feedback": {
-                                "type": ["object", "null"],
-                                "description": (
-                                    "Only include when user is reacting to prior recommendations "
-                                    "or iterating on the last slate. Otherwise null."
-                                ),
-                                "properties": {
-                                    "liked_slots": {
-                                        "type": "array",
-                                        "items": {"type": "string"},
-                                    },
-                                    "disliked_slots": {
-                                        "type": "array",
-                                        "items": {"type": "string"},
-                                    },
-                                    "notes": {"type": "string"},
-                                },
-                                "required": ["liked_slots", "disliked_slots", "notes"],
-                                "additionalProperties": False,
-                            },
-                        },
-                        "required": ["turn_kind", "recent_feedback"],
-                        "additionalProperties": False,
-                    },
-                    "opening_summary": {
-                        "type": "string",
-                        "description": (
-                            "Exactly 2 sentences (max ~220 chars). "
-                            "Summarize the user's current request based on rec_query_spec. "
-                            "Do NOT name specific titles. Do NOT promise outcomes."
-                        ),
-                    },
-                },
-                "required": ["rec_query_spec", "memory_delta", "opening_summary"],
-                "additionalProperties": False,
-            },
-        },
-    },
-]
 
-
-def build_orchestrator_user_prompt(agent_input: InteractiveAgentInput) -> str:
+def build_orchestrator_user_prompt(agent_input: ExploreAgentInput) -> str:
     """
     Normalize the agent input into a single user message string that includes both free-text query and structured filters.
     """
@@ -410,12 +225,5 @@ def build_session_memory_message(
     if slot_lines:
         msg_parts.append("last slate slot_map:")
         msg_parts.extend(slot_lines)
-
-    # Guidance to avoid over-carry
-    # msg_parts.append(
-    #     "Interpretation rules: "
-    #     "If the user is refining, start from last_spec and patch it. "
-    #     "If the user is starting a new request, ignore last_spec/slot_map unless they explicitly say to keep something."
-    # )
 
     return "\n".join(msg_parts), prior_spec, slot_map

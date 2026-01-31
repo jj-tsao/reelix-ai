@@ -1,10 +1,3 @@
-"""
-Agent state container for the orchestrator.
-
-This is a pure state container - tool execution logic has been moved to
-the tools package (reelix_agent.tools).
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -17,7 +10,7 @@ from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_agent.core.types import (
     AgentBaseModel,
     AgentMode,
-    InteractiveAgentInput,
+    ExploreAgentInput,
     RecQuerySpec,
 )
 from reelix_agent.orchestrator.orchestrator_prompts import (
@@ -35,15 +28,13 @@ class AgentState(AgentBaseModel):
     - LLM conversation messages
     - Domain state (candidates, recommendations, etc.)
     - Telemetry and traces
-
-    Tool execution is handled externally by ToolRunner.
     """
 
     # IDs / metadata
     user_id: str
     query_id: str
-    session_id: str | None = None
-    media_type: str | None = None
+    session_id: str
+    media_type: str
     device_info: Any | None = None
 
     # LLM conversational state
@@ -54,8 +45,8 @@ class AgentState(AgentBaseModel):
     slot_map: dict[str, Any] | None = None
 
     # Current turn routing + output
-    turn_mode: AgentMode | None = None
-    turn_kind: str | None = None
+    turn_mode: AgentMode | None = None  # value: "recs" | "chat"
+    turn_kind: str | None = None  # "new" | "refine" | "chat"
     turn_memory: dict | None = None
     turn_message: str | None = None
 
@@ -67,7 +58,6 @@ class AgentState(AgentBaseModel):
     curator_opening: str | None = None
     curator_eval: list = Field(default_factory=list)
     final_recs: list[Candidate] = Field(default_factory=list)
-    final_summary: str | None = None
     current_year: int
 
     # Control
@@ -84,22 +74,20 @@ class AgentState(AgentBaseModel):
     @classmethod
     def from_agent_input(
         cls,
-        agent_input: InteractiveAgentInput,
-        user_context: UserTasteContext | None = None,
+        agent_input: ExploreAgentInput,
     ) -> "AgentState":
         """Bootstrap a fresh AgentState from the HTTP-level input.
 
-        Called at the start of an interactive agent run
-        (new query_id / session), before any tools are invoked.
+        Called at the start of an interactive agent run (new query_id), before any tools are invoked.
 
         Args:
             agent_input: User input for this turn
-            user_context: Optional pre-fetched user taste context
 
         Returns:
             Initialized AgentState
         """
-        # Build the initial user message content the LLM sees
+        
+        # Build the admin/user message contents this turn for orchestrator LLM
         current_year = datetime.now().year
         system_prompt = ORCHESTRATOR_SYSTEM_PROMPT.replace(
             "{{CURRENT_YEAR}}", str(current_year)
@@ -109,8 +97,6 @@ class AgentState(AgentBaseModel):
         mem_msg, prior_spec, slot_map = build_session_memory_message(
             agent_input.session_memory
         )
-
-        print(mem_msg)
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
@@ -133,7 +119,7 @@ class AgentState(AgentBaseModel):
             user_id=agent_input.user_id,
             query_id=agent_input.query_id,
             session_id=agent_input.session_id,
-            media_type=str(agent_input.media_type) if agent_input.media_type else None,
+            media_type=str(agent_input.media_type),
             device_info=agent_input.device_info,
             messages=messages,
             session_memory=agent_input.session_memory,

@@ -19,30 +19,6 @@ from reelix_agent.curator.curator_tiers import apply_curator_tiers
 from reelix_agent.tools.types import ToolCategory, ToolContext, ToolResult, ToolSpec
 
 # JSON Schema for the recommendation_agent tool parameters
-# Migrated from orchestrator_prompts.py TOOLS constant
-def _merge_curator_outputs(output1: str, output2: str) -> str:
-    """Merge two curator JSON outputs into a single output.
-
-    Args:
-        output1: JSON string from first batch
-        output2: JSON string from second batch
-
-    Returns:
-        Merged JSON string with combined evaluation_results
-    """
-    try:
-        data1 = json.loads(output1)
-        data2 = json.loads(output2)
-
-        merged = {
-            "evaluation_results": data1.get("evaluation_results", []) + data2.get("evaluation_results", [])
-        }
-
-        return json.dumps(merged)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to merge curator outputs: {e}")
-
-
 RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -111,14 +87,14 @@ RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
                     ),
                     "items": {"type": "string"},
                 },
-                "narrative_shape": {
-                    "type": "array",
-                    "description": (
-                        "List of requested narrative or structural properties, such as "
-                        "'plot twists', 'slow-burn', 'nonlinear', 'fast-paced'."
-                    ),
-                    "items": {"type": "string"},
-                },
+                # "narrative_shape": {
+                #     "type": "array",
+                #     "description": (
+                #         "List of requested narrative or structural properties, such as "
+                #         "'plot twists', 'slow-burn', 'nonlinear', 'fast-paced'."
+                #     ),
+                #     "items": {"type": "string"},
+                # },
                 "key_themes": {
                     "type": "array",
                     "description": (
@@ -170,6 +146,16 @@ RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
                     ],
                     "default": None,
                 },
+                "mentioned_titles": {
+                    "type": "array",
+                    "description": (
+                        "Movie titles explicitly mentioned by user as examples "
+                        "(e.g., 'I like Interstellar', 'similar to The Matrix'). "
+                        "Extract title only. These will be automatically excluded from results."
+                    ),
+                    "items": {"type": "string"},
+                    "default": [],
+                },
             },
             "required": ["query_text"],
             "additionalProperties": False,
@@ -220,7 +206,7 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     The main rec tool that:
     1. Parses RecQuerySpec from args
     2. Runs the recommendation pipeline
-    3. Runs curator LLM agent for evaluation
+    3. Runs curator LLM agent for final evaluation
     4. Applies curator tiers for final selection
     5. Updates AgentState with results
 
@@ -244,6 +230,12 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
         spec = RecQuerySpec(**raw_spec)
     except Exception as e:
         return ToolResult.error(f"Invalid rec_query_spec: {e}")
+
+    # Extract mentioned_titles and store in spec for filtering
+    mentioned_titles = raw_spec.get("mentioned_titles") or []
+    if mentioned_titles:
+        spec.seed_titles = mentioned_titles
+        print(f"[recommendation_tool] Will exclude mentioned titles: {mentioned_titles}")
 
     state.query_spec = spec
     state.turn_mode = AgentMode.RECS
@@ -353,7 +345,30 @@ recommendation_agent_spec = ToolSpec(
         "Run the Reelix recommendation pipeline for the current user using a rec_query_spec. "
         "Use this to retrieve, rank, and curate recommendations based on the user's request."
     ),
-    input_schema=RECOMMENDATION_AGENT_SCHEMA,
+    inputSchema=RECOMMENDATION_AGENT_SCHEMA,
     category=ToolCategory.TERMINAL,
     handler=handle_recommendation_agent,
 )
+
+
+def _merge_curator_outputs(output1: str, output2: str) -> str:
+    """Merge two curator JSON outputs into a single output.
+
+    Args:
+        output1: JSON string from first batch
+        output2: JSON string from second batch
+
+    Returns:
+        Merged JSON string with combined evaluation_results
+    """
+    try:
+        data1 = json.loads(output1)
+        data2 = json.loads(output2)
+
+        merged = {
+            "evaluation_results": data1.get("evaluation_results", []) + data2.get("evaluation_results", [])
+        }
+
+        return json.dumps(merged)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to merge curator outputs: {e}")

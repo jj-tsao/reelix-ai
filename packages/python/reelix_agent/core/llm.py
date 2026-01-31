@@ -32,11 +32,6 @@ async def call_llm_with_tools(
     Returns:
         LlmDecision indicating whether this is a tool call or a final response.
     """
-    # Get tools from registry if not provided (backward compatibility)
-    if tools is None:
-        from reelix_agent.orchestrator.orchestrator_prompts import TOOLS
-
-        tools = TOOLS
 
     # 1) Prepare messages for the model.
     messages: list[dict[str, Any]] = state.messages
@@ -78,7 +73,7 @@ async def call_llm_with_tools(
 
     # 4) Normalize into LlmDecision.
 
-    # Case 1: there is at least one tool call
+    # == Case 1: there is at least one tool call ==
     tool_calls = getattr(msg, "tool_calls", None)
     if tool_calls:
         first_call = tool_calls[0]
@@ -98,7 +93,7 @@ async def call_llm_with_tools(
             tool_call_id=tool_call_id,
         )
 
-    # Case 2: normal final answer (no tool calls)
+    # == Case 2: normal final answer (no tool calls) ==
     content = msg.content or ""
     return LlmDecision(
         is_tool_call=False,

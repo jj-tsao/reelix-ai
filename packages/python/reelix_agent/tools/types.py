@@ -1,8 +1,5 @@
 """
 MCP-compatible tool type definitions.
-
-These types follow the Model Context Protocol (MCP) specification structure
-while adding Reelix-specific extensions for orchestrator flow control.
 """
 
 from __future__ import annotations
@@ -16,14 +13,15 @@ if TYPE_CHECKING:
     from reelix_agent.orchestrator.agent_rec_runner import AgentRecRunner
     from reelix_agent.orchestrator.agent_state import AgentState
     from reelix_llm.client import LlmClient
+else:
+    AgentRecRunner = Any
+    AgentState = Any
+    LlmClient = Any
 
 
 class ToolCategory(StrEnum):
-    """Tool execution behavior category.
-
-    This is orchestrator-level flow control metadata, not part of MCP spec.
-    The orchestrator uses this to determine whether to loop back to the LLM
-    after tool execution.
+    """
+    Tool execution behavior category.
     """
 
     TERMINAL = "terminal"  # Ends the orchestrator turn (e.g., recommendation_agent)
@@ -142,21 +140,18 @@ class ToolSpec(BaseModel):
 
 
 class ToolContext(BaseModel):
-    """Execution context passed to tool handlers.
+    """Execution context passed to tool handlers. Designed for dependency injection.
 
     Contains all dependencies a tool might need:
     - state: current AgentState (mutable)
     - agent_rec_runner: recommendation pipeline runner
     - llm_client: for tools that need LLM calls (e.g., curator)
-
-    Designed for dependency injection - tools declare what they need,
-    context provides it.
     """
 
-    # Use Any to avoid circular imports; runtime types are checked
-    state: Any = Field(..., description="AgentState instance")
-    agent_rec_runner: Any = Field(..., description="AgentRecRunner instance")
-    llm_client: Any = Field(..., description="LlmClient instance")
+    # Runtime aliases to Any avoid circular imports; static types still apply.
+    state: AgentState = Field(..., description="AgentState instance")
+    agent_rec_runner: AgentRecRunner = Field(..., description="AgentRecRunner instance")
+    llm_client: LlmClient = Field(..., description="LlmClient instance")
 
     # Extensible metadata for future needs
     extra: dict[str, Any] = Field(default_factory=dict)

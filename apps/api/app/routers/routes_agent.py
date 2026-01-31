@@ -7,9 +7,8 @@ from pydantic import BaseModel, ValidationError
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
-from reelix_agent.core.types import PromptsEnvelope, RecQuerySpec
+from reelix_agent.core.types import PromptsEnvelope, RecQuerySpec, ExploreAgentInput
 from reelix_agent.orchestrator.orchestrator_agent import (
-    InteractiveAgentInput,
     run_rec_engine_direct,
     plan_orchestrator_agent,
     execute_orchestrator_plan,
@@ -58,24 +57,23 @@ async def agent_interactive_stream(
     """
     Streaming /discover/explore endpoint.
 
-    Emits SSE events so the UI can render an opening summary + active_spec immediately, followed by final recs, as well as why_url for WHY explanations.
+    Emits SSE events so the UI can render an opening summary + active_spec immediately, followed by final recs, as well as stream_url for WHY explanations.
 
     Events:
       - started: {query_id}
       - opening: {query_id, opening_summary, active_spec}
-      - recs: {query_id, items, why_url}
+      - recs: {query_id, items, stream_url}
       - done / error
     """
     session_state = await state_store.get_session(session_id=req.session_id, touch=True)
 
-    agent_input = InteractiveAgentInput(
+    agent_input = ExploreAgentInput(
         user_id=user_id,
         query_id=req.query_id,
         session_id=req.session_id,
         media_type=req.media_type,
         query_text=req.query_text,
         session_memory=session_state.to_orchestrator() if session_state else None,
-        user_context_service=user_context_svc,
         batch_size=batch_size,
         device_info=req.device_info,
     )
@@ -89,10 +87,9 @@ async def agent_interactive_stream(
                 agent_input=agent_input,
                 llm_client=chat_llm,
                 tool_registry=tool_registry,
-                tool_runner=tool_runner,
             )
 
-            # fast UI paint with opening summary + active_spec for chip display in RECS mode
+            # fast UI paint with opening summary + active_spec for chip display (RECS mode only)
             if plan.mode == "recs":
                 yield _sse(
                     "opening",
@@ -107,13 +104,12 @@ async def agent_interactive_stream(
                     },
                 )
 
-            # 2) Execute the recommendation agent, but keep SSE connection alive with heartbeats.
+            # 2) Execute the recommendation agent, keeping SSE connection alive with heartbeats.
             task = asyncio.create_task(
                 execute_orchestrator_plan(
                     state=state,
                     plan=plan,
                     agent_rec_runner=agent_rec_runner,
-                    user_context_service=user_context_svc,
                     llm_client=chat_llm,
                     tool_registry=tool_registry,
                     tool_runner=tool_runner,
@@ -215,7 +211,7 @@ async def agent_interactive_stream(
                     "query_id": req.query_id,
                     "curator_opening": agent_result.summary,
                     "items": items,
-                    "why_url": f"/discovery/explore/why?query_id={req.query_id}",
+                    "stream_url": f"/discovery/explore/why?query_id={req.query_id}",
                 },
             )
             yield _sse("done", {"ok": True})
@@ -295,14 +291,13 @@ async def agent_explore_rerun(
             )
 
     # 3) Build an AgentState (for seen_ids + consistent bookkeeping) BUT do not call LLM
-    agent_input = InteractiveAgentInput(
+    agent_input = ExploreAgentInput(
         user_id=user_id,
         query_id=req.query_id,
         session_id=req.session_id,
         media_type=spec.media_type,
         query_text=spec.query_text,
         session_memory=session_state.to_orchestrator(),
-        user_context_service=user_context_svc,
         batch_size=batch_size,
         device_info=req.device_info,
     )
@@ -312,7 +307,6 @@ async def agent_explore_rerun(
         agent_input=agent_input,
         spec=spec,
         agent_rec_runner=agent_rec_runner,
-        user_context_service=user_context_svc,
         llm_client=chat_llm,
         tool_registry=tool_registry,
         tool_runner=tool_runner,
@@ -385,7 +379,7 @@ async def agent_explore_rerun(
             "mode": "RECS",
             "active_spec": active_spec.model_dump(mode="json") if active_spec else None,
             "items": items,
-            "why_url": f"/discovery/explore/why?query_id={req.query_id}",
+            "stream_url": f"/discovery/explore/why?query_id={req.query_id}",
         }
     )
 

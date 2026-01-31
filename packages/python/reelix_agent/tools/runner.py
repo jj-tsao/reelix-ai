@@ -45,6 +45,13 @@ class ToolRunner:
         tool_name = decision.tool_name
         tool_args = decision.tool_args or {}
 
+        if not tool_name:
+            return ToolResult.error(
+                "Missing tool name in LlmDecision",
+                tool_name=tool_name,
+                args=tool_args,
+            )
+
         # 1) Lookup tool
         spec = self._registry.get(tool_name)
         if spec is None:

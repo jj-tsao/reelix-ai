@@ -68,6 +68,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from reelix_recommendation.recipes import InteractiveRecipe, ForYouFeedRecipe
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
+    from reelix_agent.tools import build_registry, ToolRunner
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
@@ -128,8 +129,7 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     }
     app.state.chat_completion_llm = chat_completion_llm
 
-    # == Initialize Tool Infrastructure ==
-    from reelix_agent.tools import build_registry, ToolRunner
+    # == Initialize agent Tool Infrastructure ==
 
     app.state.tool_registry = build_registry()
     app.state.tool_runner = ToolRunner(app.state.tool_registry)

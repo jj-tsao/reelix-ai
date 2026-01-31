@@ -6,8 +6,8 @@ import re
 from reelix_agent.core.llm import call_llm_with_tools
 from reelix_agent.core.types import (
     AgentMode,
-    InteractiveAgentInput,
-    InteractiveAgentResult,
+    ExploreAgentInput,
+    RecAgentResult,
     LlmDecision,
     OrchestratorPlan,
     RecQuerySpec,
@@ -20,42 +20,11 @@ from reelix_llm.client import LlmClient
 MEMORY_RE = re.compile(r"<MEMORY>\s*(.*?)\s*</MEMORY>", re.DOTALL)
 
 
-def _strip_memory_block(text: str) -> tuple[str, str | None]:
-    """
-    Returns (cleaned_message, memory_raw_json_or_text)
-    If no block exists, memory is None.
-    """
-    text = text or ""
-    m = MEMORY_RE.search(text)
-    memory_raw = m.group(1).strip() if m else None
-
-    # remove the whole block if present
-    cleaned = MEMORY_RE.sub("", text).strip()
-
-    return cleaned, memory_raw
-
-
-def _result_from_state(state: AgentState) -> InteractiveAgentResult:
-    return InteractiveAgentResult(
-        mode=state.turn_mode or AgentMode.RECS,
-        # Domain outputs
-        query_spec=state.query_spec,
-        candidates=state.candidates,
-        final_recs=state.final_recs,
-        # Memory + traces
-        turn_memory=state.turn_memory,
-        ctx_log=state.ctx_log,
-        pipeline_traces=state.pipeline_traces,
-        agent_trace=state.agent_trace,
-    )
-
-
 async def plan_orchestrator_agent(
     *,
-    agent_input: InteractiveAgentInput,
+    agent_input: ExploreAgentInput,
     llm_client: LlmClient,
     tool_registry: ToolRegistry,
-    tool_runner: ToolRunner,
     max_steps: int | None = None,
 ) -> tuple[AgentState, OrchestratorPlan]:
     """
@@ -73,24 +42,24 @@ async def plan_orchestrator_agent(
     Returns:
         Tuple of (AgentState, OrchestratorPlan)
     """
-    terminal_tools = tool_registry.terminal_tools()
 
+    # Initialize agent state from input
     state = AgentState.from_agent_input(agent_input)
     state.turn_message = None
     state.turn_mode = None
-
     if max_steps is not None:
         state.max_steps = max_steps
 
     # Get tools from registry for LLM call
     tools = tool_registry.openai_tools()
+    terminal_tools = tool_registry.terminal_tools()
 
     while not state.done and state.step_count < state.max_steps:
         state.step_count += 1
         decision = await call_llm_with_tools(state, llm_client=llm_client, tools=tools)
-        print(decision)
+        print("Orchestrator decision: ", decision)
 
-        # == Non-tool response: CHAT mode ==
+        # == Case 1: Non-tool response: CHAT mode ==
         if not decision.is_tool_call:
             state.turn_mode = AgentMode.CHAT
             content_raw = (decision.content or "").strip()
@@ -116,7 +85,7 @@ async def plan_orchestrator_agent(
                 message=msg,
             )
 
-        # == Tool call: if terminal, return plan; else execute and continue ==
+        # == Case 2: Tool call: if terminal, return plan; else execute and continue ==
         tool = decision.tool_name
         if tool in terminal_tools:
             state.turn_mode = AgentMode.RECS
@@ -155,26 +124,25 @@ async def execute_orchestrator_plan(
     state: AgentState,
     plan: OrchestratorPlan,
     agent_rec_runner: AgentRecRunner,
-    user_context_service,
     llm_client: LlmClient,
     tool_registry: ToolRegistry,
     tool_runner: ToolRunner,
-) -> InteractiveAgentResult:
+) -> RecAgentResult:
     """
     Execute a previously produced OrchestratorPlan.
     - RECS: executes the recommendation_agent tool call via ToolRunner.
+    - CHAT: returns the chat message directly.
 
     Args:
-        state: AgentState from plan_orchestrator_agent
+        state: mutated AgentState from plan_orchestrator_agent
         plan: OrchestratorPlan to execute
         agent_rec_runner: Recommendation pipeline runner
-        user_context_service: User context service (unused, kept for compatibility)
         llm_client: LLM client for curator calls
         tool_registry: Tool registry for tool discovery (required)
         tool_runner: Tool runner for tool execution (required)
 
     Returns:
-        InteractiveAgentResult with recommendations or chat message
+        RecAgentResult with recommendations or chat message
     """
 
     # == CHAT mode: ==
@@ -206,14 +174,13 @@ async def execute_orchestrator_plan(
 
 
 async def run_rec_engine_direct(
-    agent_input: InteractiveAgentInput,
+    agent_input: ExploreAgentInput,
     spec: RecQuerySpec,
     agent_rec_runner: AgentRecRunner,
-    user_context_service,
     llm_client: LlmClient,
     tool_registry: ToolRegistry,
     tool_runner: ToolRunner,
-) -> InteractiveAgentResult:
+) -> RecAgentResult:
     """
     Run the recommendation engine directly without LLM planning.
     Used for chip-based filter reruns.
@@ -254,7 +221,7 @@ async def run_rec_engine_direct(
 
     state.done = True
 
-    return InteractiveAgentResult(
+    return RecAgentResult(
         mode=state.turn_mode or AgentMode.RECS,
         query_spec=state.query_spec,
         candidates=state.candidates,
@@ -267,90 +234,29 @@ async def run_rec_engine_direct(
     )
 
 
-async def run_orchestrator_agent(
-    agent_input: InteractiveAgentInput,
-    agent_rec_runner: AgentRecRunner,
-    user_context_service,
-    llm_client: LlmClient,
-    tool_registry: ToolRegistry,
-    tool_runner: ToolRunner,
-) -> InteractiveAgentResult:
+def _strip_memory_block(text: str) -> tuple[str, str | None]:
     """
-    Legacy single-pass orchestrator: plan + execute in one call.
-
-    Args:
-        agent_input: User input
-        agent_rec_runner: Recommendation pipeline runner
-        user_context_service: User context service (unused)
-        llm_client: LLM client
-        tool_registry: Tool registry for tool discovery (required)
-        tool_runner: Tool runner for tool execution (required)
-
-    Returns:
-        InteractiveAgentResult
+    Returns (cleaned_message, memory_raw_json_or_text)
+    If no block exists, memory is None.
     """
-    terminal_tools = tool_registry.terminal_tools()
-    tools = tool_registry.openai_tools()
+    text = text or ""
+    m = MEMORY_RE.search(text)
+    memory_raw = m.group(1).strip() if m else None
 
-    state = AgentState.from_agent_input(agent_input)
-    state.turn_message = None
-    state.turn_mode = None
+    # remove the whole block if present
+    cleaned = MEMORY_RE.sub("", text).strip()
 
-    # Main loop
-    while not state.done and state.step_count < state.max_steps:
-        state.step_count += 1
+    return cleaned, memory_raw
 
-        llm_decision = await call_llm_with_tools(state, llm_client=llm_client, tools=tools)
-        print(llm_decision)
 
-        # A) Non-tool response: chat message
-        if not llm_decision.is_tool_call:
-            state.turn_mode = AgentMode.CHAT
-            state.turn_message = (llm_decision.content or "").strip()
-            state.done = True
-            break
-
-        # B) Tool call - execute via ToolRunner
-        tool = llm_decision.tool_name
-        ctx = ToolContext(
-            state=state,
-            agent_rec_runner=agent_rec_runner,
-            llm_client=llm_client,
-        )
-
-        result = await tool_runner.run(decision=llm_decision, ctx=ctx)
-
-        if result.is_error:
-            print(f"[orchestrator] tool error: {result.error_message}")
-
-        # If tool is terminal, break; otherwise loop again so LLM can react to tool result
-        if tool in terminal_tools:
-            state.done = True
-            break
-
-        # Non-terminal tools: append result to messages and keep looping
-        state.messages.append(
-            result.to_tool_message(
-                tool_call_id=llm_decision.tool_call_id or "unknown",
-                tool_name=tool or "unknown",
-            )
-        )
-
-    # CHAT mode: return chat message only
-    if state.turn_mode == AgentMode.CHAT:
-        return InteractiveAgentResult(
-            mode=state.turn_mode,
-            message=state.turn_message,
-            query_spec=state.query_spec,
-        )
-
-    # REC mode: return final slate + traces
-    return InteractiveAgentResult(
+def _result_from_state(state: AgentState) -> RecAgentResult:
+    return RecAgentResult(
         mode=state.turn_mode or AgentMode.RECS,
+        # Domain outputs
         query_spec=state.query_spec,
         candidates=state.candidates,
         final_recs=state.final_recs,
-        summary=state.curator_opening or "",
+        # Memory + traces
         turn_memory=state.turn_memory,
         ctx_log=state.ctx_log,
         pipeline_traces=state.pipeline_traces,

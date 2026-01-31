@@ -74,6 +74,7 @@ class AgentRecRunner:
             sparse_vec=sparse_vec,
             qfilter=qfilter,
             user_context=user_context,
+            mentioned_titles=spec.seed_titles if spec.seed_titles else None,
             **pipeline_params,
         )
 
