@@ -70,6 +70,7 @@ class AgentState(AgentBaseModel):
     pipeline_traces: list[dict[int, ScoreTrace]] = Field(default_factory=list)
     agent_trace: list[dict[str, Any]] = Field(default_factory=list)
     meta: dict[str, Any] = Field(default_factory=dict)
+    tier_stats: dict[str, Any] | None = None  # Curator tier statistics
 
     @classmethod
     def from_agent_input(
@@ -119,7 +120,7 @@ class AgentState(AgentBaseModel):
             user_id=agent_input.user_id,
             query_id=agent_input.query_id,
             session_id=agent_input.session_id,
-            media_type=str(agent_input.media_type),
+            media_type=agent_input.media_type.value,
             device_info=agent_input.device_info,
             messages=messages,
             session_memory=agent_input.session_memory,

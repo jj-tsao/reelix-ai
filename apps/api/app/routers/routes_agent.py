@@ -87,6 +87,7 @@ async def agent_interactive_stream(
                 agent_input=agent_input,
                 llm_client=chat_llm,
                 tool_registry=tool_registry,
+                logger=logger,
             )
 
             # fast UI paint with opening summary + active_spec for chip display (RECS mode only)
@@ -113,6 +114,7 @@ async def agent_interactive_stream(
                     llm_client=chat_llm,
                     tool_registry=tool_registry,
                     tool_runner=tool_runner,
+                    logger=logger,
                 )
             )
 
@@ -310,6 +312,7 @@ async def agent_explore_rerun(
         llm_client=chat_llm,
         tool_registry=tool_registry,
         tool_runner=tool_runner,
+        logger=logger,
     )
 
     # 6) Upsert session memory using existing code

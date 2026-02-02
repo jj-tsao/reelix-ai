@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from anyio import to_thread
 
@@ -17,6 +17,9 @@ from reelix_agent.core.types import AgentMode, RecQuerySpec
 from reelix_agent.curator.curator_agent import run_curator_agent
 from reelix_agent.curator.curator_tiers import apply_curator_tiers
 from reelix_agent.tools.types import ToolCategory, ToolContext, ToolResult, ToolSpec
+
+if TYPE_CHECKING:
+    from reelix_logging.rec_logger import TelemetryLogger
 
 # JSON Schema for the recommendation_agent tool parameters
 RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
@@ -315,6 +318,28 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     tiers_ms = (time.perf_counter() - tiers_start) * 1000
     print(f"[timing] curator_tiers_ms={tiers_ms:.1f}")
 
+    # Store tier_stats in state for downstream logging
+    state.tier_stats = {
+        **tier_stats,
+        "curator_latency_ms": int(curator_ms),
+        "tier_latency_ms": int(tiers_ms),
+    }
+
+    # 5b) Log curator evaluations and tier summary (async, fire-and-forget)
+    logger: TelemetryLogger | None = ctx.extra.get("logger")
+    if logger:
+        asyncio.create_task(
+            _log_curator_data(
+                logger=logger,
+                query_id=state.query_id,
+                media_type=state.media_type,
+                candidates=state.candidates,
+                final_recs=state.final_recs,
+                traces=traces,
+                tier_stats=state.tier_stats,
+            )
+        )
+
     # 6) Record trace for multi-turn (appended to messages by orchestrator if needed)
     state.agent_trace.append(
         {
@@ -372,3 +397,124 @@ def _merge_curator_outputs(output1: str, output2: str) -> str:
         return json.dumps(merged)
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to merge curator outputs: {e}")
+
+
+async def _log_curator_data(
+    *,
+    logger: "TelemetryLogger",
+    query_id: str,
+    media_type: str,
+    candidates: list,
+    final_recs: list,
+    traces: dict,
+    tier_stats: dict,
+) -> None:
+    """Log curator evaluations and tier summary to Supabase.
+
+    Args:
+        logger: TelemetryLogger instance
+        query_id: Query identifier
+        media_type: Media type (movie/tv)
+        candidates: All candidates with curator scores stamped on payload
+        final_recs: Final selected recommendations
+        traces: Pipeline score traces keyed by media_id
+        tier_stats: Tier statistics from apply_curator_tiers
+    """
+    # Lazy import to avoid circular dependency
+    from reelix_logging.rec_logger import CuratorEvalLog, TierSummaryLog
+
+    if not candidates:
+        return
+
+    # Build set of served media_ids for quick lookup
+    served_ids = {int(c.id) for c in final_recs}
+
+    # Build curator evaluation logs from final_recs first (with ranks)
+    evals = []
+    for rank, c in enumerate(final_recs, start=1):
+        p = c.payload or {}
+        trace = traces.get(int(c.id))
+        evals.append(
+            CuratorEvalLog(
+                query_id=query_id,
+                media_id=int(c.id),
+                media_type=media_type,
+                title=p.get("title"),
+                genre_fit=p.get("curator_genre_fit"),
+                tone_fit=p.get("curator_tone_fit"),
+                structure_fit=p.get("curator_structure_fit"),
+                theme_fit=p.get("curator_theme_fit"),
+                total_fit=p.get("curator_total_fit"),
+                tier=p.get("curator_category"),
+                is_served=True,
+                final_rank=rank,
+                dense_score=trace.dense_score if trace else None,
+                sparse_score=trace.sparse_score if trace else None,
+                pipeline_score=trace.final_score if trace else None,
+            )
+        )
+
+    # Also log non-served candidates (for debugging why they were filtered)
+    for c in candidates:
+        if int(c.id) in served_ids:
+            continue
+        p = c.payload or {}
+        trace = traces.get(int(c.id))
+        evals.append(
+            CuratorEvalLog(
+                query_id=query_id,
+                media_id=int(c.id),
+                media_type=media_type,
+                title=p.get("title"),
+                genre_fit=p.get("curator_genre_fit"),
+                tone_fit=p.get("curator_tone_fit"),
+                structure_fit=p.get("curator_structure_fit"),
+                theme_fit=p.get("curator_theme_fit"),
+                total_fit=p.get("curator_total_fit"),
+                tier=p.get("curator_category"),
+                is_served=False,
+                final_rank=None,
+                dense_score=trace.dense_score if trace else None,
+                sparse_score=trace.sparse_score if trace else None,
+                pipeline_score=trace.final_score if trace else None,
+            )
+        )
+
+    # Log curator evaluations
+    if evals:
+        try:
+            await logger.log_curator_evaluations(evals)
+        except Exception as e:
+            print(f"[curator_logging] Failed to log evaluations: {e}")
+
+    # Determine selection rule based on tier counts
+    strong = tier_stats.get("strong_count", 0)
+    limit = tier_stats.get("limit", 8)
+    if strong >= limit:
+        rule = "all_strong"
+    elif strong >= 5:
+        rule = "strong_only"
+    elif 3 <= strong <= 4:
+        rule = "strong_plus_2_moderate"
+    elif strong in (1, 2):
+        rule = "strong_plus_4_moderate"
+    else:
+        rule = "moderate_only"
+
+    # Log tier summary
+    try:
+        await logger.log_tier_summary(
+            TierSummaryLog(
+                query_id=query_id,
+                total_candidates=tier_stats.get("total_candidates", 0),
+                strong_count=tier_stats.get("strong_count", 0),
+                moderate_count=tier_stats.get("moderate_count", 0),
+                no_match_count=tier_stats.get("no_match_count", 0),
+                served_count=tier_stats.get("served_count", 0),
+                selection_rule=rule,
+                curator_latency_ms=tier_stats.get("curator_latency_ms"),
+                tier_latency_ms=tier_stats.get("tier_latency_ms"),
+            )
+        )
+    except Exception as e:
+        print(f"[curator_logging] Failed to log tier summary: {e}")

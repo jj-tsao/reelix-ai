@@ -38,6 +38,7 @@ class RecAgentResult(AgentBaseModel):
     pipeline_traces: list[dict] = Field(default_factory=list)
     agent_trace: list[dict] = Field(default_factory=list)
     meta: dict = Field(default_factory=dict)
+    tier_stats: dict | None = None  # Curator tier statistics
 
 
 class AgentMode(StrEnum):

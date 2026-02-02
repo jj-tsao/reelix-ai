@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
+import time
+from typing import Any
 
-from reelix_agent.core.llm import call_llm_with_tools
+from reelix_agent.core.llm import call_llm_with_tools, LlmUsage
 from reelix_agent.core.types import (
     AgentMode,
     ExploreAgentInput,
@@ -26,6 +29,7 @@ async def plan_orchestrator_agent(
     llm_client: LlmClient,
     tool_registry: ToolRegistry,
     max_steps: int | None = None,
+    logger: Any | None = None,
 ) -> tuple[AgentState, OrchestratorPlan]:
     """
     Run the orchestrator LLM:
@@ -36,8 +40,8 @@ async def plan_orchestrator_agent(
         agent_input: User query input for this turn
         llm_client: LLM client for API calls
         tool_registry: Tool registry for tool discovery
-        tool_runner: Tool runner for tool execution
         max_steps: Maximum planning steps (default: 3)
+        logger: Telemetry logger for decision logging
 
     Returns:
         Tuple of (AgentState, OrchestratorPlan)
@@ -56,7 +60,9 @@ async def plan_orchestrator_agent(
 
     while not state.done and state.step_count < state.max_steps:
         state.step_count += 1
-        decision = await call_llm_with_tools(state, llm_client=llm_client, tools=tools)
+        plan_start = time.perf_counter()
+        decision, llm_usage = await call_llm_with_tools(state, llm_client=llm_client, tools=tools)
+        planning_ms = int((time.perf_counter() - plan_start) * 1000)
         print("Orchestrator decision: ", decision)
 
         # == Case 1: Non-tool response: CHAT mode ==
@@ -78,6 +84,22 @@ async def plan_orchestrator_agent(
             state.turn_message = msg
             state.turn_memory = mem
             state.done = True
+
+            # Log CHAT mode decision
+            if logger:
+                asyncio.create_task(
+                    _log_agent_decision(
+                        logger=logger,
+                        state=state,
+                        mode="CHAT",
+                        llm_usage=llm_usage,
+                        planning_ms=planning_ms,
+                        tool_called=None,
+                        spec_json=None,
+                        opening_summary=None,
+                    )
+                )
+
             return state, OrchestratorPlan(
                 mode=state.turn_mode,
                 decision=None,
@@ -93,6 +115,21 @@ async def plan_orchestrator_agent(
             opening = tool_args.get("opening_summary")
             raw_spec = tool_args.get("rec_query_spec") or {}
             state.query_spec = RecQuerySpec(**raw_spec)
+
+            # Log RECS mode decision
+            if logger:
+                asyncio.create_task(
+                    _log_agent_decision(
+                        logger=logger,
+                        state=state,
+                        mode="RECS",
+                        llm_usage=llm_usage,
+                        planning_ms=planning_ms,
+                        tool_called=tool,
+                        spec_json=raw_spec,
+                        opening_summary=opening if isinstance(opening, str) else None,
+                    )
+                )
 
             return state, OrchestratorPlan(
                 mode=state.turn_mode,
@@ -127,6 +164,7 @@ async def execute_orchestrator_plan(
     llm_client: LlmClient,
     tool_registry: ToolRegistry,
     tool_runner: ToolRunner,
+    logger: Any | None = None,
 ) -> RecAgentResult:
     """
     Execute a previously produced OrchestratorPlan.
@@ -140,6 +178,7 @@ async def execute_orchestrator_plan(
         llm_client: LLM client for curator calls
         tool_registry: Tool registry for tool discovery (required)
         tool_runner: Tool runner for tool execution (required)
+        logger: Telemetry logger for curator logging
 
     Returns:
         RecAgentResult with recommendations or chat message
@@ -161,6 +200,7 @@ async def execute_orchestrator_plan(
         state=state,
         agent_rec_runner=agent_rec_runner,
         llm_client=llm_client,
+        extra={"logger": logger} if logger else {},
     )
 
     result = await tool_runner.run(decision=plan.decision, ctx=ctx)
@@ -180,6 +220,7 @@ async def run_rec_engine_direct(
     llm_client: LlmClient,
     tool_registry: ToolRegistry,
     tool_runner: ToolRunner,
+    logger: Any | None = None,
 ) -> RecAgentResult:
     """
     Run the recommendation engine directly without LLM planning.
@@ -193,6 +234,7 @@ async def run_rec_engine_direct(
         llm_client: LLM client for curator
         tool_registry: Tool registry (required, unused in this function but kept for consistency)
         tool_runner: Tool runner for executing recommendation_agent tool (required)
+        logger: Telemetry logger for curator logging
 
     Returns:
         InteractiveAgentResult with recommendations
@@ -215,6 +257,7 @@ async def run_rec_engine_direct(
         state=state,
         agent_rec_runner=agent_rec_runner,
         llm_client=llm_client,
+        extra={"logger": logger} if logger else {},
     )
 
     await tool_runner.run(decision=decision, ctx=ctx)
@@ -231,6 +274,7 @@ async def run_rec_engine_direct(
         ctx_log=state.ctx_log,
         pipeline_traces=state.pipeline_traces,
         agent_trace=state.agent_trace,
+        tier_stats=state.tier_stats,
     )
 
 
@@ -261,4 +305,53 @@ def _result_from_state(state: AgentState) -> RecAgentResult:
         ctx_log=state.ctx_log,
         pipeline_traces=state.pipeline_traces,
         agent_trace=state.agent_trace,
+        tier_stats=state.tier_stats,
     )
+
+
+async def _log_agent_decision(
+    *,
+    logger: Any,
+    state: AgentState,
+    mode: str,
+    llm_usage: LlmUsage,
+    planning_ms: int,
+    tool_called: str | None,
+    spec_json: dict | None,
+    opening_summary: str | None,
+) -> None:
+    """Log orchestrator agent decision to Supabase.
+
+    Args:
+        logger: TelemetryLogger instance
+        state: AgentState with query/session info
+        mode: "CHAT" or "RECS"
+        llm_usage: Token usage from LLM call
+        planning_ms: Planning latency in milliseconds
+        tool_called: Tool name if RECS mode
+        spec_json: RecQuerySpec dict if RECS mode
+        opening_summary: Opening summary if RECS mode
+    """
+    # Lazy import to avoid circular dependency
+    from reelix_logging.rec_logger import AgentDecisionLog
+
+    try:
+        await logger.log_agent_decision(
+            AgentDecisionLog(
+                query_id=state.query_id,
+                session_id=state.session_id,
+                user_id=state.user_id,
+                turn_number=state.step_count,
+                mode=mode,
+                decision_reasoning=None, # Not requried for orchestrator
+                tool_called=tool_called,
+                spec_json=spec_json,
+                opening_summary=opening_summary,
+                planning_latency_ms=planning_ms,
+                input_tokens=llm_usage.input_tokens,
+                output_tokens=llm_usage.output_tokens,
+                model=llm_usage.model,
+            )
+        )
+    except Exception as e:
+        print(f"[agent_logging] Failed to log decision: {e}")

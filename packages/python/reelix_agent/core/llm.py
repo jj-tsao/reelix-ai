@@ -14,11 +14,25 @@ if TYPE_CHECKING:
     from reelix_llm.client import LlmClient
 
 
+class LlmUsage:
+    """Token usage from LLM call."""
+
+    def __init__(
+        self,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        model: str | None = None,
+    ):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.model = model
+
+
 async def call_llm_with_tools(
     state: "AgentState",
     llm_client: "LlmClient",
     tools: list[dict[str, Any]] | None = None,
-) -> LlmDecision:
+) -> tuple[LlmDecision, LlmUsage]:
     """
     Call the LLM with the current AgentState.messages and tool definitions.
     Mutates `state.messages` by appending the assistant message returned by the LLM.
@@ -30,7 +44,7 @@ async def call_llm_with_tools(
                If not provided, imports from orchestrator_prompts (legacy behavior).
 
     Returns:
-        LlmDecision indicating whether this is a tool call or a final response.
+        Tuple of (LlmDecision, LlmUsage) - decision and token usage info.
     """
 
     # 1) Prepare messages for the model.
@@ -71,7 +85,15 @@ async def call_llm_with_tools(
 
     state.messages.append(assistant_msg)
 
-    # 4) Normalize into LlmDecision.
+    # 4) Extract token usage from response
+    usage = getattr(resp, "usage", None)
+    llm_usage = LlmUsage(
+        input_tokens=getattr(usage, "prompt_tokens", None) if usage else None,
+        output_tokens=getattr(usage, "completion_tokens", None) if usage else None,
+        model="gpt-4.1-mini",
+    )
+
+    # 5) Normalize into LlmDecision.
 
     # == Case 1: there is at least one tool call ==
     tool_calls = getattr(msg, "tool_calls", None)
@@ -85,19 +107,25 @@ async def call_llm_with_tools(
         except json.JSONDecodeError:
             parsed_args = {}
 
-        return LlmDecision(
-            is_tool_call=True,
-            tool_name=tool_name,
-            tool_args=parsed_args,
-            content=None,
-            tool_call_id=tool_call_id,
+        return (
+            LlmDecision(
+                is_tool_call=True,
+                tool_name=tool_name,
+                tool_args=parsed_args,
+                content=None,
+                tool_call_id=tool_call_id,
+            ),
+            llm_usage,
         )
 
     # == Case 2: normal final answer (no tool calls) ==
     content = msg.content or ""
-    return LlmDecision(
-        is_tool_call=False,
-        content=content,
-        tool_name=None,
-        tool_args={},
+    return (
+        LlmDecision(
+            is_tool_call=False,
+            content=content,
+            tool_name=None,
+            tool_args={},
+        ),
+        llm_usage,
     )
