@@ -91,6 +91,7 @@ The system uses a sophisticated **multi-agent architecture** where specialized a
   - `genre_fit`: How well the genres/sub-genres match the request
   - `tone_fit`: How well the emotional vibe/tone matches
   - `theme_fit`: How well the thematic ideas align
+- **Parallel Evaluation**: Splits candidates into 2 batches (~6 each) and runs 2 parallel LLM calls via `asyncio.gather` to reduce latency
 - **Output**:
   - Tiered evaluations (strong_match, moderate_match, no_match)
   - Final curated list using tier-based selection logic
@@ -120,22 +121,32 @@ User Query
 4. **Recommendation** - `reelix_recommendation/recommend.py`: Orchestrates retrieval + ranking + RRF fusion
 
 ### API Routes (apps/api/app/routers/)
-- **`routes_agent.py`** - **New agent-based explore endpoint** (`/discovery/explore`)
+
+#### Discovery Routes (`routers/discovery/`)
+- **`explore.py`** - Agent-powered vibe search (`/discovery/explore`)
   - Streams SSE: started → opening → recs → done
   - Orchestrator plans quickly → streams opening_summary + active_spec
   - Background: executes recommendation tool + curator
   - Returns final recs with why URL for explanations
-- `routes_discovery.py` - Legacy For-You feed endpoint
-- `routes_recommendations.py` - Legacy interactive vibe query endpoint
+- **`for_you.py`** - Personalized feed endpoint (`/discovery/for-you`)
+  - Taste profile-based recommendations
+  - Streams SSE responses with batch recommendations
+- **`telemetry.py`** - Logging and analytics endpoints
+- **`_helpers.py`** - Shared utilities for SSE streaming and response helpers
+
+#### Core Routes
 - `routes_taste_profile.py` - User taste vector management
-- `routes_watchlist.py` - Watchlist CRUD
+- `routes_watchlist.py` - Watchlist CRUD operations
+- `routes_interactions.py` - User interaction tracking
+- `routes_user_settings.py` - User preferences and settings
 
 ### Frontend Features (apps/web/src/features/)
-- `discover/` - For-You personalized feed
-- `recommendation/` - Vibe query search
+- `discover/` - Discovery experiences
+  - `explore/` - Agent-based conversational search page (`/explore`)
+  - For-You personalized feed
+- `agent/` - Agent chat interface components
 - `taste_onboarding/` - User preference collection
 - `watchlist/` - Saved items management
-- `agent/` - Agent chat interface
 
 ### Key Patterns
 - **Agent Tools** (`reelix_agent/tools/`): Pluggable tool system with registry, validation, and execution
