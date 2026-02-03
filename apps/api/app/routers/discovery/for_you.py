@@ -29,7 +29,7 @@ from app.infrastructure.cache.why_cache import WhyCache, CachedWhy
 from app.infrastructure.cache.ticket_store import Ticket
 from app.schemas import DiscoverRequest
 
-from ._helpers import sse, item_view, pick_call
+from ._helpers import sse, pick_call
 
 router = APIRouter(tags=["for-you"])
 
