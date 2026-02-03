@@ -335,7 +335,6 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
                 media_type=state.media_type,
                 candidates=state.candidates,
                 final_recs=state.final_recs,
-                traces=traces,
                 tier_stats=state.tier_stats,
             )
         )
@@ -406,7 +405,6 @@ async def _log_curator_data(
     media_type: str,
     candidates: list,
     final_recs: list,
-    traces: dict,
     tier_stats: dict,
 ) -> None:
     """Log curator evaluations and tier summary to Supabase.
@@ -417,7 +415,6 @@ async def _log_curator_data(
         media_type: Media type (movie/tv)
         candidates: All candidates with curator scores stamped on payload
         final_recs: Final selected recommendations
-        traces: Pipeline score traces keyed by media_id
         tier_stats: Tier statistics from apply_curator_tiers
     """
     # Lazy import to avoid circular dependency
@@ -430,10 +427,11 @@ async def _log_curator_data(
     served_ids = {int(c.id) for c in final_recs}
 
     # Build curator evaluation logs from final_recs first (with ranks)
+    # Note: Pipeline scores (dense_score, sparse_score, pipeline_score) are stored
+    # in rec_results table, not here. Join on query_id + media_id for analysis.
     evals = []
     for rank, c in enumerate(final_recs, start=1):
         p = c.payload or {}
-        trace = traces.get(int(c.id))
         evals.append(
             CuratorEvalLog(
                 query_id=query_id,
@@ -448,9 +446,6 @@ async def _log_curator_data(
                 tier=p.get("curator_category"),
                 is_served=True,
                 final_rank=rank,
-                dense_score=trace.dense_score if trace else None,
-                sparse_score=trace.sparse_score if trace else None,
-                pipeline_score=trace.final_score if trace else None,
             )
         )
 
@@ -459,7 +454,6 @@ async def _log_curator_data(
         if int(c.id) in served_ids:
             continue
         p = c.payload or {}
-        trace = traces.get(int(c.id))
         evals.append(
             CuratorEvalLog(
                 query_id=query_id,
@@ -474,9 +468,6 @@ async def _log_curator_data(
                 tier=p.get("curator_category"),
                 is_served=False,
                 final_rank=None,
-                dense_score=trace.dense_score if trace else None,
-                sparse_score=trace.sparse_score if trace else None,
-                pipeline_score=trace.final_score if trace else None,
             )
         )
 

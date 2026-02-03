@@ -1,3 +1,7 @@
+"""
+/discovery/for-you endpoints. Personalized feed based on user taste profile.
+"""
+
 import json
 import time
 import asyncio
@@ -23,9 +27,11 @@ from app.deps.supabase_client import (
 from app.deps.deps_redis_caches import get_ticket_store, get_why_cache
 from app.infrastructure.cache.why_cache import WhyCache, CachedWhy
 from app.infrastructure.cache.ticket_store import Ticket
-from app.schemas import DiscoverRequest, FinalRecsRequest
+from app.schemas import DiscoverRequest
 
-router = APIRouter(prefix="/discovery", tags=["for-you"])
+from ._helpers import sse, item_view, pick_call
+
+router = APIRouter(tags=["for-you"])
 
 ENDPOINT = "discovery/for-you"
 PIPELINE_VERSION = "RecommendPipeline@v2"
@@ -35,7 +41,7 @@ log = logging.getLogger(__name__)
 
 
 @router.post("/for-you")
-async def discover_for_you(
+async def for_you(
     req: DiscoverRequest,
     batch_size: int = 8,
     user_id: str = Depends(get_current_user_id),
@@ -46,6 +52,7 @@ async def discover_for_you(
     logger=Depends(get_logger),
     why_cache: WhyCache = Depends(get_why_cache),
 ):
+    """Get personalized recommendations based on user taste profile."""
     recipe = registry.get(kind="for_you_feed")
     user_context = await user_context.fetch_user_taste_context(user_id, req.media_type)
 
@@ -147,7 +154,7 @@ async def discover_for_you(
 
     items = []
     for c in final_candidates[:batch_size]:
-        item = _item_view(c)
+        item = _for_you_item_view(c)
         if str(c.id) in cached_whys_meta:
             item.update(cached_whys_meta[str(c.id)])
             item["why_source"] = "cache"
@@ -168,13 +175,14 @@ async def discover_for_you(
 
 
 @router.get("/for-you/why")
-async def stream_why(
+async def for_you_why_stream(
     query_id: str,
     batch: int = 1,
     user_id: str = Depends(get_current_user_id),
     store=Depends(get_ticket_store),
     chat_llm=Depends(get_chat_completion_llm),
 ):
+    """Stream personalized 'why you'll like it' explanations for for-you results."""
     ticket = await store.get(query_id)
     if not ticket:
         raise HTTPException(404, "Unknown or expired query")
@@ -187,7 +195,7 @@ async def stream_why(
     except Exception as e:
         raise HTTPException(500, f"Invalid prompt envelope: {e}")
 
-    picked = _pick_call(env, batch)
+    picked = pick_call(env, batch)
     messages = picked["messages"]
     batch_id = picked["batch_id"]
 
@@ -196,7 +204,7 @@ async def stream_why(
 
     def gen() -> Iterator[bytes]:
         last_hb = time.time()
-        yield _sse(
+        yield sse(
             "started",
             {
                 "query_id": query_id,
@@ -229,7 +237,7 @@ async def stream_why(
                         why_md = obj.get("why_md")
                         if not media_id or not isinstance(why_md, str):
                             continue
-                        yield _sse(
+                        yield sse(
                             "why_delta",
                             {
                                 "media_id": media_id,
@@ -252,7 +260,7 @@ async def stream_why(
                     rotten_tomatoes_rating = obj.get("rotten_tomatoes_rating")
                     why_md = obj.get("why_md")
                     if media_id and isinstance(why_md, str):
-                        yield _sse(
+                        yield sse(
                             "why_delta",
                             {
                                 "media_id": media_id,
@@ -264,11 +272,11 @@ async def stream_why(
                 except Exception:
                     pass
 
-            yield _sse("done", {"ok": True})
+            yield sse("done", {"ok": True})
         except Exception:
             error_id = str(uuid.uuid4())
-            log.exception("Discovery why stream failed (error_id=%s)", error_id)
-            yield _sse(
+            log.exception("For-you why stream failed (error_id=%s)", error_id)
+            yield sse(
                 "error",
                 {
                     "message": "Something went wrong. Please try again.",
@@ -285,63 +293,9 @@ async def stream_why(
         },
     )
 
-    # === TEST - Simple Streaming ===
-    # return StreamingResponse(
-    #     gen(),
-    #     media_type="text/event-stream",
-    #     headers={
-    #         "Cache-Control": "no-cache, no-transform",
-    #         "Connection": "keep-alive",
-    #     },
-    # )
 
-
-@router.post("/log/final_recs")
-async def log_final_recommendations(
-    req: FinalRecsRequest,
-    user_id: str = Depends(get_current_user_id),
-    logger=Depends(get_logger),
-    why_cache: WhyCache = Depends(get_why_cache),
-):
-    # Fire-and-forget logging + cache updates to avoid blocking the client
-    async def _bg() -> None:
-        await logger.log_why(
-            endpoint=ENDPOINT,
-            query_id=req.query_id,
-            final_recs=req.final_recs,
-        )
-        # Best-effort cache write; ignore errors
-        try:
-            values: dict[int, CachedWhy] = {}
-            now = time.time()
-            for r in req.final_recs:
-                # Only cache if this why was newly generated by the LLM
-                if r.why_source.lower() == "cache":
-                    continue
-
-                values[r.media_id] = CachedWhy(
-                    why_md=r.why,
-                    imdb_rating=r.imdb_rating,
-                    rt_rating=r.rt_rating,
-                    created_at=now,
-                    taste_version=PIPELINE_VERSION,
-                )
-
-            if values:
-                await why_cache.set_many(
-                    user_id=user_id,
-                    media_type=req.media_type,
-                    values=values,
-                )
-        except Exception:
-            # Cache errors shouldn't break logging
-            pass
-
-    asyncio.create_task(_bg())
-    return JSONResponse({"ok": True})
-
-
-def _item_view(c):
+def _for_you_item_view(c) -> dict:
+    """Convert a candidate to item view for for-you feed (without imdb_rating/rt_score)."""
     p = c.payload or {}
     return {
         "id": c.id,
@@ -353,34 +307,3 @@ def _item_view(c):
         "backdrop_url": p.get("backdrop_url"),
         "trailer_key": p.get("trailer_key"),
     }
-
-
-def _pick_call(env: PromptsEnvelope, batch: int | None) -> dict:
-    if not env.calls:
-        raise HTTPException(500, "Envelope has no calls")
-
-    call = None
-    if batch is not None:
-        for c in env.calls:
-            if getattr(c, "call_id", None) == batch:
-                call = c
-                break
-        if call is None:
-            raise HTTPException(404, f"Batch {batch} not found")
-    else:
-        call = env.calls[0]
-
-    return {
-        "messages": call.messages,
-        "items_brief": getattr(call, "items_brief", []),
-        "media_id": getattr(call, "media_id", None),
-        "batch_id": getattr(call, "call_id", None),
-    }
-
-
-def _sse(event: str, data: dict | str) -> bytes:
-    if isinstance(data, dict):
-        payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    else:
-        payload = data
-    return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")

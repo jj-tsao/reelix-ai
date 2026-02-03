@@ -481,3 +481,38 @@ function toOptionalNumber(value: unknown): number | undefined {
   }
   return undefined;
 }
+
+export async function logExploreFinalRecs({
+  queryId,
+  mediaType,
+  finalRecs,
+}: {
+  queryId: string;
+  mediaType: "movie" | "tv";
+  finalRecs: {
+    media_id: number;
+    why: string;
+    imdb_rating?: number | null;
+    rt_rating?: number | null;
+    why_source: "cache" | "llm";
+  }[];
+}): Promise<void> {
+  const token = await getSupabaseAccessToken();
+  const response = await fetch(`${BASE_URL}/discovery/telemetry/final_recs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      query_id: queryId,
+      media_type: mediaType,
+      final_recs: finalRecs,
+      endpoint: "discovery/explore",
+    }),
+  });
+
+  if (!response.ok) {
+    console.warn("Failed to log explore final recs");
+  }
+}

@@ -1,6 +1,9 @@
+"""
+/discovery/explore endpoints. Agent-powered vibe search with streaming SSE responses.
+"""
+
 import asyncio
 from collections.abc import AsyncIterator
-import json
 import logging
 import uuid
 from pydantic import BaseModel, ValidationError
@@ -32,7 +35,9 @@ from app.agent.session_memory_service import upsert_session_memory
 from app.infrastructure.cache.ticket_store import Ticket
 from app.schemas import InteractiveRequest, ExploreRerunRequest
 
-router = APIRouter(prefix="/discovery", tags=["explore"])
+from ._helpers import sse, item_view, pick_call
+
+router = APIRouter(tags=["explore"])
 
 ENDPOINT = "discovery/explore"
 IDLE_TTL_SEC = 15 * 60
@@ -41,7 +46,7 @@ log = logging.getLogger(__name__)
 
 
 @router.post("/explore")
-async def agent_interactive_stream(
+async def explore_stream(
     req: InteractiveRequest,
     batch_size: int = 20,
     user_id: str = Depends(get_current_user_id),
@@ -55,7 +60,7 @@ async def agent_interactive_stream(
     tool_runner=Depends(get_tool_runner),
 ):
     """
-    Streaming /discover/explore endpoint.
+    Streaming /discovery/explore endpoint.
 
     Emits SSE events so the UI can render an opening summary + active_spec immediately, followed by final recs, as well as stream_url for WHY explanations.
 
@@ -79,7 +84,7 @@ async def agent_interactive_stream(
     )
 
     async def gen() -> AsyncIterator[bytes]:
-        yield _sse("started", {"query_id": req.query_id})
+        yield sse("started", {"query_id": req.query_id})
 
         try:
             # 1) Orchestrator "plan" step (fast) — get tool args (spec + opening_summary)
@@ -92,7 +97,7 @@ async def agent_interactive_stream(
 
             # fast UI paint with opening summary + active_spec for chip display (RECS mode only)
             if plan.mode == "recs":
-                yield _sse(
+                yield sse(
                     "opening",
                     {
                         "query_id": req.query_id,
@@ -148,7 +153,7 @@ async def agent_interactive_stream(
             ctx_log = agent_result.ctx_log
             traces = agent_result.pipeline_traces[-1] if agent_result.pipeline_traces else {}
             meta = agent_result.meta
-            
+
             # log query intake
             asyncio.create_task(
                 logger.log_query_intake(
@@ -183,8 +188,8 @@ async def agent_interactive_stream(
 
             # == CHAT mode: stream chat message & done ==
             if str(mode) == "chat":
-                yield _sse("chat", {"query_id": req.query_id, "message": plan.message})
-                yield _sse("done", {"ok": True})
+                yield sse("chat", {"query_id": req.query_id, "message": plan.message})
+                yield sse("done", {"ok": True})
                 return
 
             # == RECS mode: write ticket store and stream final recs ==
@@ -205,9 +210,9 @@ async def agent_interactive_stream(
                 )
                 await ticket_store.put(req.query_id, ticket, ttl_sec=IDLE_TTL_SEC)
 
-            items = [_item_view(c) for c in (agent_result.final_recs or [])]
+            items = [item_view(c) for c in (agent_result.final_recs or [])]
 
-            yield _sse(
+            yield sse(
                 "recs",
                 {
                     "query_id": req.query_id,
@@ -216,12 +221,12 @@ async def agent_interactive_stream(
                     "stream_url": f"/discovery/explore/why?query_id={req.query_id}",
                 },
             )
-            yield _sse("done", {"ok": True})
+            yield sse("done", {"ok": True})
 
         except Exception:
             error_id = str(uuid.uuid4())
             log.exception("Explore stream failed (error_id=%s)", error_id)
-            yield _sse(
+            yield sse(
                 "error",
                 {
                     "message": "Something went wrong. Please try again.",
@@ -240,7 +245,7 @@ async def agent_interactive_stream(
 
 
 @router.post("/explore/rerun")
-async def agent_explore_rerun(
+async def explore_rerun(
     req: ExploreRerunRequest,
     batch_size: int = 20,
     user_id: str = Depends(get_current_user_id),
@@ -304,7 +309,7 @@ async def agent_explore_rerun(
         device_info=req.device_info,
     )
 
-    # 5) Convert state -> InteractiveAgentResult
+    # 4) Convert state -> InteractiveAgentResult
     agent_result = await run_rec_engine_direct(
         agent_input=agent_input,
         spec=spec,
@@ -315,7 +320,7 @@ async def agent_explore_rerun(
         logger=logger,
     )
 
-    # 6) Upsert session memory using existing code
+    # 5) Upsert session memory using existing code
     await upsert_session_memory(
         state_store=state_store,
         session_id=req.session_id,
@@ -323,7 +328,7 @@ async def agent_explore_rerun(
         agent_result=agent_result,
     )
 
-    # 7) Logging (same as /explore)
+    # 6) Logging (same as /explore)
     ctx_log = agent_result.ctx_log
     traces = agent_result.pipeline_traces[-1] if agent_result.pipeline_traces else {}
     meta = agent_result.meta
@@ -355,7 +360,7 @@ async def agent_explore_rerun(
         )
     )
 
-    # 8) WHY ticket (same as /explore)
+    # 7) WHY ticket (same as /explore)
     final_recs = agent_result.final_recs
     query_spec = agent_result.query_spec
 
@@ -374,7 +379,7 @@ async def agent_explore_rerun(
         await ticket_store.put(req.query_id, ticket, ttl_sec=IDLE_TTL_SEC)
 
     active_spec = craft_active_spec(query_spec) if query_spec else None
-    items = [_item_view(c) for c in final_recs]
+    items = [item_view(c) for c in final_recs]
 
     return JSONResponse(
         {
@@ -388,13 +393,14 @@ async def agent_explore_rerun(
 
 
 @router.get("/explore/why")
-async def stream_why(
+async def explore_why_stream(
     query_id: str,
     batch: int = 1,
     user_id: str = Depends(get_current_user_id),
     store=Depends(get_ticket_store),
-    chat_llm=Depends(get_chat_completion_llm),  # must expose async chat_stream(...)
+    chat_llm=Depends(get_chat_completion_llm),
 ):
+    """Stream personalized 'why you'll like it' explanations for explore results."""
     ticket = await store.get(query_id)
     if not ticket:
         raise HTTPException(404, "Unknown or expired query")
@@ -407,7 +413,7 @@ async def stream_why(
     except Exception as e:
         raise HTTPException(500, f"Invalid prompt envelope: {e}")
 
-    picked = _pick_call(env, batch)
+    picked = pick_call(env, batch)
     messages = picked["messages"]
     batch_id = picked["batch_id"]
 
@@ -415,7 +421,7 @@ async def stream_why(
     params = dict(env.params or {})
 
     async def gen() -> AsyncIterator[bytes]:
-        yield _sse("started", {"query_id": query_id, "batch_id": batch_id})
+        yield sse("started", {"query_id": query_id, "batch_id": batch_id})
 
         try:
             async for ev in stream_why_events(
@@ -434,7 +440,7 @@ async def stream_why(
                 if item is None:
                     continue
 
-                yield _sse(
+                yield sse(
                     "why_delta",
                     {
                         "media_id": item.media_id,
@@ -442,12 +448,12 @@ async def stream_why(
                     },
                 )
 
-            yield _sse("done", {"ok": True})
+            yield sse("done", {"ok": True})
 
         except Exception:
             error_id = str(uuid.uuid4())
             log.exception("Explore why stream failed (error_id=%s)", error_id)
-            yield _sse(
+            yield sse(
                 "error",
                 {
                     "message": "Something went wrong. Please try again.",
@@ -465,56 +471,10 @@ async def stream_why(
     )
 
 
-def _item_view(c):
-    p = c.payload or {}
-    return {
-        "id": c.id,
-        "media_id": p.get("media_id"),
-        "title": p.get("title"),
-        "release_year": p.get("release_year"),
-        "genres": p.get("genres", []),
-        "imdb_rating": p.get("imdb_rating", 0.0),
-        "rt_score": p.get("rt_score", "N/A"),
-        "poster_url": p.get("poster_url"),
-        "backdrop_url": p.get("backdrop_url"),
-        "trailer_key": p.get("trailer_key"),
-    }
-
-
 def _field_provided(model: BaseModel, name: str) -> bool:
+    """Check if a field was explicitly provided in the request."""
     # pydantic v2: model_fields_set, v1: __fields_set__
     s = getattr(model, "model_fields_set", None)
     if s is None:
         s = getattr(model, "__fields_set__", set())
     return name in (s or set())
-
-
-def _pick_call(env: PromptsEnvelope, batch: int | None) -> dict:
-    if not env.calls:
-        raise HTTPException(500, "Envelope has no calls")
-
-    call = None
-    if batch is not None:
-        for c in env.calls:
-            if getattr(c, "call_id", None) == batch:
-                call = c
-                break
-        if call is None:
-            raise HTTPException(404, f"Batch {batch} not found")
-    else:
-        call = env.calls[0]
-
-    return {
-        "messages": call.messages,
-        "items_brief": getattr(call, "items_brief", []),
-        "media_id": getattr(call, "media_id", None),
-        "batch_id": getattr(call, "call_id", None),
-    }
-
-
-def _sse(event: str, data: dict | str) -> bytes:
-    if isinstance(data, dict):
-        payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    else:
-        payload = data
-    return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")

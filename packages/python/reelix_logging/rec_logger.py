@@ -29,7 +29,9 @@ class FinalRec(BaseModel):
 
 
 class CuratorEvalLog(BaseModel):
-    """Data for logging a single curator evaluation."""
+    """
+    Data for logging a single curator evaluation.
+    """
 
     query_id: str
     media_id: int
@@ -43,9 +45,6 @@ class CuratorEvalLog(BaseModel):
     tier: str | None = None  # strong_match, moderate_match, no_match
     is_served: bool = False
     final_rank: int | None = None
-    dense_score: float | None = None
-    sparse_score: float | None = None
-    pipeline_score: float | None = None
 
 
 class TierSummaryLog(BaseModel):
@@ -321,9 +320,6 @@ class TelemetryLogger:
                 "tier": e.tier,
                 "is_served": e.is_served,
                 "final_rank": e.final_rank,
-                "dense_score": e.dense_score,
-                "sparse_score": e.sparse_score,
-                "pipeline_score": e.pipeline_score,
             }
             rows.append(row)
 

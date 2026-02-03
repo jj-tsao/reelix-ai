@@ -32,6 +32,7 @@ import { setExploreRedirectFlag } from "@/utils/exploreRedirect";
 import { DEFAULT_YEAR_RANGE } from "@/utils/yearRange";
 import {
   getAccessToken,
+  logExploreFinalRecs,
   mapToRatings,
   rerunExplore,
   streamExplore,
@@ -331,6 +332,7 @@ export default function ExplorePage() {
   const [selectedYearRange, setSelectedYearRange] = useState<[number, number] | null>(null);
   const [filtersReady, setFiltersReady] = useState(false);
   const queryIdRef = useRef<string | null>(null);
+  const loggedQueryIdRef = useRef<string | null>(null);
   const autoSubmitRef = useRef<string | null>(null);
   const exploreAbortRef = useRef<AbortController | null>(null);
   const whyAbortRef = useRef<AbortController | null>(null);
@@ -1224,6 +1226,63 @@ export default function ExplorePage() {
       whyAbortRef.current?.abort();
     };
   }, []);
+
+  // Log final recommendations after why streaming completes
+  useEffect(() => {
+    // Only log when why streaming has finished and we have recs
+    if (isWhyStreaming) return;
+    if (!hasRecsResponse) return;
+    const queryId = queryIdRef.current;
+    if (!queryId) return;
+    if (loggedQueryIdRef.current === queryId) return;
+
+    const finalRecs = orderedCards
+      .map((card) => {
+        const mediaId = toNumericMediaId(card.mediaId);
+        if (mediaId === null) return null;
+        const why = (card.whyMarkdown ?? card.whyText ?? "").trim();
+        if (!why) return null;
+        const whySource: "cache" | "llm" = card.whySource === "cache" ? "cache" : "llm";
+        const imdbRating =
+          typeof card.imdbRating === "number" && Number.isFinite(card.imdbRating)
+            ? card.imdbRating
+            : null;
+        const rtRating =
+          typeof card.rottenTomatoesRating === "number" &&
+          Number.isFinite(card.rottenTomatoesRating)
+            ? Math.round(card.rottenTomatoesRating)
+            : null;
+        return {
+          media_id: mediaId,
+          why,
+          imdb_rating: imdbRating,
+          rt_rating: rtRating,
+          why_source: whySource,
+        };
+      })
+      .filter(
+        (
+          entry
+        ): entry is {
+          media_id: number;
+          why: string;
+          imdb_rating: number | null;
+          rt_rating: number | null;
+          why_source: "cache" | "llm";
+        } => entry !== null
+      );
+
+    if (finalRecs.length === 0) return;
+
+    loggedQueryIdRef.current = queryId;
+    void logExploreFinalRecs({
+      queryId,
+      mediaType: "movie",
+      finalRecs,
+    }).catch((error) => {
+      console.warn("Failed to log explore final recommendations", error);
+    });
+  }, [orderedCards, isWhyStreaming, hasRecsResponse, toNumericMediaId]);
 
   return (
     <main className="min-h-[100dvh] pb-12">

@@ -148,6 +148,37 @@ User Query
   1. Orchestrator streams opening summary (fast)
   2. Explanation agent streams individual "why" explanations (JSONL over SSE)
 
+### Logging Systems (Supabase)
+
+Two layered logging systems:
+
+#### Layer 1: Recommendation Pipeline Logging (All Endpoints)
+| Table | Purpose |
+|-------|---------|
+| `rec_queries` | One row per API request (query_id, filters, context) |
+| `rec_results` | Pipeline scores per candidate (dense, sparse, final) |
+
+#### Layer 2: Agent Decision Logging (Agent Endpoints Only)
+| Table | Purpose |
+|-------|---------|
+| `agent_decisions` | Orchestrator mode routing, spec generation, LLM usage |
+| `curator_evaluations` | Per-candidate fit scores (genre, tone, theme) and tier |
+| `tier_summaries` | Aggregate tier stats and selection rule applied |
+
+**Key files:**
+- `reelix_logging/rec_logger.py` - `TelemetryLogger` class with all logging methods
+- `scripts/Supabase/logger_tables_schema.sql` - Pipeline tables schema
+- `scripts/Supabase/agent_tables_schema.sql` - Agent tables schema
+
+**Query pattern for combined analysis:**
+```sql
+-- Join curator fits with pipeline scores
+SELECT ce.*, rr.score_dense, rr.score_sparse, rr.score_final
+FROM curator_evaluations ce
+JOIN rec_results rr ON ce.query_id = rr.query_id AND ce.media_id = rr.media_id
+WHERE ce.query_id = 'xxx';
+```
+
 ## Environment Variables
 
 Required in `apps/api/.env`:

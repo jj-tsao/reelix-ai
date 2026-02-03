@@ -183,7 +183,7 @@ export async function logDiscoverFinalRecs({
   }[];
 }): Promise<void> {
   const token = await getSupabaseAccessToken();
-  const response = await fetch(`${BASE_URL}/discovery/log/final_recs`, {
+  const response = await fetch(`${BASE_URL}/discovery/telemetry/final_recs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -193,6 +193,7 @@ export async function logDiscoverFinalRecs({
       query_id: queryId,
       media_type: mediaType,
       final_recs: finalRecs,
+      endpoint: "discovery/for-you",
     }),
   });
 
