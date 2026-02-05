@@ -20,15 +20,19 @@ def make_redis_clients(redis_url: str) -> RedisClients:
     bytes_client: Redis = redis.from_url(
         redis_url,
         decode_responses=False,
-        health_check_interval=30,
+        health_check_interval=10,
         socket_keepalive=True,
+        socket_connect_timeout=2,
+        socket_timeout=5,
         retry_on_timeout=True,
     )
     text_client: Redis = redis.from_url(
         redis_url,
         decode_responses=True,
-        health_check_interval=30,
+        health_check_interval=10,
         socket_keepalive=True,
+        socket_connect_timeout=2,
+        socket_timeout=5,
         retry_on_timeout=True,
     )
     return RedisClients(bytes=bytes_client, text=text_client)
