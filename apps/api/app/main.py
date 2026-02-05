@@ -55,7 +55,6 @@ def _should_init_recommendation() -> bool:
 
 
 def _init_recommendation_stack(app: FastAPI) -> None:
-    import nltk
 
     from reelix_models.custom_models import (
         load_bm25_files,
@@ -69,6 +68,14 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
     from reelix_agent.tools import build_registry, ToolRunner
+
+    nltk_data_path = str(NLTK_PATH)
+    os.environ.setdefault("NLTK_DATA", nltk_data_path)
+
+    import nltk
+
+    if nltk_data_path not in nltk.data.path:
+        nltk.data.path.insert(0, nltk_data_path)
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
@@ -91,10 +98,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
         )
 
     # == Initialize recommendation stacks ==
-    nltk_data_path = str(NLTK_PATH)
-    if nltk_data_path not in nltk.data.path:
-        nltk.data.path.append(nltk_data_path)
-
     embed_model = load_sentence_model()
     bm25_models, bm25_vocabs = load_bm25_files()
     query_encoder = Encoder(embed_model, bm25_models, bm25_vocabs)
