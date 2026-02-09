@@ -1,9 +1,12 @@
 import asyncio
 from datetime import date
 from typing import List, Optional
+import logging
 
 import httpx
 from tqdm import tqdm
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 class TMDBClient:
@@ -36,9 +39,7 @@ class TMDBClient:
             f"&{date_param}={today}&vote_average.gte={rating}&vote_count.gte={vote_count}&sort_by=popularity.desc"
         )
         if media_type == "movie":
-            url += (
-                "&without_genres=10770"
-            )            
+            url += "&without_genres=10770"
         else:
             url += (
                 "&include_null_first_air_dates=false"
@@ -98,10 +99,10 @@ class TMDBClient:
             for page in range(1, total_pages + 1)
         ]
         results = await asyncio.gather(*tasks)
-        all_ids = [
+        all_ids = list(dict.fromkeys(
             mid for sublist in results if isinstance(sublist, list) for mid in sublist
-        ]
-        print(f"✅ Fetched {len(all_ids):,} {media_type.upper()} IDs")
+        ))
+        print(f"✅ Fetched {len(all_ids):,} unique {media_type.upper()} IDs")
         return all_ids
 
     async def fetch_media_details(
@@ -117,25 +118,35 @@ class TMDBClient:
         keywords_url = f"{base}/keywords?api_key={self.api_key}"
         providers_url = f"{base}/watch/providers?api_key={self.api_key}"
         video_url = f"{base}/videos?api_key={self.api_key}"
+        external_ids_url = f"{base}/external_ids?api_key={self.api_key}"
 
         media_details = await self.get_with_retry(details_url) or {}
-        credits_data = await self.get_with_retry(credits_url)
-        keywords_data = await self.get_with_retry(keywords_url)
-        providers_data = await self.get_with_retry(providers_url)
-        video_data = await self.get_with_retry(video_url)
+
+        credits_data, keywords_data, providers_data, video_data, external_id_data = (
+            await asyncio.gather(
+                self.get_with_retry(credits_url),
+                self.get_with_retry(keywords_url),
+                self.get_with_retry(providers_url),
+                self.get_with_retry(video_url),
+                self.get_with_retry(external_ids_url),
+            )
+        )
 
         if media_type == "movie":
             if credits_data:
                 crew = credits_data.get("crew", [])
+
                 media_details["director"] = next(
                     (c["name"] for c in crew if c["job"] == "Director"), "Unknown"
                 )
                 cast = credits_data.get("cast", [])
+
                 media_details["stars"] = [
                     c.get("name") for c in cast[:3] if "name" in c
                 ]
             else:
                 media_details["director"] = "Unknown"
+
                 media_details["stars"] = []
         else:
             media_details["creator"] = [
@@ -145,6 +156,7 @@ class TMDBClient:
             ]
             if credits_data:
                 cast = credits_data.get("cast", [])
+
                 media_details["stars"] = [
                     c.get("name") for c in cast[:3] if "name" in c
                 ]
@@ -153,6 +165,7 @@ class TMDBClient:
 
         if keywords_data:
             keyword_key = "keywords" if media_type == "movie" else "results"
+
             media_details["keywords"] = [
                 kw["name"] for kw in keywords_data.get(keyword_key, [])
             ]
@@ -175,7 +188,7 @@ class TMDBClient:
                     score += 500
                 if video["official"]:
                     score += 500
-                score += video.get("size", 0) /10
+                score += video.get("size", 0) / 10
                 return score
 
             def sort_trailer(videos):
@@ -196,7 +209,10 @@ class TMDBClient:
             us_data = providers_data.get("results", {}).get("US", {})
             providers = us_data.get("flatrate", []) + us_data.get("ads", [])
             if providers:
-                media_details["providers"] = [p["provider_name"] for p in providers]
+                media_details["providers"] = [p["provider_id"] for p in providers]
+
+        if external_id_data:
+            media_details["imdb_id"] = external_id_data.get("imdb_id", "")
 
         return media_details
 
@@ -204,6 +220,7 @@ class TMDBClient:
         self, media_type: str, media_ids: List[int]
     ) -> List[dict]:
         tasks = [self.fetch_media_details(media_type, mid) for mid in media_ids]
+
         media_details = []
         for future in tqdm(
             asyncio.as_completed(tasks),
@@ -216,6 +233,7 @@ class TMDBClient:
                     media_details.append(media)
             except Exception as e:
                 print(f"❌ Error fetching {media_type.upper()} details: {e}")
+
         return media_details
 
     async def aclose(self):

@@ -16,6 +16,7 @@ The system combines dense embeddings (fine-tuned bge-base-en-v1.5), BM25 sparse 
 This is a pnpm monorepo using Turborepo:
 - **apps/api** - FastAPI backend (Python 3.11+, managed with `uv`)
 - **apps/web** - React frontend (Vite + TypeScript + Tailwind)
+- **apps/data-pipeline** - ETL + embedding + Qdrant indexing pipeline (Python 3.11+, managed with `uv`)
 - **packages/python** - Shared Python packages (reelix_agent, reelix_core, reelix_ranking, reelix_retrieval, etc.)
 - **packages/js/ts-sdk** - TypeScript SDK generated from OpenAPI spec via Orval
 - **packages/py-sdk** - Python SDK for API client
@@ -58,6 +59,21 @@ pytest -k "test_name"            # Run tests matching pattern
 
 # Skip model loading for faster startup during development
 REELIX_SKIP_RECOMMENDER_INIT=1 uvicorn app.main:app --reload --port 7860
+```
+
+### Data Pipeline (apps/data-pipeline)
+```bash
+cd apps/data-pipeline
+uv sync                   # Install Python dependencies
+source .venv/bin/activate # Activate venv
+
+# Full indexing pipeline (fetch TMDB data → embed → upsert to Qdrant)
+python -m jobs.indexing --media-type movie --media-count 10  # 10k movies
+python -m jobs.indexing --media-type tv --media-count 5      # 5k TV shows
+
+# Rating enrichment (IMDb + OMDb → Qdrant payload sync)
+python -m jobs.enrich_ratings --mode daily --budget 500
+python -m jobs.enrich_ratings --mode weekly --budget 1000
 ```
 
 ### Linting and Formatting (Python)
@@ -119,6 +135,37 @@ User Query
 2. **Retrieval** - `reelix_retrieval/base_retriever.py`: Hybrid search via Qdrant (dense + sparse vectors)
 3. **Ranking** - `reelix_ranking/`: Multi-stage reranking (metadata scorer + cross-encoder)
 4. **Recommendation** - `reelix_recommendation/recommend.py`: Orchestrates retrieval + ranking + RRF fusion
+
+### Data Pipeline (apps/data-pipeline)
+
+ETL pipeline that populates and maintains the Qdrant vector store. Two main pipelines:
+
+#### Full Indexing Pipeline (`jobs/indexing.py`)
+```
+TMDB API → Fetch media IDs + details (credits, keywords, providers, trailers)
+  → PostgreSQL: Upsert media_ids mapping (tmdb_id ↔ imdb_id)
+  → BM25: Fit model on corpus, save vocab with stable indices
+  → Qdrant: Create collection (dense + sparse vectors, payload indexes)
+  → Chunked processing: format_embedding_text → dense embed → BM25 sparse → batch upsert
+```
+
+#### Rating Enrichment Pipeline (`core/rating_enrichment.py`)
+- **Daily**: Recent releases → OMDb (RT score, Metascore, awards) → sync to Qdrant
+- **Weekly**: Download IMDb dataset → upsert ratings → OMDb enrichment → sync to Qdrant
+
+#### Shared Encoding Contract
+Both the pipeline (index-time) and the API (query-time) share critical code from `packages/python/`:
+- **`reelix_retrieval/bm25_tokenizer.py`**: Unified BM25 tokenizer (regex: `[a-z0-9]+` + stopwords + Porter stemming)
+- **`reelix_retrieval/text_formatting.py`**: `format_embedding_text()` defines the text format the embedding model was fine-tuned on
+- **`reelix_core/config.py`**: Collection names, model names, vector dimensions
+
+**Key files (pipeline-specific)**:
+- `core/tmdb_client.py` - Async TMDB API client with retry/semaphore
+- `core/embedding_pipeline.py` - Batch embedding + payload formatting
+- `core/bm25_utils.py` - BM25 model fitting + sparse vector creation (index-time)
+- `core/vectorstore_pipeline.py` - Qdrant collection creation + batch upsert with rating preservation
+- `core/rating_enrichment.py` - IMDb/OMDb enrichment + Qdrant payload sync
+- `core/media_ids_repo.py` - PostgreSQL media_ids mapping
 
 ### API Routes (apps/api/app/routers/)
 
@@ -202,6 +249,16 @@ OPENAI_API_KEY=
 REDIS_URL=
 ```
 
+Required in `apps/data-pipeline/.env`:
+```
+QDRANT_ENDPOINT=
+QDRANT_API_KEY=
+OPENAI_API_KEY=
+TMDB_API_KEY=
+OMDB_API_KEY=
+DATABASE_URL=          # PostgreSQL connection string
+```
+
 ## TypeScript SDK Generation
 
 The frontend uses a generated TypeScript SDK from the OpenAPI spec:
@@ -218,8 +275,13 @@ The spec lives in `packages/schemas/openapi.yaml`.
 
 ## Python Package Dependencies
 
-The API depends on local packages via `uv` editable installs:
-- `reelix-core` from `packages/python`
-- `reelix-discovery-agent-api-client` from `packages/py-sdk`
+Both `apps/api` and `apps/data-pipeline` depend on shared packages via `uv` editable installs:
+- `reelix-core` from `packages/python` (config, types, shared constants)
+- `reelix-discovery-agent-api-client` from `packages/py-sdk` (API only)
+
+The data pipeline imports from shared packages for the encoding contract:
+- `reelix_core.config` — collection names, model names, vector dimensions
+- `reelix_retrieval.bm25_tokenizer` — unified BM25 tokenizer
+- `reelix_retrieval.text_formatting` — embedding text + LLM context formatting
 
 Pyright is configured via `pyrightconfig.json` at the root to resolve these paths.
