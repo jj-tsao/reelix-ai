@@ -7,9 +7,8 @@ from core.rating_enrichment import (
     enrich_omdb_rows,
     select_daily_omdb_candidates,
     select_weekly_omdb_candidates,
-    sync_imdb_dataset,
+    sync_imdb_ratings,
     sync_ratings_to_qdrant,
-    upsert_media_ratings_from_imdb,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,19 +35,16 @@ def run_weekly_pipeline(budget: int = 1000, stale_months: int = 6) -> None:
 
     engine = get_engine()
 
-    logger.info("[Step 1/4] Syncing IMDb dataset...")
-    sync_imdb_dataset(engine)
+    logger.info("[Step 1/3] Syncing IMDb ratings into media_ratings...")
+    sync_imdb_ratings(engine)
 
-    logger.info("[Step 2/4] Upserting IMDb ratings into media_ratings...")
-    upsert_media_ratings_from_imdb(engine)
-
-    logger.info("[Step 3/4] Enriching with OMDb (RT + Metascore)...")
+    logger.info("[Step 2/3] Enriching with OMDb (RT + Metascore)...")
     rows = select_weekly_omdb_candidates(
         engine, limit=budget, stale_months=stale_months
     )
     enrich_omdb_rows(engine, rows)
 
-    logger.info("[Step 4/4] Syncing ratings to Qdrant...")
+    logger.info("[Step 3/3] Syncing ratings to Qdrant...")
     sync_ratings_to_qdrant(engine)
 
     logger.info("=" * 60)

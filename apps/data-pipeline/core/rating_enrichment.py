@@ -5,7 +5,7 @@ from typing import Mapping, Sequence
 
 import httpx
 import pandas as pd
-from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.http.models import SetPayload, SetPayloadOperation
 from core.config import (
     IMDB_RATINGS_URL,
     OMDB_API_KEY,
@@ -26,136 +26,86 @@ logging.basicConfig(level=logging.INFO)
 OMDB_URL = "https://www.omdbapi.com/"
 
 
-# == Sync IMDb ratings dataset into imdb_ratings_raw ==
-def sync_imdb_dataset(engine: Engine) -> None:
+# == Download IMDb dataset, filter to known titles, upsert into media_ratings ==
+def sync_imdb_ratings(engine: Engine) -> None:
     """
-    Download IMDb title.ratings.tsv.gz and atomically replace imdb_ratings_raw using a staging table + swap pattern.
+    Download IMDb title.ratings.tsv.gz, filter to titles in media_ids, and upsert directly into media_ratings.
     """
+    # 1) Fetch the set of known imdb_ids from media_ids
+    logger.info("Fetching known IMDb IDs from media_ids...")
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT imdb_id FROM media_ids WHERE imdb_id IS NOT NULL")
+        ).fetchall()
+    known_imdb_ids = {r[0] for r in rows}
+    logger.info("Found %d known IMDb IDs in media_ids.", len(known_imdb_ids))
+
+    if not known_imdb_ids:
+        logger.warning("No IMDb IDs in media_ids — skipping IMDb sync.")
+        return
+
+    # 2) Download full dataset into pandas (pipeline memory)
     logger.info("Downloading IMDb ratings dataset...")
     resp = httpx.get(IMDB_RATINGS_URL, timeout=60)
     resp.raise_for_status()
 
-    raw_bytes = io.BytesIO(resp.content)
     df = pd.read_table(
-        raw_bytes,
+        io.BytesIO(resp.content),
         compression="gzip",
         sep="\t",
         dtype={"tconst": "string", "averageRating": "float32", "numVotes": "int32"},
     )
+    logger.info("Loaded %d total IMDb rows into memory.", len(df))
 
-    df = df.rename(
-        columns={
-            "averageRating": "average_rating",
-            "numVotes": "num_votes",
-        }
+    # 3) Filter to only known titles
+    df = df[df["tconst"].isin(known_imdb_ids)].rename(
+        columns={"averageRating": "average_rating", "numVotes": "num_votes"}
     )
+    logger.info("Filtered to %d rows matching existing media_ids.", len(df))
 
-    logger.info(
-        "Loaded %d IMDb ratings rows into DataFrame, writing to staging table...",
-        len(df),
-    )
+    if df.empty:
+        logger.warning("No matching IMDb ratings found — skipping upsert.")
+        return
 
-    staging_table = "imdb_ratings_raw_new"
-
-    # 1) (Re)create staging table
-    with engine.begin() as conn:
-        conn.execute(text(f"DROP TABLE IF EXISTS {staging_table}"))
-        conn.execute(
-            text(
-                f"""
-                CREATE TABLE {staging_table} (
-                  tconst         text PRIMARY KEY,
-                  average_rating numeric(3,1),
-                  num_votes      integer
-                );
-                """
-            )
-        )
-
-    # 2) Bulk insert into staging table (separate transaction(s) under the hood)
-    df.to_sql(
-        staging_table,
-        engine,
-        if_exists="append",
-        index=False,
-        method="multi",
-        chunksize=20_000,
-    )
-
-    logger.info("Staging table %s loaded, swapping into place...", staging_table)
-
-    # 3) Table swap: drop old, rename staging -> live
-    with engine.begin() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS imdb_ratings_raw"))
-        conn.execute(
-            text(
-                f"""
-                ALTER TABLE {staging_table}
-                  RENAME TO imdb_ratings_raw;
-                """
-            )
-        )
-
-    logger.info(
-        "Swapped imdb_ratings_raw_new into imdb_ratings_raw. Creating indexes..."
-    )
-
-    # 4) Create indexes on the new live table
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                CREATE INDEX IF NOT EXISTS idx_imdb_ratings_num_votes
-                ON imdb_ratings_raw(num_votes);
-                """
-            )
-        )
-        conn.execute(
-            text(
-                """
-                CREATE INDEX IF NOT EXISTS idx_imdb_ratings_avg_rating
-                ON imdb_ratings_raw(average_rating);
-                """
-            )
-        )
-
-    logger.info("imdb_ratings_raw refreshed via staging + swap (old table dropped).")
-
-
-# == Upsert media_ratings from media_ids + imdb_ratings_raw ==
-def upsert_media_ratings_from_imdb(engine: Engine) -> None:
-    logger.info("Upserting media_ratings from imdb_ratings_raw...")
-
-    sql = text(
+    # 4) Upsert into media_ratings in chunks
+    upsert_sql = text(
         """
-        INSERT INTO media_ratings AS mr (media_type, tmdb_id, imdb_id, release_date, imdb_rating, imdb_votes, updated_at)
+        INSERT INTO media_ratings AS mr
+            (media_type, tmdb_id, imdb_id, release_date, imdb_rating, imdb_votes, updated_at)
         SELECT
           mi.media_type,
           mi.tmdb_id,
           mi.imdb_id,
           mi.release_date,
-          ir.average_rating,
-          ir.num_votes,
+          :average_rating,
+          :num_votes,
           now()
         FROM media_ids mi
-        LEFT JOIN imdb_ratings_raw ir
-          ON mi.imdb_id = ir.tconst
-        WHERE mi.imdb_id IS NOT NULL
+        WHERE mi.imdb_id = :tconst
         ON CONFLICT (media_type, tmdb_id) DO UPDATE
-          SET imdb_id      = EXCLUDED.imdb_id,
-              release_date = EXCLUDED.release_date,
-              imdb_rating  = EXCLUDED.imdb_rating,
-              imdb_votes   = EXCLUDED.imdb_votes,
-              updated_at   = now()
+          SET imdb_rating = EXCLUDED.imdb_rating,
+              imdb_votes  = EXCLUDED.imdb_votes,
+              updated_at  = now()
         WHERE mr.imdb_rating IS DISTINCT FROM EXCLUDED.imdb_rating
-          OR mr.imdb_votes  IS DISTINCT FROM EXCLUDED.imdb_votes;
+           OR mr.imdb_votes  IS DISTINCT FROM EXCLUDED.imdb_votes
         """
     )
 
-    with engine.begin() as conn:
-        conn.execute(sql)
+    CHUNK = 500
+    total = len(df)
+    for start in range(0, total, CHUNK):
+        chunk = df.iloc[start : start + CHUNK]
+        params = chunk[["tconst", "average_rating", "num_votes"]].to_dict("records")
+        with engine.begin() as conn:
+            conn.execute(upsert_sql, params)
+        logger.info(
+            "Upserted IMDb chunk %d–%d / %d",
+            start + 1,
+            min(start + CHUNK, total),
+            total,
+        )
 
-    logger.info("media_ratings updated with IMDb ratings.")
+    logger.info("media_ratings updated with %d IMDb ratings.", total)
 
 
 # == OMDb for RT, Metacritics, and awards (daily & weekly) ==
@@ -507,6 +457,7 @@ def select_ratings_for_qdrant_sync(
                updated_at
         FROM media_ratings
         WHERE (qdrant_synced_at IS NULL OR updated_at > qdrant_synced_at)
+          AND qdrant_point_missing IS NOT TRUE
           AND media_type = 'movie'
         ORDER BY updated_at ASC
         LIMIT :limit
@@ -527,11 +478,21 @@ def sync_ratings_to_qdrant(engine: Engine, batch_size: int = 1000) -> None:
     Uses qdrant_synced_at as a watermark so that each row is only sent when it's
     new or changed.
 
-    - Still calls Qdrant per point (API requires one payload dict per call).
-    - Batches the Postgres UPDATE into a single executemany per batch.
+    Three-phase approach per batch:
+      1. Batch existence check via client.retrieve() — avoids per-row 404s
+      2. Batch payload update via batch_update_points() — reduces HTTP calls
+      3. Mark all rows synced (existing + non-existent) in Postgres
     """
+    RETRIEVE_CHUNK = 200
+    BATCH_UPDATE_CHUNK = 100
+
     client = connect_qdrant(QDRANT_API_KEY, QDRANT_ENDPOINT)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+
+    collection_map = {
+        "movie": QDRANT_MOVIE_COLLECTION_NAME,
+        "tv": QDRANT_TV_COLLECTION_NAME,
+    }
 
     update_sql = text(
         """
@@ -551,70 +512,165 @@ def sync_ratings_to_qdrant(engine: Engine, batch_size: int = 1000) -> None:
             logger.info("No ratings to sync to Qdrant.")
             break
 
-        logger.info("Starting Qdrant sync batch #%d", batch_count)
-        logger.info("Syncing %d ratings rows to Qdrant...", len(rows))
+        logger.info("Qdrant sync batch #%d: %d rows selected", batch_count, len(rows))
 
-        updates: list[dict] = []
-
+        # Group rows by media_type
+        rows_by_type: dict[str, list[Mapping]] = {}
         for row in rows:
-            tmdb_id = row["tmdb_id"]
-            media_type = row["media_type"]
+            rows_by_type.setdefault(row["media_type"], []).append(row)
 
-            if media_type == "movie":
-                collection_name = QDRANT_MOVIE_COLLECTION_NAME
-            elif media_type == "tv":
-                collection_name = QDRANT_TV_COLLECTION_NAME
-            else:
+        for media_type, type_rows in rows_by_type.items():
+            collection_name = collection_map.get(media_type)
+            if collection_name is None:
                 logger.warning(
-                    "Skipping tmdb_id=%s with invalid media_type=%s",
-                    tmdb_id,
+                    "Skipping %d rows with invalid media_type=%s",
+                    len(type_rows),
                     media_type,
                 )
                 continue
 
-            payload = {
-                "imdb_rating": row["imdb_rating"],
-                "imdb_votes": row["imdb_votes"],
-                "rt_score": row["rt_score"],
-                "metascore": row["metascore"],
-                "awards_summary": row["awards_summary"],
-            }
+            all_tmdb_ids = [r["tmdb_id"] for r in type_rows]
 
-            # Qdrant expects a single dict as `payload`, not a list
-            try:
-                client.set_payload(
-                    collection_name=collection_name,
-                    payload=payload,
-                    points=[tmdb_id],
-                )
-            except UnexpectedResponse as exc:
-                status_code = getattr(exc, "status_code", None)
-                if status_code == 404 or "Not found" in str(exc):
-                    logger.warning(
-                        "Qdrant point not found for tmdb_id=%s (media_type=%s). Skipping.",
-                        tmdb_id,
-                        media_type,
+            # -- Phase 1: Batch existence check --
+            existing_ids: set[int] = set()
+            for i in range(0, len(all_tmdb_ids), RETRIEVE_CHUNK):
+                chunk_ids = all_tmdb_ids[i : i + RETRIEVE_CHUNK]
+                try:
+                    found = client.retrieve(
+                        collection_name=collection_name,
+                        ids=chunk_ids,
+                        with_payload=False,
+                        with_vectors=False,
                     )
-                    continue
-                raise
+                    existing_ids.update(p.id for p in found)
+                except Exception:
+                    logger.warning(
+                        "retrieve() failed for chunk of %d IDs; treating as existing",
+                        len(chunk_ids),
+                    )
+                    existing_ids.update(chunk_ids)
 
-            updates.append(
-                {
-                    "tmdb_id": tmdb_id,
-                    "media_type": media_type,
-                    "synced_at": row["updated_at"],
-                }
+            rows_to_sync = [r for r in type_rows if r["tmdb_id"] in existing_ids]
+            rows_to_skip = [r for r in type_rows if r["tmdb_id"] not in existing_ids]
+
+            logger.info(
+                "%s: %d in Qdrant, %d not indexed",
+                media_type,
+                len(rows_to_sync),
+                len(rows_to_skip),
             )
 
-        # Batch DB updates for all successfully synced rows
-        if updates:
-            with engine.begin() as conn:
-                conn.execute(update_sql, updates)
+            # Flag non-existent rows so they don't clog the sync queue.
+            # The indexing pipeline clears qdrant_point_missing after
+            # upserting new points, re-queuing them for rating sync.
+            if rows_to_skip:
+                skip_ids = [r["tmdb_id"] for r in rows_to_skip]
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(
+                            """
+                            UPDATE media_ratings
+                            SET qdrant_point_missing = TRUE,
+                                qdrant_synced_at = updated_at
+                            WHERE media_type = :media_type
+                              AND tmdb_id = ANY(:tmdb_ids)
+                            """
+                        ),
+                        {"media_type": media_type, "tmdb_ids": skip_ids},
+                    )
 
-        logger.info(
-            "Finished Qdrant sync batch #%d; marked %d rows as synced.",
-            batch_count,
-            len(updates),
-        )
+            if not rows_to_sync:
+                continue
+
+            # -- Phase 2: Batch payload update --
+            operations = [
+                SetPayloadOperation(
+                    set_payload=SetPayload(
+                        payload={
+                            "imdb_rating": r["imdb_rating"],
+                            "imdb_votes": r["imdb_votes"],
+                            "rt_score": r["rt_score"],
+                            "metascore": r["metascore"],
+                            "awards_summary": r["awards_summary"],
+                        },
+                        points=[r["tmdb_id"]],
+                    )
+                )
+                for r in rows_to_sync
+            ]
+
+            # Send in chunks with per-chunk Postgres flush
+            synced_count = 0
+            total_chunks = (len(operations) + BATCH_UPDATE_CHUNK - 1) // BATCH_UPDATE_CHUNK
+            for i in range(0, len(operations), BATCH_UPDATE_CHUNK):
+                chunk_ops = operations[i : i + BATCH_UPDATE_CHUNK]
+                chunk_rows = rows_to_sync[i : i + BATCH_UPDATE_CHUNK]
+                chunk_num = i // BATCH_UPDATE_CHUNK + 1
+
+                try:
+                    client.batch_update_points(
+                        collection_name=collection_name,
+                        update_operations=chunk_ops,
+                        wait=True,
+                    )
+                except Exception:
+                    logger.error(
+                        "batch_update_points failed for chunk %d/%d (%d ops); will retry next run",
+                        chunk_num,
+                        total_chunks,
+                        len(chunk_ops),
+                    )
+                    continue
+
+                # -- Phase 3: Mark this chunk as synced --
+                chunk_updates = [
+                    {
+                        "tmdb_id": r["tmdb_id"],
+                        "media_type": media_type,
+                        "synced_at": r["updated_at"],
+                    }
+                    for r in chunk_rows
+                ]
+                with engine.begin() as conn:
+                    conn.execute(update_sql, chunk_updates)
+                synced_count += len(chunk_updates)
+
+            logger.info(
+                "%s: synced %d/%d points to Qdrant in %d calls",
+                media_type,
+                synced_count,
+                len(rows_to_sync),
+                total_chunks,
+            )
+
+        logger.info("Finished Qdrant sync batch #%d.", batch_count)
 
     logger.info("Ratings fully synced to Qdrant.")
+
+
+def clear_qdrant_point_missing(engine: Engine, media_type: str) -> None:
+    """
+    Blanket reset: clear qdrant_point_missing and re-queue for rating sync.
+
+    Called by the indexing pipeline after upserting points to Qdrant.
+    Only touches rows previously flagged as missing — typically a small
+    number (~tens) regardless of how many titles were indexed.
+    """
+    sql = text(
+        """
+        UPDATE media_ratings
+        SET qdrant_point_missing = FALSE,
+            qdrant_synced_at = NULL
+        WHERE media_type = :media_type
+          AND qdrant_point_missing = TRUE
+        """
+    )
+
+    with engine.begin() as conn:
+        result = conn.execute(sql, {"media_type": media_type})
+        if result.rowcount:
+            logger.info(
+                "Re-queued %d previously missing %s titles for Qdrant sync.",
+                result.rowcount,
+                media_type,
+            )

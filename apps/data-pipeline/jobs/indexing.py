@@ -15,6 +15,7 @@ from core.config import (
 from core.db import get_engine
 from core.embedding_pipeline import embed_and_format
 from core.media_ids_repo import bulk_upsert_media_ids
+from core.rating_enrichment import clear_qdrant_point_missing
 from core.tmdb_client import TMDBClient
 from core.vectorstore_pipeline import (
     batch_insert_into_qdrant,
@@ -72,13 +73,12 @@ async def main():
             media_count_in_k=media_count_in_k,
             **params,  # minimum rating & vote_count
         )
-        print(media_ids)
         media_details = await tmdb_client.fetch_all_media_details(
             media_type=media_type,
             media_ids=media_ids,
         )
 
-        # Update media_ids mapping (tmdb_id <-> imdb_id) in the postgres db
+        # Update media_ids mapping (tmdb_id <-> imdb_id) in the postgres db for downstream rating enrichment
         bulk_upsert_media_ids(
             media_type=media_type,
             media_details=media_details,
@@ -112,6 +112,9 @@ async def main():
                 bm25_vocab=bm25_vocab,
             )
             batch_insert_into_qdrant(qdrant_client, media_type, embeddings_and_payload)
+
+        # Re-queue any titles previously flagged as missing from Qdrant. Only touches the small set of rows with qdrant_point_missing=TRUE.
+        clear_qdrant_point_missing(engine, media_type)
 
     finally:
         await tmdb_client.aclose()
