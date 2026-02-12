@@ -8,7 +8,7 @@ from redis.asyncio import Redis
 from redis.backoff import ExponentialBackoff
 from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import TimeoutError as RedisTimeoutError
-from redis.retry import Retry
+from redis.asyncio.retry import Retry
 
 # Errors that indicate a stale / broken connection and are safe to retry.
 # RuntimeError covers uvloop's "TCPTransport closed" when a pooled
@@ -41,6 +41,7 @@ def make_redis_clients(redis_url: str) -> RedisClients:
         socket_keepalive=True,
         socket_connect_timeout=2,
         socket_timeout=5,
+        retry_on_timeout=True,
         retry=_RETRY,
         retry_on_error=list(_RETRY_ERRORS),
     )
