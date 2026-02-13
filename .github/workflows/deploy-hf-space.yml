@@ -105,7 +105,7 @@ jobs:
           - `OPENAI_API_KEY`
 
           ## Notes
-          - Model assets (`*.joblib`, `*.pickle`) are tracked with Git LFS.
+          - Model assets (`*.joblib`) are tracked with Git LFS.
           - Set `REELIX_SKIP_RECOMMENDER_INIT=1` if you need to start without model downloads.
           - Provide all API credentials and set `REELIX_SKIP_RECOMMENDER_INIT=0` to enable the full recommendation stack.
           """.strip()
@@ -128,7 +128,8 @@ jobs:
           set -euo pipefail
           SPACE_DIR="hf-space"
           git -C "${SPACE_DIR}" lfs install --local
-          git -C "${SPACE_DIR}" lfs track "*.joblib" "*.pickle"
+          git -C "${SPACE_DIR}" lfs untrack "*.pickle" 2>/dev/null || true
+          git -C "${SPACE_DIR}" lfs track "*.joblib"
 
       - name: Commit and push to Hugging Face
         run: |
