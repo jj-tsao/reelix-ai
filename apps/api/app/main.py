@@ -18,6 +18,8 @@ from reelix_core.config import (
     QDRANT_MOVIE_COLLECTION_NAME,
     QDRANT_TV_COLLECTION_NAME,
 )
+
+os.environ.setdefault("NLTK_DATA", str(NLTK_PATH))
 from reelix_logging.rec_logger import TelemetryLogger
 from app.infrastructure.cache.redis_infra import make_redis_clients
 from app.infrastructure.cache.ticket_store import TicketStore
@@ -68,14 +70,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
     from openai import OpenAI
     from reelix_models.llm_completion import OpenAIChatLLM
     from reelix_agent.tools import build_registry, ToolRunner
-
-    nltk_data_path = str(NLTK_PATH)
-    os.environ.setdefault("NLTK_DATA", nltk_data_path)
-
-    import nltk
-
-    if nltk_data_path not in nltk.data.path:
-        nltk.data.path.insert(0, nltk_data_path)
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     startup_t0 = time.perf_counter()
