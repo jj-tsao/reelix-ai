@@ -353,7 +353,7 @@ Analytics and logging endpoints for tracking recommendation performance and cach
 User Interactions ──▶ Taste Vector (Long term memory)
                                     │
                                     ▼
-              User Prompt ──▶ Orchestrator Agent
+              User Prompt ──▶ Orchestrator Agent (LLM)
                                     │
                                     ▼
                                RecQuerySpec 

@@ -4,7 +4,7 @@ import asyncio
 from reelix_core.config import VECTOR_DIM
 from reelix_retrieval.text_formatting import format_embedding_text
 
-from core.bm25_utils import fit_and_save_bm25
+from core.bm25_utils import fit_and_save_bm25, sync_bm25_to_runtime
 from core.config import (
     BM25_DIR,
     QDRANT_API_KEY,
@@ -115,6 +115,9 @@ async def main():
 
         # Re-queue any titles previously flagged as missing from Qdrant. Only touches the small set of rows with qdrant_point_missing=TRUE.
         clear_qdrant_point_missing(engine, media_type)
+
+        # Sync validated BM25 files to runtime assets (backup + atomic copy)
+        sync_bm25_to_runtime(media_type=media_type, pipeline_dir=BM25_DIR)
 
     finally:
         await tmdb_client.aclose()

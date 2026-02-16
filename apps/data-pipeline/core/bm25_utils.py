@@ -1,9 +1,13 @@
 import os
+import shutil
 from collections import Counter
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 import joblib
 from rank_bm25 import BM25Okapi
+from reelix_core.config import BM25_PATH as RUNTIME_BM25_DIR
 
 from reelix_retrieval.bm25_tokenizer import tokenize_for_bm25
 
@@ -100,3 +104,75 @@ def create_bm25_sparse_vector(
         # print(f"🧪 Sparse Vector Density: {len(indices)} terms / {len(vocabulary)} = {density:.4f}")
     
     return {'indices': indices, 'values': values}
+
+
+# ---------------------------------------------------------------------------
+# Sync pipeline BM25 output → runtime assets
+# ---------------------------------------------------------------------------
+
+_BM25_SUFFIXES = ("model", "vocab")
+
+
+def _validate_bm25_pair(model_path: Path, vocab_path: Path) -> None:
+    """Load and sanity-check a BM25 model + vocab pair. Raises on failure."""
+    model = joblib.load(model_path)
+    vocab = joblib.load(vocab_path)
+
+    if not isinstance(model, BM25Okapi):
+        raise TypeError(f"Expected BM25Okapi, got {type(model)}")
+    if not isinstance(vocab, dict) or len(vocab) == 0:
+        raise ValueError(f"Vocab is empty or not a dict ({type(vocab)})")
+    if max(vocab.values()) != len(vocab) - 1:
+        raise ValueError("Non-contiguous vocab indices")
+
+
+def sync_bm25_to_runtime(
+    media_type: str,
+    pipeline_dir: Path,
+    runtime_dir: Path = RUNTIME_BM25_DIR,
+    max_backups: int = 2,
+) -> None:
+    """Validate, back up, and atomically copy pipeline BM25 files to runtime assets.
+
+    Steps:
+      1. Validate the new pipeline files (load + sanity check).
+      2. Back up existing runtime files with a timestamp.
+      3. Atomic copy: write to .tmp then rename.
+      4. Prune old backups beyond ``max_backups`` per file.
+    """
+    pipeline_dir = Path(pipeline_dir)
+    runtime_dir = Path(runtime_dir)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Validate new files before touching anything
+    src_model = pipeline_dir / f"{media_type}_bm25_model.joblib"
+    src_vocab = pipeline_dir / f"{media_type}_bm25_vocab.joblib"
+    _validate_bm25_pair(src_model, src_vocab)
+
+    # 2. Back up existing runtime files
+    backup_dir = runtime_dir / "backup"
+    backup_dir.mkdir(exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    for suffix in _BM25_SUFFIXES:
+        dst = runtime_dir / f"{media_type}_bm25_{suffix}.joblib"
+        if dst.exists():
+            shutil.copy2(dst, backup_dir / f"{media_type}_bm25_{suffix}_{ts}.joblib")
+
+    # 3. Atomic copy: tmp file → rename
+    for suffix in _BM25_SUFFIXES:
+        src = pipeline_dir / f"{media_type}_bm25_{suffix}.joblib"
+        dst = runtime_dir / f"{media_type}_bm25_{suffix}.joblib"
+        tmp = dst.with_suffix(".joblib.tmp")
+        shutil.copy2(src, tmp)
+        tmp.rename(dst)
+
+    # 4. Prune old backups (keep only max_backups most recent per file)
+    for suffix in _BM25_SUFFIXES:
+        pattern = f"{media_type}_bm25_{suffix}_*.joblib"
+        backups = sorted(backup_dir.glob(pattern))
+        for old in backups[:-max_backups]:
+            old.unlink()
+            print(f"  Pruned old backup: {old.name}")
+
+    print(f"BM25 {media_type} files synced to runtime: {runtime_dir}")
