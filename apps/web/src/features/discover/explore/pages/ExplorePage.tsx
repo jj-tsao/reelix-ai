@@ -1,15 +1,11 @@
-import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import MovieCard from "@/components/MovieCard";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/useToast";
-import StreamingServiceFilterChip from "@/features/discover/for_you/components/StreamingServiceFilterChip";
-import YearRangeFilterChip from "../components/YearRangeFilterChip";
 import DiscoverGridSkeleton from "@/features/discover/for_you/components/DiscoverGridSkeleton";
 import type { DiscoverCardData } from "@/features/discover/for_you/types";
-import { EXAMPLE_CHIPS } from "@/features/landing/data/example_chips";
 import {
   getStreamingServiceOptions,
   mapStreamingServiceNamesToIds,
@@ -19,13 +15,7 @@ import {
   logUserRecReaction,
   type RatingValue,
 } from "@/features/taste_onboarding/api";
-import {
-  createWatchlistItem,
-  deleteWatchlistItem,
-  lookupWatchlistKeys,
-  updateWatchlist,
-  type WatchlistStatus,
-} from "@/features/watchlist/api";
+import type { WatchlistStatus } from "@/features/watchlist/api";
 import { getSessionId } from "@/utils/session";
 import { getDeviceInfo } from "@/utils/detectDevice";
 import { setExploreRedirectFlag } from "@/utils/exploreRedirect";
@@ -41,6 +31,11 @@ import {
   type ExploreWhyEvent,
   type ActiveSpecEnvelope,
 } from "../api";
+import { toMediaId, toNumericMediaId, toStringArray } from "../../utils/parsing";
+import { ExploreSearchForm } from "../components/ExploreSearchForm";
+import { ExploreFilterBar } from "../components/ExploreFilterBar";
+import { useExploreWatchlist } from "../hooks/useExploreWatchlist";
+import { EXPLORE_COPY } from "../copy";
 
 type ExploreRating = Exclude<RatingValue, "dismiss">;
 type PageState =
@@ -51,16 +46,6 @@ type PageState =
   | "error"
   | "unauthorized";
 
-type WatchlistButtonState = "loading" | "not_added" | "in_list";
-
-interface WatchlistUiState {
-  state: WatchlistButtonState;
-  status: WatchlistStatus | null;
-  rating: number | null;
-  id: string | null;
-  busy: boolean;
-}
-
 const HERO_HELPER_ID = "explore-helper";
 const WATCHLIST_SOURCE = "discovery_explore";
 const PROVIDER_NAME_BY_ID = new Map<number, string>(
@@ -68,34 +53,6 @@ const PROVIDER_NAME_BY_ID = new Map<number, string>(
     .filter((opt) => typeof opt.id === "number")
     .map((opt) => [opt.id as number, opt.name])
 );
-
-function normalizeMediaId(value: unknown): string | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  if (typeof value === "string" && value.trim() !== "") {
-    return value.trim();
-  }
-  return null;
-}
-
-function toGenres(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      if (typeof entry === "string") return entry;
-      if (
-        entry &&
-        typeof entry === "object" &&
-        "name" in entry &&
-        typeof (entry as { name: unknown }).name === "string"
-      ) {
-        return (entry as { name: string }).name;
-      }
-      return null;
-    })
-    .filter((entry): entry is string => Boolean(entry));
-}
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
@@ -179,131 +136,6 @@ function yearRangeFromActiveSpec(
   return null;
 }
 
-interface SearchFormProps {
-  value: string;
-  onChange: (value: string) => void;
-  onSubmit: (value?: string) => void;
-  disabled?: boolean;
-  helperId?: string;
-  autoFocus?: boolean;
-  showExamples?: boolean;
-}
-
-function ExploreSearchForm({
-  value,
-  onChange,
-  onSubmit,
-  disabled,
-  helperId,
-  autoFocus,
-  showExamples = false,
-}: SearchFormProps) {
-  const [showAllChips, setShowAllChips] = useState(false);
-  const visibleChips = useMemo(
-    () => (showAllChips ? EXAMPLE_CHIPS : EXAMPLE_CHIPS.slice(0, 4)),
-    [showAllChips]
-  );
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onSubmit();
-  };
-
-  return (
-    <div className="w-full space-y-3">
-      <form
-        onSubmit={handleSubmit}
-        role="search"
-        className="w-full"
-        aria-describedby={helperId}
-      >
-        <label className="sr-only" htmlFor="explore-query-input">
-          Describe what you want to watch
-        </label>
-        <div className="flex w-full items-center gap-2 rounded-full border border-gold/20 bg-background/90 px-4 py-3 shadow-inner transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary">
-          <input
-            id="explore-query-input"
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Tell Reelix a mood, vibe, or cinematic style..."
-            className="w-full bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-none"
-            aria-label="Explore by vibe"
-            autoComplete="off"
-            disabled={disabled}
-            autoFocus={autoFocus}
-          />
-          <button
-            type="submit"
-            disabled={disabled}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-muted/40 text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
-            aria-label="Submit search"
-            title="Find recommendations"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-      </form>
-
-      {showExamples ? (
-        <>
-          <div
-            className="flex flex-wrap items-center justify-center gap-2"
-            aria-live="polite"
-            id="explore-chip-list"
-          >
-            {visibleChips.map((text) => (
-              <button
-                key={text}
-                type="button"
-                onClick={() => {
-                  onChange(text);
-                  onSubmit(text);
-                }}
-                disabled={disabled}
-                className="inline-flex max-w-full items-center rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-foreground transition-transform duration-150 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
-                aria-label={`Try: ${text}`}
-                title={text}
-              >
-                <span className="truncate">{text}</span>
-              </button>
-            ))}
-
-            {EXAMPLE_CHIPS.length > 4 ? (
-              <button
-                type="button"
-                onClick={() => setShowAllChips((v) => !v)}
-                className="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground transition hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                aria-expanded={showAllChips}
-                aria-controls="explore-chip-list"
-              >
-                {showAllChips ? "Show less" : "More..."}
-              </button>
-            ) : null}
-          </div>
-
-          {helperId ? (
-            <span id={helperId} className="block text-xs text-muted-foreground text-center" />
-          ) : null}
-        </>
-      ) : null}
-    </div>
-  );
-}
-
 export default function ExplorePage() {
   const location = useLocation();
   const { toast } = useToast();
@@ -325,9 +157,6 @@ export default function ExplorePage() {
   const [pendingFeedback, setPendingFeedback] = useState<
     Record<string, boolean>
   >({});
-  const [watchlistState, setWatchlistState] = useState<
-    Record<string, WatchlistUiState>
-  >({});
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedYearRange, setSelectedYearRange] = useState<[number, number] | null>(null);
   const [filtersReady, setFiltersReady] = useState(false);
@@ -337,14 +166,19 @@ export default function ExplorePage() {
   const exploreAbortRef = useRef<AbortController | null>(null);
   const whyAbortRef = useRef<AbortController | null>(null);
 
+  const {
+    watchlistState,
+    setWatchlistState,
+    loadWatchlistState,
+    handleWatchlistAdd,
+    handleWatchlistStatus,
+    handleWatchlistRemove,
+  } = useExploreWatchlist({ source: WATCHLIST_SOURCE });
+
   const deviceInfo = useMemo(() => getDeviceInfo(), []);
   const selectedProviderIds = useMemo(
     () => mapStreamingServiceNamesToIds(selectedProviders),
     [selectedProviders]
-  );
-  const selectedYearRangeForQuery = useMemo(
-    () => (selectedYearRange ? [...selectedYearRange] as [number, number] : null),
-    [selectedYearRange]
   );
   const activeProviderIdsRef = useRef<number[]>([]);
   const activeYearRangeRef = useRef<[number, number] | null>(null);
@@ -363,7 +197,7 @@ export default function ExplorePage() {
       return;
     }
     if (event.type === "why_delta") {
-      const mediaId = normalizeMediaId(event.data.media_id);
+      const mediaId = toMediaId(event.data.media_id);
       if (!mediaId) return;
       setCards((prev) => {
         const existing = prev[mediaId];
@@ -394,106 +228,6 @@ export default function ExplorePage() {
     }
   }, []);
 
-  const toNumericMediaId = useCallback((value: string): number | null => {
-    if (!value) return null;
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric)) return null;
-    return Math.trunc(numeric);
-  }, []);
-
-  const loadWatchlistState = useCallback(
-    async (ids: string[]) => {
-      const unique = Array.from(new Set(ids.filter(Boolean)));
-      if (unique.length === 0) return;
-
-      setWatchlistState((prev) => {
-        const next = { ...prev };
-        let changed = false;
-        for (const id of unique) {
-          if (next[id]) continue;
-          next[id] = {
-            state: "loading",
-            status: null,
-            rating: null,
-            id: null,
-            busy: false,
-          };
-          changed = true;
-        }
-        return changed ? next : prev;
-      });
-
-      const keys = unique
-        .map((id) => toNumericMediaId(id))
-        .filter((num): num is number => num !== null)
-        .map((media_id) => ({ media_id, media_type: "movie" as const }));
-
-      if (keys.length === 0) {
-        setWatchlistState((prev) => {
-          const next = { ...prev };
-          unique.forEach((id) => {
-            next[id] = {
-              state: "not_added",
-              status: null,
-              rating: null,
-              id: null,
-              busy: false,
-            };
-          });
-          return next;
-        });
-        return;
-      }
-
-      try {
-        const results = await lookupWatchlistKeys(keys);
-        const map = new Map<number, (typeof results)[number]>();
-        results.forEach((entry) => map.set(entry.media_id, entry));
-
-        setWatchlistState((prev) => {
-          const next = { ...prev };
-          unique.forEach((id) => {
-            const numeric = toNumericMediaId(id);
-            const match = numeric !== null ? map.get(numeric) : undefined;
-            next[id] =
-              match && match.exists && match.id
-                ? {
-                    state: "in_list",
-                    status: match.status ?? "want",
-                    rating: match.rating ?? null,
-                    id: match.id,
-                    busy: false,
-                  }
-                : {
-                    state: "not_added",
-                    status: null,
-                    rating: null,
-                    id: null,
-                    busy: false,
-                  };
-          });
-          return next;
-        });
-      } catch (error) {
-        console.warn("Failed to load watchlist state", error);
-        setWatchlistState((prev) => {
-          const next = { ...prev };
-          unique.forEach((id) => {
-            next[id] = {
-              state: "not_added",
-              status: null,
-              rating: null,
-              id: null,
-              busy: false,
-            };
-          });
-          return next;
-        });
-      }
-    },
-    [toNumericMediaId]
-  );
-
   const startWhyStream = useCallback(
     async (whyUrl: string | null | undefined, token: string) => {
       whyAbortRef.current?.abort();
@@ -521,7 +255,7 @@ export default function ExplorePage() {
       } catch (error) {
         if (!controller.signal.aborted) {
           setErrorMessage(
-            toErrorMessage(error, "Could not finish streaming reasons.")
+            toErrorMessage(error, EXPLORE_COPY.error.streamFailed)
           );
           setCards((prev) => finalizeWhyLoading(prev));
         }
@@ -604,7 +338,7 @@ export default function ExplorePage() {
         const newOrder: string[] = [];
 
         event.data.items.forEach((item) => {
-          const mediaId = normalizeMediaId(item.media_id);
+          const mediaId = toMediaId(item.media_id);
           if (!mediaId) return;
           const { imdbRating, rottenTomatoesRating, releaseYear } =
             mapToRatings(item);
@@ -619,7 +353,7 @@ export default function ExplorePage() {
               typeof item.trailer_key === "string"
                 ? item.trailer_key
                 : undefined,
-            genres: toGenres(item.genres),
+            genres: toStringArray(item.genres),
             providers: [],
             imdbRating,
             rottenTomatoesRating,
@@ -720,13 +454,13 @@ export default function ExplorePage() {
       const token = await getAccessToken();
       if (!token) {
         setPageState("unauthorized");
-        setErrorMessage("Sign in to explore recommendations tailored to you.");
+        setErrorMessage(EXPLORE_COPY.error.unauthorized);
         return;
       }
 
       const providerIds = overrideProviders ?? selectedProviderIds;
       const yearRange =
-        overrideYearRange === undefined ? selectedYearRangeForQuery : overrideYearRange;
+        overrideYearRange === undefined ? selectedYearRange : overrideYearRange;
 
       const controller = new AbortController();
       exploreAbortRef.current = controller;
@@ -750,7 +484,7 @@ export default function ExplorePage() {
       } catch (error) {
         if (!controller.signal.aborted) {
           setErrorMessage(
-            toErrorMessage(error, "Could not fetch recommendations right now.")
+            toErrorMessage(error, EXPLORE_COPY.error.fetchFailed)
           );
           setPageState("error");
         }
@@ -766,7 +500,8 @@ export default function ExplorePage() {
       deviceInfo,
       handleExploreEvent,
       selectedProviderIds,
-      selectedYearRangeForQuery,
+      selectedYearRange,
+      setWatchlistState,
     ]
   );
 
@@ -819,205 +554,6 @@ export default function ExplorePage() {
     [feedbackById, order, toast]
   );
 
-  const handleWatchlistAdd = useCallback(
-    async (card: DiscoverCardData) => {
-      if (!card.mediaId) return;
-      const entry = watchlistState[card.mediaId];
-      if (entry && (entry.state === "loading" || entry.state === "in_list" || entry.busy)) {
-        return;
-      }
-
-      const numericId = toNumericMediaId(card.mediaId);
-      if (numericId === null) {
-        toast({
-          title: "Unable to add",
-          description: "We couldn't identify this title just yet.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setWatchlistState((prev) => ({
-        ...prev,
-        [card.mediaId]: {
-          state: "in_list",
-          status: "want",
-          rating: entry?.rating ?? null,
-          id: entry?.id ?? null,
-          busy: true,
-        },
-      }));
-
-      try {
-        const result = await createWatchlistItem({
-          media_id: numericId,
-          media_type: "movie",
-          status: "want",
-          title: card.title,
-          poster_url: card.posterUrl ?? null,
-          backdrop_url: card.backdropUrl ?? null,
-          trailer_url: card.trailerKey ? `https://www.youtube.com/watch?v=${card.trailerKey}` : null,
-          release_year: card.releaseYear ?? null,
-          genres: card.genres.length > 0 ? card.genres : null,
-          imdb_rating: typeof card.imdbRating === "number" ? card.imdbRating : null,
-          rt_rating: typeof card.rottenTomatoesRating === "number" ? card.rottenTomatoesRating : null,
-          why_summary: card.whyMarkdown ?? card.whyText ?? null,
-          source: WATCHLIST_SOURCE,
-        });
-        setWatchlistState((prev) => {
-          const existing = prev[card.mediaId];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [card.mediaId]: {
-              state: "in_list",
-              status: result.status ?? "want",
-              rating: result.rating ?? null,
-              id: result.id,
-              busy: false,
-            },
-          };
-        });
-      } catch (error) {
-        setWatchlistState((prev) => ({
-          ...prev,
-          [card.mediaId]: {
-            state: "not_added",
-            status: null,
-            rating: null,
-            id: null,
-            busy: false,
-          },
-        }));
-        toast({
-          title: "Could not add to watchlist",
-          description: toErrorMessage(error, "Please try again in a moment."),
-          variant: "destructive",
-        });
-      }
-    },
-    [toast, watchlistState, toNumericMediaId]
-  );
-
-  const handleWatchlistStatus = useCallback(
-    async (card: DiscoverCardData, nextStatus: WatchlistStatus) => {
-      if (!card.mediaId) return;
-      const entry = watchlistState[card.mediaId];
-      if (!entry || entry.state !== "in_list" || entry.busy || !entry.id) {
-        return;
-      }
-      const previousStatus = entry.status ?? "want";
-      if (previousStatus === nextStatus) {
-        return;
-      }
-      const snapshot: WatchlistUiState = { ...entry };
-      const watchlistId = entry.id;
-
-      setWatchlistState((prev) => {
-        const existing = prev[card.mediaId];
-        if (!existing) return prev;
-        return {
-          ...prev,
-          [card.mediaId]: {
-            ...existing,
-            state: "in_list",
-            status: nextStatus,
-            rating: existing.rating ?? null,
-            busy: true,
-          },
-        };
-      });
-
-      try {
-        const result = await updateWatchlist(watchlistId, { status: nextStatus });
-        const updatedStatus = result.status ?? nextStatus;
-        const updatedRating = result.rating ?? snapshot.rating ?? null;
-        setWatchlistState((prev) => {
-          const existing = prev[card.mediaId];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [card.mediaId]: {
-              state: "in_list",
-              status: updatedStatus,
-              rating: updatedRating,
-              id: result.id,
-              busy: false,
-            },
-          };
-        });
-      } catch (error) {
-        setWatchlistState((prev) => {
-          const existing = prev[card.mediaId];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [card.mediaId]: { ...snapshot, busy: false },
-          };
-        });
-        toast({
-          title: "Could not update watchlist",
-          description: toErrorMessage(error, "Please try again in a moment."),
-          variant: "destructive",
-        });
-      }
-    },
-    [toast, watchlistState]
-  );
-
-  const handleWatchlistRemove = useCallback(
-    async (card: DiscoverCardData) => {
-      if (!card.mediaId) return;
-      const entry = watchlistState[card.mediaId];
-      if (!entry || entry.state !== "in_list" || entry.busy || !entry.id) {
-        return;
-      }
-
-      const snapshot: WatchlistUiState = { ...entry };
-      setWatchlistState((prev) => {
-        const existing = prev[card.mediaId];
-        if (!existing) return prev;
-        return {
-          ...prev,
-          [card.mediaId]: { ...existing, busy: true },
-        };
-      });
-
-      try {
-        await deleteWatchlistItem(entry.id);
-        setWatchlistState((prev) => {
-          const existing = prev[card.mediaId];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [card.mediaId]: {
-              state: "not_added",
-              status: null,
-              rating: null,
-              id: null,
-              busy: false,
-            },
-          };
-        });
-      } catch (error) {
-        setWatchlistState((prev) => {
-          const existing = prev[card.mediaId];
-          if (!existing) return prev;
-          return {
-            ...prev,
-            [card.mediaId]: snapshot,
-          };
-        });
-        toast({
-          title: "Could not remove from watchlist",
-          description: toErrorMessage(error, "Please try again in a moment."),
-          variant: "destructive",
-        });
-      }
-    },
-    [toast, watchlistState]
-  );
-
   const rerunWithPatch = useCallback(
     async ({
       sessionId,
@@ -1055,7 +591,7 @@ export default function ExplorePage() {
         const token = await getAccessToken();
         if (!token) {
           setPageState("unauthorized");
-          setErrorMessage("Sign in to explore recommendations tailored to you.");
+          setErrorMessage(EXPLORE_COPY.error.unauthorized);
           return;
         }
 
@@ -1077,7 +613,7 @@ export default function ExplorePage() {
         const newOrder: string[] = [];
 
         response.items.forEach((item) => {
-          const mediaId = normalizeMediaId(item.media_id);
+          const mediaId = toMediaId(item.media_id);
           if (!mediaId) return;
           const { imdbRating, rottenTomatoesRating, releaseYear } = mapToRatings(item);
           mapped[mediaId] = {
@@ -1088,7 +624,7 @@ export default function ExplorePage() {
             posterUrl: item.poster_url ?? undefined,
             backdropUrl: item.backdrop_url ?? undefined,
             trailerKey: typeof item.trailer_key === "string" ? item.trailer_key : undefined,
-            genres: toGenres(item.genres),
+            genres: toStringArray(item.genres),
             providers: [],
             imdbRating,
             rottenTomatoesRating,
@@ -1122,10 +658,7 @@ export default function ExplorePage() {
         setHasRecsResponse(previousHasRecs);
         toast({
           title: "Could not refresh picks",
-          description: toErrorMessage(
-            error,
-            "Please try adjusting your filters again."
-          ),
+          description: toErrorMessage(error, EXPLORE_COPY.error.refreshFailed),
           variant: "destructive",
         });
       }
@@ -1141,6 +674,7 @@ export default function ExplorePage() {
       deviceInfo,
       loadWatchlistState,
       startWhyStream,
+      setWatchlistState,
       toast,
     ]
   );
@@ -1161,7 +695,7 @@ export default function ExplorePage() {
       const queryId = queryIdRef.current;
       if (!sessionId || !queryId) return;
 
-      const yearRange = selectedYearRangeForQuery;
+      const yearRange = selectedYearRange;
       void rerunWithPatch({
         sessionId,
         queryId,
@@ -1171,7 +705,7 @@ export default function ExplorePage() {
         },
       });
     },
-    [rerunWithPatch, selectedYearRangeForQuery]
+    [rerunWithPatch, selectedYearRange]
   );
 
   const handleYearFilterApply = useCallback(
@@ -1282,7 +816,7 @@ export default function ExplorePage() {
     }).catch((error) => {
       console.warn("Failed to log explore final recommendations", error);
     });
-  }, [orderedCards, isWhyStreaming, hasRecsResponse, toNumericMediaId]);
+  }, [orderedCards, isWhyStreaming, hasRecsResponse]);
 
   return (
     <main className="min-h-[100dvh] pb-12">
@@ -1299,18 +833,18 @@ export default function ExplorePage() {
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span aria-live="polite">
                 {isWhyStreaming
-                  ? "Streaming personalized reasons..."
+                  ? EXPLORE_COPY.status.streamingReasons
                   : isExploreStreaming
-                    ? "Shaping your recommendations..."
+                    ? EXPLORE_COPY.status.shapingRecs
                     : pageState === "chat"
                       ? ""
                       : activeQuery
-                        ? `Showing results for "${activeQuery}"`
-                        : "Refine your vibe and resubmit."}
+                        ? EXPLORE_COPY.status.showingResults(activeQuery)
+                        : EXPLORE_COPY.status.refineVibe}
               </span>
               {pageState === "loading" ? (
                 <span className="flex items-center gap-0.5">
-                  <span>Finding picks</span>
+                  <span>{EXPLORE_COPY.status.findingPicks}</span>
                   <span className="flex">
                     <span className="animate-[pulse_1.4s_ease-in-out_infinite]">.</span>
                     <span className="animate-[pulse_1.4s_ease-in-out_0.2s_infinite]">.</span>
@@ -1320,18 +854,12 @@ export default function ExplorePage() {
               ) : null}
             </div>
             {filtersReady ? (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <StreamingServiceFilterChip
-                  selected={selectedProviders}
-                  onApply={handleProviderFilterApply}
-                />
-                <YearRangeFilterChip
-                  value={selectedYearRange}
-                  onApply={handleYearFilterApply}
-                  min={DEFAULT_YEAR_RANGE[0]}
-                  max={DEFAULT_YEAR_RANGE[1]}
-                />
-              </div>
+              <ExploreFilterBar
+                selectedProviders={selectedProviders}
+                onProviderApply={handleProviderFilterApply}
+                selectedYearRange={selectedYearRange}
+                onYearApply={handleYearFilterApply}
+              />
             ) : null}
           </div>
         </div>
@@ -1340,10 +868,10 @@ export default function ExplorePage() {
           <div className="max-w-4xl space-y-8">
             <div className="space-y-3">
               <h1 className="font-display text-3xl font-bold leading-tight text-foreground sm:text-4xl animate-fade-up">
-                Find your next watch. Curated to your taste.
+                {EXPLORE_COPY.hero.heading}
               </h1>
               <p className="text-base text-muted-foreground sm:text-lg animate-fade-up delay-100">
-                Your personal AI curator. Reelix understands your taste and brings you films you'll genuinely love.
+                {EXPLORE_COPY.hero.subheading}
               </p>
             </div>
             <div className="mx-auto max-w-2xl animate-fade-up delay-200">
@@ -1366,7 +894,7 @@ export default function ExplorePage() {
           {pageState === "unauthorized" ? (
             <div className="rounded-2xl border border-border bg-muted/20 p-6 text-center">
               <p className="text-base text-muted-foreground">
-                Sign in to get personalized explore recommendations.
+                {EXPLORE_COPY.error.signInPrompt}
               </p>
               <div className="mt-3">
                 <Button asChild variant="default">
@@ -1379,7 +907,7 @@ export default function ExplorePage() {
           {pageState === "error" && errorMessage ? (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6">
               <p className="text-base font-semibold text-destructive">
-                Something went wrong
+                {EXPLORE_COPY.error.somethingWrong}
               </p>
               <p className="mt-2 text-sm text-destructive/80">{errorMessage}</p>
               <div className="mt-4 flex flex-wrap gap-3">
@@ -1401,7 +929,7 @@ export default function ExplorePage() {
             <div className="relative rounded-2xl border border-gold/20 border-l-4 border-l-gold bg-background/60 p-6 pl-5 shadow-lg backdrop-blur-sm animate-fade-in card-grain">
               <div className="prose prose-invert prose-sm max-w-none text-base leading-relaxed text-zinc-200">
                 <ReactMarkdown>
-                  {chatMessage || "Here's what we found."}
+                  {chatMessage || EXPLORE_COPY.chat.fallback}
                 </ReactMarkdown>
               </div>
             </div>
@@ -1411,7 +939,7 @@ export default function ExplorePage() {
             <div className="space-y-4">
               <div className="relative rounded-2xl border border-gold/20 bg-background/60 p-6 shadow-lg backdrop-blur-sm card-grain">
                 <p className="flex items-center gap-0.5 text-base font-medium text-foreground">
-                  <span>Curating picks for you</span>
+                  <span>{EXPLORE_COPY.loading.curatingHeading}</span>
                   <span className="flex">
                     <span className="animate-[pulse_1.4s_ease-in-out_infinite]">.</span>
                     <span className="animate-[pulse_1.4s_ease-in-out_0.2s_infinite]">.</span>
@@ -1419,7 +947,7 @@ export default function ExplorePage() {
                   </span>
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Hang tight while we tailor recommendations.
+                  {EXPLORE_COPY.loading.curatingBody}
                 </p>
               </div>
             </div>
@@ -1482,7 +1010,7 @@ export default function ExplorePage() {
           hasRecsResponse &&
           orderedCards.length === 0 ? (
             <div className="rounded-2xl border border-border bg-muted/10 p-6 text-center text-base text-muted-foreground">
-              No picks yet. Try a different vibe.
+              {EXPLORE_COPY.empty.noPicks}
             </div>
           ) : null}
         </section>
