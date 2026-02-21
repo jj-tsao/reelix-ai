@@ -293,12 +293,24 @@ def build_session_memory_message(
         "Use this to interpret short follow-ups and references.",
         "Interpretation rules: "
         "If the user is refining, start from last_spec and patch it. "
-        "If the user is starting a new request, ignore last_spec/slot_map unless they explicitly say to keep something."
+        "If the user is starting a new request, ignore last_spec/slot_map unless they explicitly say to keep something.",
     ]
 
     if summary:
         msg_parts.append(
             "summary (JSON): " + json.dumps(summary_compact, ensure_ascii=False)
+        )
+
+    # Note to ignore last_spec and slate map when last turn is chat.
+    last_turn_was_chat = (
+        isinstance(summary_compact, dict) and summary_compact.get("turn_kind") == "chat"
+    )
+    if last_turn_was_chat and isinstance(last_spec_raw, dict):
+        msg_parts.append(
+            "IMPORTANT: The last turn was CHAT (no recommendations were requested). "
+            "`last_spec` and below is from an EARLIER recommendation turn and is NOT the current conversational thread. "
+            "If the user's current message is an affirmation (e.g. 'yes please', 'sure'), "
+            "treat it as a NEW request based on the proposal in `last_admin_message` — do NOT default to refining `last_spec`."
         )
 
     # Include last_spec for refinements. Keep it compact.

@@ -758,6 +758,10 @@ export default function ExplorePage() {
     return () => {
       exploreAbortRef.current?.abort();
       whyAbortRef.current?.abort();
+      queryIdRef.current = null;
+      loggedQueryIdRef.current = null;
+      lastSessionIdRef.current = null;
+      autoSubmitRef.current = null;
     };
   }, []);
 
