@@ -834,29 +834,6 @@ export default function ExplorePage() {
               disabled={isBusy}
               showExamples={false}
             />
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span aria-live="polite">
-                {isWhyStreaming
-                  ? EXPLORE_COPY.status.streamingReasons
-                  : isExploreStreaming
-                    ? EXPLORE_COPY.status.shapingRecs
-                    : pageState === "chat"
-                      ? ""
-                      : activeQuery
-                        ? EXPLORE_COPY.status.showingResults(activeQuery)
-                        : EXPLORE_COPY.status.refineVibe}
-              </span>
-              {pageState === "loading" ? (
-                <span className="flex items-center gap-0.5">
-                  <span>{EXPLORE_COPY.status.findingPicks}</span>
-                  <span className="flex">
-                    <span className="animate-[pulse_1.4s_ease-in-out_infinite]">.</span>
-                    <span className="animate-[pulse_1.4s_ease-in-out_0.2s_infinite]">.</span>
-                    <span className="animate-[pulse_1.4s_ease-in-out_0.4s_infinite]">.</span>
-                  </span>
-                </span>
-              ) : null}
-            </div>
             {filtersReady ? (
               <ExploreFilterBar
                 selectedProviders={selectedProviders}
