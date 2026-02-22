@@ -140,10 +140,10 @@ export default function ExplorePage() {
   const location = useLocation();
   const { toast } = useToast();
   const [query, setQuery] = useState("");
-  const [activeQuery, setActiveQuery] = useState("");
   const [pageState, setPageState] = useState<PageState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [intro, setIntro] = useState("");
+  const [nextSteps, setNextSteps] = useState<string | null>(null);
   const [chatMessage, setChatMessage] = useState("");
   const [cards, setCards] = useState<Record<string, DiscoverCardData>>({});
   const [order, setOrder] = useState<string[]>([]);
@@ -300,13 +300,7 @@ export default function ExplorePage() {
         const providersFromResponse = providersFromActiveSpec(
           event.data.active_spec
         );
-        const openingQueryText =
-          typeof event.data.active_spec?.query_text === "string"
-            ? event.data.active_spec.query_text.trim()
-            : "";
-        if (openingQueryText) {
-          setActiveQuery(openingQueryText);
-        }
+
         setSelectedProviders(providersFromResponse);
         const providerIdsFromResponse =
           mapStreamingServiceNamesToIds(providersFromResponse);
@@ -380,6 +374,11 @@ export default function ExplorePage() {
         return;
       }
 
+      if (event.type === "next_steps") {
+        setNextSteps(event.data.text);
+        return;
+      }
+
       if (event.type === "done") {
         setIsExploreStreaming(false);
         setIsAwaitingRecs(false);
@@ -431,10 +430,11 @@ export default function ExplorePage() {
       setPageState("loading");
       setErrorMessage(null);
       setIntro("");
+      setNextSteps(null);
       setChatMessage("");
       setCards({});
       setOrder([]);
-      setActiveQuery(value);
+
       setFeedbackById({});
       setPendingFeedback({});
       setIsExploreStreaming(false);
@@ -982,6 +982,14 @@ export default function ExplorePage() {
                 </div>
               ) : isAwaitingRecs ? (
                 <DiscoverGridSkeleton count={4} />
+              ) : null}
+
+              {nextSteps && orderedCards.length > 0 ? (
+                <div className="relative rounded-2xl border border-gold/20 border-l-4 border-l-gold bg-background/60 p-6 pl-5 shadow-lg backdrop-blur-sm animate-fade-in card-grain">
+                  <div className="prose prose-invert prose-sm max-w-none text-base leading-relaxed text-zinc-200">
+                    <ReactMarkdown>{nextSteps}</ReactMarkdown>
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}
