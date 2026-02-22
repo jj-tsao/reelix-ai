@@ -120,6 +120,10 @@ export type ExploreStreamEvent =
         curator_opening?: string | null;
       };
     }
+  | {
+      type: "next_steps";
+      data: { query_id: string; text: string };
+    }
   | { type: "done"; data: Record<string, unknown> | null }
   | { type: "error"; data: Record<string, unknown> | null };
 
@@ -315,6 +319,12 @@ function parseExploreSseEvent(raw: string): ExploreStreamEvent | null {
           curator_opening: curatorOpening,
         },
       };
+    }
+    case "next_steps": {
+      const queryId = typeof json?.query_id === "string" ? json.query_id : null;
+      if (!queryId) return null;
+      const text = typeof json?.text === "string" ? json.text : "";
+      return { type: "next_steps", data: { query_id: queryId, text } };
     }
     case "done":
       return { type: "done", data: json };
