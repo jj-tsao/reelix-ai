@@ -280,6 +280,12 @@ export default function ExplorePage() {
         return;
       }
 
+      if (event.type === "next_steps") {
+        if (event.data.query_id && event.data.query_id !== streamQueryId) return;
+        setNextSteps(event.data.text);
+        return;
+      }
+
       const eventQueryId =
         event.data && typeof event.data === "object" && "query_id" in event.data
           ? (event.data as { query_id?: string }).query_id
@@ -371,11 +377,6 @@ export default function ExplorePage() {
         setIsExploreStreaming(false);
         void loadWatchlistState(newOrder);
         void startWhyStream(event.data.why_url ?? null, token);
-        return;
-      }
-
-      if (event.type === "next_steps") {
-        setNextSteps(event.data.text);
         return;
       }
 
