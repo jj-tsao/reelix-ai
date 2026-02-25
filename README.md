@@ -22,7 +22,7 @@ Architecturally, Reelix is an **AI-native discovery agent** built on top of a mo
 
 Under the hood, Reelix is a four-agent system (Orchestrator → Curator → Reflection → Explanation) with a sophisticated recommendation pipeline:
 
-- **Agentic workflow (3 collaborating agents)**
+- **Agentic workflow (4 collaborating agents)**
   - **Orchestrator Agent** — parses user queries + recent context, infers intent, generates a fast opening summary, and keeps a structured plan (retrieval shape, filters, personalization inputs, etc.) and short-term session memory alive across multi-turn interactive iterations. Calls the recommendation tool to execute the plan.
 
   - **Curator Agent** — evaluates candidates on genre/tone/theme/structure fit using parallel LLM calls (multiple batches for reduced latency), tiers them (strong_match, moderate_match, no_match), and applies selection logic to produce final recommendations.
