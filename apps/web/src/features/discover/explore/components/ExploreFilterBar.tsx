@@ -7,6 +7,7 @@ interface ExploreFilterBarProps {
   onProviderApply: (providers: string[]) => void;
   selectedYearRange: [number, number] | null;
   onYearApply: (range: [number, number] | null) => void;
+  excludedGenres?: string[];
   compact?: boolean;
 }
 
@@ -15,6 +16,7 @@ export function ExploreFilterBar({
   onProviderApply,
   selectedYearRange,
   onYearApply,
+  excludedGenres,
   compact = false,
 }: ExploreFilterBarProps) {
   return (
@@ -33,6 +35,16 @@ export function ExploreFilterBar({
         dropdownDirection="up"
         compact={compact}
       />
+      {excludedGenres?.map((genre) => (
+        <span
+          key={genre}
+          className={`inline-flex items-center rounded-full border border-muted-foreground/20 bg-muted/30 text-muted-foreground shadow-sm ${
+            compact ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm"
+          }`}
+        >
+          Not {genre}
+        </span>
+      ))}
     </div>
   );
 }

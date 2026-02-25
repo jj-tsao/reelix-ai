@@ -54,6 +54,10 @@ This is the structured representation of what the user is asking for.
 
 - core_genres: Canonical genre names
 
+- exclude_genres:
+  - Genres the user explicitly wants to AVOID (e.g., "no horror", "nothing animated").
+  - On refine turns, preserve prior exclude_genres unless the user removes the constraint.
+
 - sub_genres: More specific genre descriptors"
 
 - core_tone:
@@ -163,6 +167,11 @@ It has fields like:
 
 - core_genres:
   - Canonical genre names to include or prioritize.
+
+- exclude_genres:
+  - Genres the user explicitly wants to AVOID (e.g., "no horror", "nothing animated", "skip documentaries").
+  - Only populate on explicit negative signals. Do NOT infer exclusions from positive preferences.
+  - On refine turns, preserve prior exclude_genres unless the user removes the constraint.
 
 - sub_genres:
   - More specific genre descriptors that refine the core genres, such as "psychological thriller", "romantic comedy",  "neo-noir".

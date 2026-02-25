@@ -136,6 +136,17 @@ function yearRangeFromActiveSpec(
   return null;
 }
 
+function excludeGenresFromActiveSpec(
+  envelope: ActiveSpecEnvelope | null | undefined
+): string[] {
+  if (!envelope) return [];
+  const chipGenres = (envelope.chips ?? [])
+    .filter((c) => c.key === "exclude_genres" && typeof c.value === "string")
+    .map((c) => c.value as string);
+  if (chipGenres.length > 0) return chipGenres;
+  return envelope.active_spec?.exclude_genres ?? [];
+}
+
 export default function ExplorePage() {
   const location = useLocation();
   const { toast } = useToast();
@@ -159,6 +170,7 @@ export default function ExplorePage() {
   >({});
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedYearRange, setSelectedYearRange] = useState<[number, number] | null>(null);
+  const [excludedGenres, setExcludedGenres] = useState<string[]>([]);
   const [, setFiltersReady] = useState(false);
   const queryIdRef = useRef<string | null>(null);
   const loggedQueryIdRef = useRef<string | null>(null);
@@ -189,7 +201,7 @@ export default function ExplorePage() {
   const lastSessionIdRef = useRef<string | null>(null);
   const hasSearched = pageState !== "idle";
   const isBusy =
-    pageState === "loading" || isExploreStreaming || isWhyStreaming;
+    pageState === "loading" || isExploreStreaming;
 
   const handleWhyStreamEvent = useCallback((event: ExploreWhyEvent) => {
     if (event.type === "started") {
@@ -316,6 +328,7 @@ export default function ExplorePage() {
         );
         setSelectedYearRange(yearRangeFromResponse);
         activeYearRangeRef.current = yearRangeFromResponse;
+        setExcludedGenres(excludeGenresFromActiveSpec(event.data.active_spec));
         lastSessionIdRef.current = sessionId;
         setFiltersReady(true);
         setIsAwaitingRecs(true);
@@ -441,6 +454,7 @@ export default function ExplorePage() {
       setIsAwaitingRecs(false);
       setHasRecsResponse(false);
       setWatchlistState({});
+      setExcludedGenres([]);
       setFiltersReady(false);
       activeProviderIdsRef.current = [];
       activeYearRangeRef.current = null;
@@ -823,7 +837,7 @@ export default function ExplorePage() {
   }, [orderedCards, isWhyStreaming, hasRecsResponse]);
 
   return (
-    <main className={`min-h-[100dvh] ${hasSearched ? "pb-36" : "pb-12"}`}>
+    <main className={`min-h-[100dvh] ${hasSearched ? "pb-44" : "pb-12"}`}>
       {hasSearched ? null : (
         <section className="relative flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
           <div className="max-w-4xl space-y-8">
@@ -1004,6 +1018,7 @@ export default function ExplorePage() {
                     onProviderApply={handleProviderFilterApply}
                     selectedYearRange={selectedYearRange}
                     onYearApply={handleYearFilterApply}
+                    excludedGenres={excludedGenres}
                     compact
                   />
                 }

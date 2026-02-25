@@ -53,6 +53,7 @@ async def generate_next_steps(
     query_spec: RecQuerySpec,
     final_recs: list["Candidate"],
     tier_stats: dict[str, Any] | None = None,
+    previous_strategy: str | None = None,
     model: str = REFLECTION_MODEL,
 ) -> ReflectionResult | None:
     """
@@ -67,6 +68,7 @@ async def generate_next_steps(
         query_spec=query_spec,
         final_recs=final_recs,
         tier_stats=tier_stats,
+        previous_strategy=previous_strategy,
     )
 
     messages = [

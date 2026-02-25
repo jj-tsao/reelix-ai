@@ -71,6 +71,36 @@ RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
                         ],
                     },
                 },
+                "exclude_genres": {
+                    "type": "array",
+                    "description": (
+                        "Genres the user explicitly wants to EXCLUDE (e.g., 'no horror', 'skip animation'). "
+                        "Only populate when the user expresses a negative genre preference."
+                    ),
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "Action",
+                            "Comedy",
+                            "Drama",
+                            "Romance",
+                            "Science Fiction",
+                            "Thriller",
+                            "Adventure",
+                            "Animation",
+                            "Crime",
+                            "Documentary",
+                            "Family",
+                            "Fantasy",
+                            "History",
+                            "Horror",
+                            "Music",
+                            "Mystery",
+                            "War",
+                            "Western",
+                        ],
+                    },
+                },
                 "sub_genres": {
                     "type": "array",
                     "description": (
@@ -228,6 +258,12 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     if mentioned_titles:
         spec.seed_titles = mentioned_titles
         print(f"[recommendation_tool] Will exclude mentioned titles: {mentioned_titles}")
+
+    # Extract exclude_genres for Qdrant hard filtering
+    exclude_genres = raw_spec.get("exclude_genres") or []
+    if exclude_genres:
+        spec.exclude_genres = exclude_genres
+        print(f"[recommendation_tool] Will exclude genres: {exclude_genres}")
 
     state.query_spec = spec
     state.turn_mode = AgentMode.RECS

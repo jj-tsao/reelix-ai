@@ -228,11 +228,11 @@ async def explore_stream(
             )
 
             # Clear stale last_admin_message before reflection attempt
-            # so it only persists if a new suggestion is generated
             def _clear_admin_msg(payload: dict) -> None:
                 summary = payload.get("summary")
-                if isinstance(summary, dict) and "last_admin_message" in summary:
-                    del summary["last_admin_message"]
+                if isinstance(summary, dict):
+                    summary.pop("last_admin_message", None)
+                    # Keep last_reflection_strategy — need it for the next reflection call
 
             await state_store.update_session(
                 session_id=req.session_id,
@@ -242,6 +242,11 @@ async def explore_stream(
 
             # Reflection agent: suggest next steps (best-effort, skip on timeout/error)
             if final_recs and query_spec:
+                # Read previous strategy from session to avoid repeating
+                _prev_strategy = None
+                if session_state and session_state.summary:
+                    _prev_strategy = session_state.summary.get("last_reflection_strategy")
+
                 _refl_t0 = time.perf_counter()
                 _refl_status = "error"
                 reflection = None
@@ -252,6 +257,7 @@ async def explore_stream(
                             query_spec=query_spec,
                             final_recs=final_recs,
                             tier_stats=agent_result.tier_stats,
+                            previous_strategy=_prev_strategy,
                         ),
                         timeout=10.0,
                     )
@@ -291,12 +297,14 @@ async def explore_stream(
                             "text": reflection.suggestion,
                         },
                     )
-                    # Persist as last_admin_message for next-turn context
+                    # Persist as last_admin_message + last_reflection_strategy for next-turn context
                     next_steps_text = reflection.suggestion
+                    next_steps_strategy = reflection.strategy
                     def _patch(payload: dict) -> None:
                         summary = payload.setdefault("summary", {})
                         if isinstance(summary, dict):
                             summary["last_admin_message"] = next_steps_text
+                            summary["last_reflection_strategy"] = next_steps_strategy
 
                     asyncio.create_task(
                         state_store.update_session(
