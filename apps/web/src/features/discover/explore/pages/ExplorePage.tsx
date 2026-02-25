@@ -159,7 +159,7 @@ export default function ExplorePage() {
   >({});
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedYearRange, setSelectedYearRange] = useState<[number, number] | null>(null);
-  const [filtersReady, setFiltersReady] = useState(false);
+  const [, setFiltersReady] = useState(false);
   const queryIdRef = useRef<string | null>(null);
   const loggedQueryIdRef = useRef<string | null>(null);
   const autoSubmitRef = useRef<string | null>(null);
@@ -419,16 +419,14 @@ export default function ExplorePage() {
       const value = (text ?? query).trim();
       if (!value) return;
 
-      if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-
+      setQuery("");
       setExploreRedirectFlag();
       exploreAbortRef.current?.abort();
       exploreAbortRef.current = null;
       whyAbortRef.current?.abort();
       whyAbortRef.current = null;
       setPageState("loading");
+      window.scrollTo({ top: 0 });
       setErrorMessage(null);
       setIntro("");
       setNextSteps(null);
@@ -573,6 +571,7 @@ export default function ExplorePage() {
       const previousAwaitingRecs = isAwaitingRecs;
       const previousHasRecs = hasRecsResponse;
 
+      window.scrollTo({ top: 0 });
       exploreAbortRef.current?.abort();
       exploreAbortRef.current = null;
       whyAbortRef.current?.abort();
@@ -824,28 +823,8 @@ export default function ExplorePage() {
   }, [orderedCards, isWhyStreaming, hasRecsResponse]);
 
   return (
-    <main className="min-h-[100dvh] pb-12">
-      {hasSearched ? (
-        <div className="sticky top-[4.5rem] z-40 border-b border-border bg-background/90 backdrop-blur">
-          <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4">
-            <ExploreSearchForm
-              value={query}
-              onChange={setQuery}
-              onSubmit={handleSubmit}
-              disabled={isBusy}
-              showExamples={false}
-            />
-            {filtersReady ? (
-              <ExploreFilterBar
-                selectedProviders={selectedProviders}
-                onProviderApply={handleProviderFilterApply}
-                selectedYearRange={selectedYearRange}
-                onYearApply={handleYearFilterApply}
-              />
-            ) : null}
-          </div>
-        </div>
-      ) : (
+    <main className={`min-h-[100dvh] ${hasSearched ? "pb-36" : "pb-12"}`}>
+      {hasSearched ? null : (
         <section className="relative flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
           <div className="max-w-4xl space-y-8">
             <div className="space-y-3">
@@ -908,7 +887,7 @@ export default function ExplorePage() {
           ) : null}
 
           {pageState === "chat" ? (
-            <div className="relative rounded-2xl border border-gold/20 border-l-4 border-l-gold bg-background/60 p-6 pl-5 shadow-lg backdrop-blur-sm animate-fade-in card-grain">
+            <div className="relative border-l-2 border-l-gold/60 pl-4 py-1 animate-fade-in">
               <div className="prose prose-invert prose-sm max-w-none text-base leading-relaxed text-zinc-200">
                 <ReactMarkdown>
                   {chatMessage || EXPLORE_COPY.chat.fallback}
@@ -938,7 +917,7 @@ export default function ExplorePage() {
           {pageState === "recs" ? (
             <div className="space-y-4">
               {intro ? (
-                <div className="relative rounded-2xl border border-gold/20 border-l-4 border-l-gold bg-background/60 p-6 pl-5 shadow-lg backdrop-blur-sm animate-fade-in card-grain">
+                <div className="relative border-l-2 border-l-gold/60 pl-4 py-1 animate-fade-in">
                   <div className="prose prose-invert prose-sm max-w-none text-base leading-relaxed text-zinc-200">
                     <ReactMarkdown>{intro}</ReactMarkdown>
                   </div>
@@ -986,7 +965,7 @@ export default function ExplorePage() {
               ) : null}
 
               {nextSteps && orderedCards.length > 0 ? (
-                <div className="relative rounded-2xl border border-gold/20 border-l-4 border-l-gold bg-background/60 p-6 pl-5 shadow-lg backdrop-blur-sm animate-fade-in card-grain">
+                <div className="relative border-l-2 border-l-gold/60 pl-4 py-1 animate-fade-in">
                   <div className="prose prose-invert prose-sm max-w-none text-base leading-relaxed text-zinc-200">
                     <ReactMarkdown>{nextSteps}</ReactMarkdown>
                   </div>
@@ -1004,6 +983,34 @@ export default function ExplorePage() {
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {hasSearched ? (
+        <div className="fixed bottom-0 left-0 right-0 z-40">
+          {/* Gradient fade instead of hard border */}
+          <div className="pointer-events-none h-12 bg-gradient-to-t from-background to-transparent" />
+          <div className="bg-background/80 backdrop-blur-xl">
+            <div className="mx-auto max-w-5xl px-4 pb-6 pt-2">
+              <ExploreSearchForm
+                value={query}
+                onChange={setQuery}
+                onSubmit={handleSubmit}
+                disabled={isBusy}
+                showExamples={false}
+                compact
+                footer={
+                  <ExploreFilterBar
+                    selectedProviders={selectedProviders}
+                    onProviderApply={handleProviderFilterApply}
+                    selectedYearRange={selectedYearRange}
+                    onYearApply={handleYearFilterApply}
+                    compact
+                  />
+                }
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
     </main>
   );

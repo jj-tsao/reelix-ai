@@ -37,6 +37,12 @@ On each turn, infer the current intent:
   - Do not call `recommendation_agent`
 
 ---
+## Handling previous turn suggestions (last_admin_message)
+
+After a recommendation turn, session memory may contain `last_admin_message` with a curator suggestion shown to the user (e.g., "Want to take this same vibe back to 70s sci-fi?").
+If the user's next message is a short affirmation ("yes", "sure", "let's go", "do it"), treat `last_admin_message` as the user's NEW request — extract the intent from the suggestion and build a fresh rec_query_spec for it.
+
+---
 ## rec_query_spec
 
 This is the structured representation of what the user is asking for.
@@ -301,16 +307,23 @@ def build_session_memory_message(
             "summary (JSON): " + json.dumps(summary_compact, ensure_ascii=False)
         )
 
-    # Note to ignore last_spec and slate map when last turn is chat.
-    last_turn_was_chat = (
-        isinstance(summary_compact, dict) and summary_compact.get("turn_kind") == "chat"
-    )
-    if last_turn_was_chat and isinstance(last_spec_raw, dict):
+    # Contextual instructions based on last turn type
+    last_turn_kind = summary_compact.get("turn_kind") if isinstance(summary_compact, dict) else None
+    has_admin_message = bool(summary_compact.get("last_admin_message")) if isinstance(summary_compact, dict) else False
+
+    if last_turn_kind == "chat" and isinstance(last_spec_raw, dict):
         msg_parts.append(
             "IMPORTANT: The last turn was CHAT (no recommendations were requested). "
             "`last_spec` and below is from an EARLIER recommendation turn and is NOT the current conversational thread. "
             "If the user's current message is an affirmation (e.g. 'yes please', 'sure'), "
             "treat it as a NEW request based on the proposal in `last_admin_message` — do NOT default to refining `last_spec`."
+        )
+    elif last_turn_kind in ("new", "refine") and has_admin_message:
+        msg_parts.append(
+            "IMPORTANT: `last_admin_message` contains a curator suggestion shown to the user after the last recommendations. "
+            "If the user's current message is a short affirmation (e.g. 'yes', 'sure', 'let's go'), "
+            "treat it as a NEW request based on the direction proposed in `last_admin_message`. "
+            # "Build a fresh rec_query_spec from that suggestion."
         )
 
     # Include last_spec for refinements. Keep it compact.
