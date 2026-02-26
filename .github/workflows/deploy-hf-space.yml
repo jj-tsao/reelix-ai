@@ -9,7 +9,6 @@ on:
       - ".dockerignore"
       - "apps/api/**"
       - "packages/python/**"
-      - "packages/py-sdk/**"
   workflow_dispatch:
 
 concurrency:
@@ -57,8 +56,7 @@ jobs:
 
           # Copy required assets into the Space checkout
           mkdir -p "${SPACE_DIR}/apps/api" \
-                   "${SPACE_DIR}/packages/python" \
-                   "${SPACE_DIR}/packages/py-sdk"
+                   "${SPACE_DIR}/packages/python"
 
           RSYNC_FLAGS=(
             -a
@@ -69,7 +67,6 @@ jobs:
 
           rsync "${RSYNC_FLAGS[@]}" apps/api/ "${SPACE_DIR}/apps/api/"
           rsync "${RSYNC_FLAGS[@]}" packages/python/ "${SPACE_DIR}/packages/python/"
-          rsync "${RSYNC_FLAGS[@]}" packages/py-sdk/ "${SPACE_DIR}/packages/py-sdk/"
 
           # Copy top-level files needed for Docker build
           install -D Dockerfile "${SPACE_DIR}/Dockerfile"
