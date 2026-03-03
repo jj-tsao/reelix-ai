@@ -20,7 +20,7 @@ STRATEGIES: dict[str, dict[str, Any]] = {
     "follow_the_thread": {
         "description": (
             "Name a pattern across the results, then propose where it leads — a different"
-            " corner of cinema that shares the same thread."
+            " corner of cinema that shares the same thread. Only name reference titles from the current recommendations."
         ),
         "examples": [
             '{"strategy": "follow_the_thread", "suggestion": "Isolation and paranoia run through all of these. Want to follow that thread into cosmic horror — Lovecraftian dread in confined spaces, like Annihilation or The Thing?"}',
@@ -39,12 +39,16 @@ STRATEGIES: dict[str, dict[str, Any]] = {
     },
     "wildcard": {
         "description": (
-            "Propose something the user would never search for themselves but that connects to"
-            " these results in a non-obvious way. Name the specific title or niche and explain the link."
+            "Identify the deeper emotional or structural quality driving these results — not"
+            " genre or subject, but something like 'the thrill of watching someone operate at"
+            " peak competence' or 'dread of being trapped in a system.' Then name a specific"
+            " film from a completely different genre that shares that same quality. The connection"
+            " should feel surprising but immediately obvious once explained. Do NOT mash two"
+            " random genres together."
         ),
         "examples": [
-            '{"strategy": "wildcard", "suggestion": "Hear me out — the moral ambiguity and obsessive drive here has the same energy as chef movies like Burnt or The Hundred-Foot Journey. High stakes, perfectionist protagonists. Want to try that?"}',
-            '{"strategy": "wildcard", "suggestion": "These dark thrillers share a visual DNA with neo-noir anime — think Perfect Blue or Monster. Want to explore that unexpected crossover?"}',
+            '{"strategy": "wildcard", "suggestion": "What hooks you in these heist films is watching experts improvise under pressure. That exact thrill drives Apollo 13 and Sully — want to try disaster films where competence is the real spectacle?"}',
+            '{"strategy": "wildcard", "suggestion": "The dread in these horror picks isn\'t the monsters — it\'s being stuck in a system that doesn\'t care about you. That\'s basically the plot of Office Space and Brazil. Want to see bureaucratic nightmares played for dark comedy?"}',
         ],
     },
 }
