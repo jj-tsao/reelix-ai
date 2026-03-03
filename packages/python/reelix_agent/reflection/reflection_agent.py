@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from reelix_agent.core.types import RecQuerySpec
 from reelix_agent.reflection.reflection_prompts import (
-    REFLECTION_SYS_PROMPT,
+    build_reflection_sys_prompt,
     build_reflection_user_prompt,
+    pick_strategy,
 )
 
 if TYPE_CHECKING:
@@ -31,7 +32,6 @@ class ReflectionResult:
 def _parse_reflection_response(raw: str) -> ReflectionResult | None:
     """Parse the JSON response from the reflection LLM call."""
     text = raw.strip()
-    # Strip markdown fences if present
     if text.startswith("```"):
         text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
     try:
@@ -64,15 +64,16 @@ async def generate_next_steps(
     if not final_recs:
         return None
 
+    strategy = pick_strategy(previous_strategy)
+    sys_prompt = build_reflection_sys_prompt(strategy)
     user_prompt = build_reflection_user_prompt(
         query_spec=query_spec,
         final_recs=final_recs,
         tier_stats=tier_stats,
-        previous_strategy=previous_strategy,
     )
 
     messages = [
-        {"role": "system", "content": REFLECTION_SYS_PROMPT},
+        {"role": "system", "content": sys_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -87,9 +88,11 @@ async def generate_next_steps(
         if not content:
             return None
         result = _parse_reflection_response(content)
-        if result and resp.usage:
-            result.input_tokens = resp.usage.prompt_tokens
-            result.output_tokens = resp.usage.completion_tokens
+        if result:
+            result.strategy = strategy
+            if resp.usage:
+                result.input_tokens = resp.usage.prompt_tokens
+                result.output_tokens = resp.usage.completion_tokens
         return result
     except Exception:
         log.exception("Reflection agent failed")

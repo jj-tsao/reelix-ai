@@ -1,32 +1,67 @@
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from reelix_agent.core.types import RecQuerySpec
 from reelix_ranking.types import Candidate
 
+STRATEGIES: dict[str, dict[str, Any]] = {
+    "deep_dive": {
+        "description": (
+            "Zoom into one title's specific quality — its sub-genre, directorial style, or"
+            " narrative approach. Always name the title."
+        ),
+        "examples": [
+            '{"strategy": "deep_dive", "suggestion": "Nightcrawler is the standout here. Want to go deeper into LA noir with morally bankrupt protagonists and that same hustle-or-die energy?"}',
+            '{"strategy": "deep_dive", "suggestion": "The Lobster has a very specific deadpan absurdist tone. Want to lean into that Yorgos Lanthimos vein — cold, surreal, and wickedly dry?"}',
+        ],
+    },
+    "follow_the_thread": {
+        "description": (
+            "Name a pattern across the results, then propose where it leads — a different"
+            " corner of cinema that shares the same thread."
+        ),
+        "examples": [
+            '{"strategy": "follow_the_thread", "suggestion": "Isolation and paranoia run through all of these. Want to follow that thread into cosmic horror — Lovecraftian dread in confined spaces, like Annihilation or The Thing?"}',
+            '{"strategy": "follow_the_thread", "suggestion": "Class tension and power dynamics keep showing up. Want to follow that into workplace thrillers — corporate hierarchies as horror, like The Assistant or Margin Call?"}',
+        ],
+    },
+    "reframe": {
+        "description": (
+            "Keep the core appeal but repackage it in a completely different context — swap the"
+            " tone, decade, or setting. Name a reference title in the current recs to anchor the shift."
+        ),
+        "examples": [
+            '{"strategy": "reframe", "suggestion": "These are all set in sprawling cities. Want the same tension and isolation but in a small-town setting — more Wind River than Sicario?"}',
+            '{"strategy": "reframe", "suggestion": "These all land in the 2010s. Want this same vibe in 90s sci-fi? Grittier, more paranoid, and lo-fi in the best way."}',
+        ],
+    },
+    "wildcard": {
+        "description": (
+            "Propose something the user would never search for themselves but that connects to"
+            " these results in a non-obvious way. Name the specific title or niche and explain the link."
+        ),
+        "examples": [
+            '{"strategy": "wildcard", "suggestion": "Hear me out — the moral ambiguity and obsessive drive here has the same energy as chef movies like Burnt or The Hundred-Foot Journey. High stakes, perfectionist protagonists. Want to try that?"}',
+            '{"strategy": "wildcard", "suggestion": "These dark thrillers share a visual DNA with neo-noir anime — think Perfect Blue or Monster. Want to explore that unexpected crossover?"}',
+        ],
+    },
+}
 
-REFLECTION_SYS_PROMPT = """\
+STRATEGY_NAMES = list(STRATEGIES.keys())
+
+REFLECTION_SYS_PROMPT_TEMPLATE = """\
 You are a film curator for Reelix. After each set of recommendations, you propose ONE clear
 next direction for the user to explore.
 
-## Strategies (pick exactly one)
+## Your strategy: {strategy}
 
-more_like_title — Pick one interesting title and propose going deeper into its specific vein 
-  — name the sub-genre, tone, or style that makes it worth following.
-explore_adjacent — A keyword, sub-genre, or theme recurs across 3+ results. Propose a
-  sideways pivot into a related but different angle that the current results don't cover.
-flip_tone — The results lean toward one emotional register (e.g., mostly dark, mostly earnest). 
-  Propose the same themes or genre but in a different tone. Name a concrete reference title or 
-  sub-genre to anchor the shift — not just "lighter" or "funnier."
-shift_era — Results cluster in one time period. Propose the same vibe in a specific
-  different decade — name the era and what makes it feel different.
-
-Vary your strategy across turns. Don't default to the same one every time.
+{strategy_description}
 
 ## Output format
 ONLY valid JSON, no markdown:
-{"strategy": "<name>", "suggestion": "<1-2 sentences>"}
+{{"strategy": "{strategy}", "suggestion": "<1-2 sentences>"}}
 
 ## How to write the suggestion
 
@@ -41,16 +76,27 @@ Tone: professional film curator — knowledgeable, confident, concise.
 ## Examples
 
 GOOD:
-{"strategy": "shift_era", "suggestion": "These all land in the 2010s. Want to see this same vibe in 90s sci-fi? Grittier, more paranoid, and lo-fi in the best way."}
-{"strategy": "explore_adjacent", "suggestion": "Class tension and dark humor run through all of these. Want me to go full eat-the-rich — Parasite's tone but across different settings?"}
-{"strategy": "more_like_title", "suggestion": "Nightcrawler is the standout here. Want to go deeper into LA noir with morally bankrupt protagonists and that same hustle-or-die energy like Nightcrawler?"}
-{"strategy": "more_like_title", "suggestion": "The Lobster has a very specific deadpan absurdist tone. Would you like to lean into that Yorgos Lanthimos vein like The Lobster?"}
-{"strategy": "flip_tone", "suggestion": "These are all bleak takes on corporate greed. Want the same eat-the-rich themes played as sharp satire — more In the Loop than Michael Clayton?"}
-{"strategy": "flip_tone", "suggestion": "These lean heavy and serious. Want the same heist-and-con themes but played as a stylish caper — more Ocean's Eleven than Heat?"}
+{strategy_examples}
 
 BAD — vague categories, no concrete anchor:
-{"strategy": "explore_adjacent", "suggestion": "Dark comedy runs through these thrillers. I'd guide you to films that blend satire with social commentary, diving into the absurdities of modern life."}
+{{"strategy": "{strategy}", "suggestion": "Dark comedy runs through these thrillers. I'd guide you to films that blend satire with social commentary, diving into the absurdities of modern life."}}
 """
+
+
+def build_reflection_sys_prompt(strategy: str) -> str:
+    """Build the system prompt for a specific strategy."""
+    info = STRATEGIES[strategy]
+    return REFLECTION_SYS_PROMPT_TEMPLATE.format(
+        strategy=strategy,
+        strategy_description=info["description"],
+        strategy_examples="\n".join(info["examples"]),
+    )
+
+
+def pick_strategy(previous_strategy: str | None = None) -> str:
+    """Pick a random strategy, excluding the previous one."""
+    available = [s for s in STRATEGY_NAMES if s != previous_strategy]
+    return random.choice(available)
 
 
 def build_reflection_user_prompt(
@@ -58,7 +104,6 @@ def build_reflection_user_prompt(
     query_spec: RecQuerySpec,
     final_recs: list[Candidate],
     tier_stats: dict[str, Any] | None = None,
-    previous_strategy: str | None = None,
 ) -> str:
     parts: list[str] = []
 
@@ -111,10 +156,6 @@ def build_reflection_user_prompt(
         parts.append(line)
 
     parts.append("")
-    if previous_strategy:
-        parts.append(f"CONSTRAINT: Do NOT use strategy \"{previous_strategy}\" — you used it last turn. Pick a different one.")
-        parts.append("")
     parts.append("Propose ONE concrete next direction as a question the user can say yes to.")
 
     return "\n".join(parts)
-
