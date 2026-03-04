@@ -92,7 +92,7 @@ async def explore_stream(
         yield sse("started", {"query_id": req.query_id})
 
         try:
-            # 1) Orchestrator "plan" step (fast) — get tool args (spec + opening_summary)
+            # 1) Orchestrator "plan" step
             state, plan = await plan_orchestrator_agent(
                 agent_input=agent_input,
                 llm_client=chat_llm,
@@ -100,7 +100,6 @@ async def explore_stream(
                 logger=logger,
             )
 
-            # fast UI paint with opening summary + active_spec for chip display (RECS mode only)
             if plan.mode == "recs":
                 yield sse(
                     "opening",
@@ -135,11 +134,9 @@ async def explore_stream(
                         agent_result = task.result()
                         break
 
-                    # SSE heartbeat comment frame (doesn't trigger client handlers)
                     yield b":\n\n"
 
             except asyncio.CancelledError:
-                # client disconnected -> stop the background work too
                 task.cancel()
                 raise
 
@@ -153,7 +150,7 @@ async def explore_stream(
                 )
             )
 
-            # 4) Query/recs logging
+            # 4) Logging
             mode = agent_result.mode
             ctx_log = agent_result.ctx_log
             traces = agent_result.pipeline_traces[-1] if agent_result.pipeline_traces else {}
@@ -227,26 +224,11 @@ async def explore_stream(
                 },
             )
 
-            # Clear stale last_admin_message before reflection attempt
-            def _clear_admin_msg(payload: dict) -> None:
-                summary = payload.get("summary")
-                if isinstance(summary, dict):
-                    summary.pop("last_admin_message", None)
-                    # Keep recent_reflection_strategies — need it for the next reflection call
-
-            await state_store.update_session(
-                session_id=req.session_id,
-                ttl_sec=IDLE_TTL_SEC,
-                mutate=_clear_admin_msg,
-            )
-
-            # Reflection agent: suggest next steps (best-effort, skip on timeout/error)
+            # 6) Call Reflection agent for next steps suggestion
             if final_recs and query_spec:
-                # Read recent strategies from session for soft weighting
                 _recent_strategies: list[str] = []
                 if session_state and session_state.summary:
                     _recent_strategies = session_state.summary.get("recent_reflection_strategies", [])
-                    # Backward compat: old single-value key
                     if not _recent_strategies:
                         _old = session_state.summary.get("last_reflection_strategy")
                         if _old:
@@ -302,6 +284,7 @@ async def explore_stream(
                             "text": reflection.suggestion,
                         },
                     )
+                    
                     # Persist as last_admin_message + strategy history for next-turn context
                     next_steps_text = reflection.suggestion
                     next_steps_strategy = reflection.strategy

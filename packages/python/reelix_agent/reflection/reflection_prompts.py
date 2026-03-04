@@ -20,35 +20,35 @@ STRATEGIES: dict[str, dict[str, Any]] = {
     "follow_the_thread": {
         "description": (
             "Name a pattern across the results, then propose where it leads — a different"
-            " corner of cinema that shares the same thread. Only name reference titles from the current recommendations."
+            " corner of cinema that shares the same thread but these results don't cover."
+            " Reference titles from the current results to ground the observation."
         ),
         "examples": [
-            '{"strategy": "follow_the_thread", "suggestion": "Isolation and paranoia run through all of these. Want to follow that thread into cosmic horror — Lovecraftian dread in confined spaces, like Annihilation or The Thing?"}',
-            '{"strategy": "follow_the_thread", "suggestion": "Class tension and power dynamics keep showing up. Want to follow that into workplace thrillers — corporate hierarchies as horror, like The Assistant or Margin Call?"}',
+            '{"strategy": "follow_the_thread", "suggestion": "Isolation and paranoia run through all of these. Want to follow that thread into cosmic horror — same claustrophobic dread but with an alien or unknowable force driving it?"}',
+            '{"strategy": "follow_the_thread", "suggestion": "Every pick here uses an unreliable narrator to keep you guessing. Want to follow that into puzzle-box films where the structure itself is the twist?"}',
         ],
     },
     "reframe": {
         "description": (
             "Keep the core appeal but repackage it in a completely different context — swap the"
-            " tone, decade, or setting. Name a reference title in the current recs to anchor the shift."
+            " tone, decade, or setting. Describe the destination vibe concretely instead of"
+            " naming titles the user may not know."
         ),
         "examples": [
-            '{"strategy": "reframe", "suggestion": "These are all set in sprawling cities. Want the same tension and isolation but in a small-town setting — more Wind River than Sicario?"}',
+            '{"strategy": "reframe", "suggestion": "These are all set in sprawling cities. Want the same tension and isolation but in a small-town setting — tight community, nowhere to hide, everyone\'s a suspect?"}',
             '{"strategy": "reframe", "suggestion": "These all land in the 2010s. Want this same vibe in 90s sci-fi? Grittier, more paranoid, and lo-fi in the best way."}',
         ],
     },
     "wildcard": {
         "description": (
-            "Identify the deeper emotional or structural quality driving these results — not"
-            " genre or subject, but something like 'the thrill of watching someone operate at"
-            " peak competence' or 'dread of being trapped in a system.' Then name a specific"
-            " film from a completely different genre that shares that same quality. The connection"
-            " should feel surprising but immediately obvious once explained. Do NOT mash two"
-            " random genres together."
+            "Find the deeper emotional or structural quality driving these results, then propose"
+            " a completely different genre that shares it. Describe the destination vibe"
+            " concretely instead of naming titles the user may not know. The connection should"
+            " feel surprising but immediately click once explained."
         ),
         "examples": [
-            '{"strategy": "wildcard", "suggestion": "What hooks you in these heist films is watching experts improvise under pressure. That exact thrill drives Apollo 13 and Sully — want to try disaster films where competence is the real spectacle?"}',
-            '{"strategy": "wildcard", "suggestion": "The dread in these horror picks isn\'t the monsters — it\'s being stuck in a system that doesn\'t care about you. That\'s basically the plot of Office Space and Brazil. Want to see bureaucratic nightmares played for dark comedy?"}',
+            '{"strategy": "wildcard", "suggestion": "What hooks you in these heist films is watching experts improvise under pressure. Want to try disaster films where that same competence-under-chaos is the real spectacle?"}',
+            '{"strategy": "wildcard", "suggestion": "The dread in these horror picks isn\'t the monsters — it\'s being stuck in a system that doesn\'t care about you. Want to see that same nightmare played as dark comedy — bureaucratic absurdity turned up to eleven?"}',
         ],
     },
 }
