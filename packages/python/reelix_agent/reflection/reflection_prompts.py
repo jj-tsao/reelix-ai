@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+from collections import Counter
 from typing import Any
 
 from reelix_agent.core.types import RecQuerySpec
@@ -55,17 +55,67 @@ STRATEGIES: dict[str, dict[str, Any]] = {
 
 STRATEGY_NAMES = list(STRATEGIES.keys())
 
+
+def _build_weighting_guidance(recent_strategies: list[str]) -> str:
+    """Build soft weighting guidance based on recent strategy history."""
+    if not recent_strategies:
+        return "Pick whichever strategy best fits the results."
+
+    last = recent_strategies[-1]
+    hard_block = f"Do NOT use **{last}** — you used it last turn."
+
+    counts = Counter(recent_strategies)
+    unused = [s for s in STRATEGY_NAMES if counts[s] == 0 and s != last]
+
+    if unused:
+        names = " or ".join(f"**{s}**" for s in unused)
+        return f"{hard_block} Prefer {names} this turn — they'll bring fresh perspective."
+
+    # All strategies used at least once; prefer the least used (excluding last)
+    min_count = min(counts[s] for s in STRATEGY_NAMES if s != last)
+    least_used = [s for s in STRATEGY_NAMES if counts[s] == min_count and s != last]
+    names = " or ".join(f"**{s}**" for s in least_used)
+    return f"{hard_block} Prefer {names} this turn — they'll bring fresh perspective."
+
+
+def _pick_examples(recent_strategies: list[str]) -> str:
+    """Pick 2 examples: one from a preferred (underused) strategy, one from another."""
+    counts = Counter(recent_strategies)
+    unused = [s for s in STRATEGY_NAMES if counts[s] == 0]
+
+    if unused:
+        preferred = unused[0]
+    else:
+        min_count = min(counts[s] for s in STRATEGY_NAMES)
+        preferred = next(s for s in STRATEGY_NAMES if counts[s] == min_count)
+
+    # Pick a second strategy that's different from preferred
+    other = next(s for s in STRATEGY_NAMES if s != preferred)
+
+    return "\n".join([
+        STRATEGIES[preferred]["examples"][0],
+        STRATEGIES[other]["examples"][0],
+    ])
+
+
 REFLECTION_SYS_PROMPT_TEMPLATE = """\
 You are a film curator for Reelix. After each set of recommendations, you propose ONE clear
-next direction for the user to explore.
+next direction for the user to explore. Pick the strategy that best fits the results.
 
-## Your strategy: {strategy}
+## Strategies
 
-{strategy_description}
+deep_dive — {deep_dive_desc}
+follow_the_thread — {follow_the_thread_desc}
+reframe — {reframe_desc}
+wildcard — {wildcard_desc}
+
+## Guidance this turn
+
+{weighting_guidance}
 
 ## Output format
 ONLY valid JSON, no markdown:
-{{"strategy": "{strategy}", "suggestion": "<1-2 sentences>"}}
+{{"strategy": "<name>", "suggestion": "<1-2 sentences>"}}
 
 ## How to write the suggestion
 
@@ -80,27 +130,24 @@ Tone: professional film curator — knowledgeable, confident, concise.
 ## Examples
 
 GOOD:
-{strategy_examples}
+{examples}
 
 BAD — vague categories, no concrete anchor:
-{{"strategy": "{strategy}", "suggestion": "Dark comedy runs through these thrillers. I'd guide you to films that blend satire with social commentary, diving into the absurdities of modern life."}}
+{{"strategy": "follow_the_thread", "suggestion": "Dark comedy runs through these thrillers. I'd guide you to films that blend satire with social commentary, diving into the absurdities of modern life."}}
 """
 
 
-def build_reflection_sys_prompt(strategy: str) -> str:
-    """Build the system prompt for a specific strategy."""
-    info = STRATEGIES[strategy]
+def build_reflection_sys_prompt(recent_strategies: list[str] | None = None) -> str:
+    """Build the system prompt with all strategies and soft weighting guidance."""
+    recent = recent_strategies or []
     return REFLECTION_SYS_PROMPT_TEMPLATE.format(
-        strategy=strategy,
-        strategy_description=info["description"],
-        strategy_examples="\n".join(info["examples"]),
+        deep_dive_desc=STRATEGIES["deep_dive"]["description"],
+        follow_the_thread_desc=STRATEGIES["follow_the_thread"]["description"],
+        reframe_desc=STRATEGIES["reframe"]["description"],
+        wildcard_desc=STRATEGIES["wildcard"]["description"],
+        weighting_guidance=_build_weighting_guidance(recent),
+        examples=_pick_examples(recent),
     )
-
-
-def pick_strategy(previous_strategy: str | None = None) -> str:
-    """Pick a random strategy, excluding the previous one."""
-    available = [s for s in STRATEGY_NAMES if s != previous_strategy]
-    return random.choice(available)
 
 
 def build_reflection_user_prompt(

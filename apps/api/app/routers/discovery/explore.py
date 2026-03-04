@@ -232,7 +232,7 @@ async def explore_stream(
                 summary = payload.get("summary")
                 if isinstance(summary, dict):
                     summary.pop("last_admin_message", None)
-                    # Keep last_reflection_strategy — need it for the next reflection call
+                    # Keep recent_reflection_strategies — need it for the next reflection call
 
             await state_store.update_session(
                 session_id=req.session_id,
@@ -242,10 +242,15 @@ async def explore_stream(
 
             # Reflection agent: suggest next steps (best-effort, skip on timeout/error)
             if final_recs and query_spec:
-                # Read previous strategy from session to avoid repeating
-                _prev_strategy = None
+                # Read recent strategies from session for soft weighting
+                _recent_strategies: list[str] = []
                 if session_state and session_state.summary:
-                    _prev_strategy = session_state.summary.get("last_reflection_strategy")
+                    _recent_strategies = session_state.summary.get("recent_reflection_strategies", [])
+                    # Backward compat: old single-value key
+                    if not _recent_strategies:
+                        _old = session_state.summary.get("last_reflection_strategy")
+                        if _old:
+                            _recent_strategies = [_old]
 
                 _refl_t0 = time.perf_counter()
                 _refl_status = "error"
@@ -257,7 +262,7 @@ async def explore_stream(
                             query_spec=query_spec,
                             final_recs=final_recs,
                             tier_stats=agent_result.tier_stats,
-                            previous_strategy=_prev_strategy,
+                            recent_strategies=_recent_strategies,
                         ),
                         timeout=10.0,
                     )
@@ -297,13 +302,17 @@ async def explore_stream(
                             "text": reflection.suggestion,
                         },
                     )
-                    # Persist as last_admin_message + last_reflection_strategy for next-turn context
+                    # Persist as last_admin_message + strategy history for next-turn context
                     next_steps_text = reflection.suggestion
                     next_steps_strategy = reflection.strategy
                     def _patch(payload: dict) -> None:
                         summary = payload.setdefault("summary", {})
                         if isinstance(summary, dict):
                             summary["last_admin_message"] = next_steps_text
+                            # Maintain rolling list of last 3 strategies
+                            history = summary.get("recent_reflection_strategies", [])
+                            history.append(next_steps_strategy)
+                            summary["recent_reflection_strategies"] = history[-3:]
                             summary["last_reflection_strategy"] = next_steps_strategy
 
                     asyncio.create_task(

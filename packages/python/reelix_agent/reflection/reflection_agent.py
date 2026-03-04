@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 from reelix_agent.core.types import RecQuerySpec
 from reelix_agent.reflection.reflection_prompts import (
+    STRATEGY_NAMES,
     build_reflection_sys_prompt,
     build_reflection_user_prompt,
-    pick_strategy,
 )
 
 if TYPE_CHECKING:
@@ -44,6 +44,12 @@ def _parse_reflection_response(raw: str) -> ReflectionResult | None:
     suggestion = data.get("suggestion", "")
     if not suggestion:
         return None
+
+    # Validate strategy name
+    if strategy not in STRATEGY_NAMES:
+        log.warning("Reflection agent returned unknown strategy: %s", strategy)
+        strategy = "deep_dive"
+
     return ReflectionResult(strategy=strategy, suggestion=suggestion)
 
 
@@ -53,7 +59,7 @@ async def generate_next_steps(
     query_spec: RecQuerySpec,
     final_recs: list["Candidate"],
     tier_stats: dict[str, Any] | None = None,
-    previous_strategy: str | None = None,
+    recent_strategies: list[str] | None = None,
     model: str = REFLECTION_MODEL,
 ) -> ReflectionResult | None:
     """
@@ -64,8 +70,7 @@ async def generate_next_steps(
     if not final_recs:
         return None
 
-    strategy = pick_strategy(previous_strategy)
-    sys_prompt = build_reflection_sys_prompt(strategy)
+    sys_prompt = build_reflection_sys_prompt(recent_strategies)
     user_prompt = build_reflection_user_prompt(
         query_spec=query_spec,
         final_recs=final_recs,
@@ -88,11 +93,9 @@ async def generate_next_steps(
         if not content:
             return None
         result = _parse_reflection_response(content)
-        if result:
-            result.strategy = strategy
-            if resp.usage:
-                result.input_tokens = resp.usage.prompt_tokens
-                result.output_tokens = resp.usage.completion_tokens
+        if result and resp.usage:
+            result.input_tokens = resp.usage.prompt_tokens
+            result.output_tokens = resp.usage.completion_tokens
         return result
     except Exception:
         log.exception("Reflection agent failed")
