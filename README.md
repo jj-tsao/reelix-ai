@@ -6,7 +6,7 @@
 [![CE Reranker](https://img.shields.io/badge/CE%20Reranker-HuggingFace-blue?logo=huggingface)](https://huggingface.co/JJTsao/movietv-reranker-cross-encoder-base-v1)
 [![Made with FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi)](https://jjtsao-rag-movie-api.hf.space/docs#/)
 [![Built with React](https://img.shields.io/badge/Frontend-React-61dafb?logo=react)](https://reelixai.netlify.app/)
-![License](https://img.shields.io/github/license/jj-tsao/rag-movie-recommender-app)
+![License](https://img.shields.io/github/license/jj-tsao/reeli)
 
 ---
 
@@ -14,14 +14,14 @@
 
 ---
 
-**Reelix** is an AI-native movie discovery agent that understands your nuanced preferences and evolving taste, and turns them into cinematic picks just for you.
+**Reelix** is an AI-native movie discovery agent that understands your preferred vibe, learns your taste, and recommend films you'll actually love.
 
 Under the hood, Reelix is a multi-agent system with four collaborating AI agents spanning intent understanding & planning, candidate curation, next-step guidance, and fit explanations:
 
-- **Orchestrator Agent**: parses queries, builds a structured retrieval plan, and manages multi-turn session memory
-- **Curator Agent**: scores candidates on genre/tone/theme/structure fit via parallel LLM evaluation
-- **Reflection Agent**: proposes a concrete next-step direction after each recommendation turn
-- **Explanation Agent**: streams personalized “why you’ll enjoy it” rationales to the UI
+1. **Orchestrator Agent**: parses queries, builds a structured retrieval plan, and manages multi-turn session memory
+2. **Curator Agent**: scores candidates on genre, tone, theme, and structural fit via parallel LLM evaluation
+3. **Reflection Agent**: proposes a concrete next-step direction after each recommendation turn
+4. **Explanation Agent**: streams personalized “why you’ll enjoy it” rationales to the UI
 
 The agents are backed by a hybrid recommendation pipeline (dense + sparse retrieval, multi-step reranking) and a user taste vector that evolves with every rating, reaction, and refinement.
 
@@ -44,7 +44,7 @@ The agents are backed by a hybrid recommendation pipeline (dense + sparse retrie
 
 > Reelix understands your vibe and curates markdown-rich suggestions, trailers, and rationale in real time.
 
-<img width="1050" height="890" alt="Image" src="https://github.com/user-attachments/assets/f900b15b-431b-4d0c-8135-0d1bce473c00" />
+<img width="1061" height="1065" alt="Image" src="https://github.com/user-attachments/assets/99219ff0-2fa9-4c08-843b-3a49efbeaa71" />
 
 ---
 
@@ -73,7 +73,7 @@ At runtime, Reelix is a **four-agent system** (Orchestrator → Curator → Refl
                                  │
                                  ▼
                          Reflection Agent (analyze slate → propose next step)
-                                 │  (reads previous strategy from session; constrains LLM to alternate)
+                                 │  (soft weighted next step strategy selection)
                                  │
                                  ├─ SSE: next_steps ───────────────────▶ UI
                                  ├─ Persist suggestion + strategy → session memory (Redis)
@@ -179,20 +179,22 @@ This agent evaluates candidates from the recommendation pipeline using LLM reaso
 
 After each recommendation turn, the Reflection Agent analyzes the curated slate and proposes a concrete next direction to guide continued discovery. It runs before the Explanation Agent for lower latency — the next-step suggestion is fast (single short LLM call) and streams to the UI while the heavier explanation generation follows.
 
-- **Runs post-curator, best-effort**
+- **Runs post-curator**
   - Executes only in RECS mode, after curator evaluations
   - Streams an SSE `next_steps` event with strategy and suggestion text
   - 10-second timeout with graceful degradation — never blocks the main response
 
-- **Four mutually exclusive strategies** (picks one per turn)
-  - `more_like_title`: Picks a standout title from results and proposes exploring what makes it special (sub-genre, tone, setting, style)
-  - `explore_adjacent`: Identifies a recurring keyword/theme across results and proposes a sideways pivot into a related angle
-  - `flip_tone`: The results lean toward one emotional register. Propose the same themes or genre but in a different tone
-  - `shift_era`: Detects temporal clustering and proposes a specific different decade
+- **Four strategies** (LLM chooses per turn with soft weighting)
+  - `deep_dive`: Zooms into one title's specific quality — its sub-genre, directorial style, or narrative approach
+  - `follow_the_thread`: Names a pattern across the results and proposes where it leads — a different corner of cinema that shares the same thread
+  - `reframe`: Keeps the core appeal but repackages it in a completely different context — swaps the tone, decade, or setting
+  - `wildcard`: Identifies a deeper emotional or structural quality driving the results and connects it to a film from a completely different genre
 
-- **Strategy alternation across turns**
-  - Persists the chosen strategy as `last_reflection_strategy` in session state (Redis)
-  - Ensures diverse suggestions across a multi-turn session rather than defaulting to one strategy
+- **Soft weighting for strategy diversity**
+  - Recent strategy history persisted as `recent_reflection_strategies` list in session state (Redis)
+  - Soft nudge toward underused strategies based on a rolling window of the last 3 turns
+  - Few-shot examples dynamically selected from preferred strategies to prime the LLM
+  - Hard block on the immediate last strategy to prevent repetition
 
 - **Session memory integration for multi-turn flow**
   - Persists suggestion as `last_admin_message` in session state (Redis)
