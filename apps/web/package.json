@@ -28,7 +28,7 @@
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
     "react-range": "^1.10.0",
-    "react-router-dom": "^7.6.2",
+    "react-router-dom": "^7.13.1",
     "slider": "^1.0.4",
     "tailwind-merge": "^3.3.0",
     "vite-tsconfig-paths": "^5.1.4"
