@@ -63,6 +63,7 @@ jobs:
             --delete
             --exclude "__pycache__"
             --exclude "*.zip"
+            --exclude "bm25_files/backup"
           )
 
           rsync "${RSYNC_FLAGS[@]}" apps/api/ "${SPACE_DIR}/apps/api/"
@@ -126,6 +127,8 @@ jobs:
           SPACE_DIR="hf-space"
           git -C "${SPACE_DIR}" lfs install --local
           git -C "${SPACE_DIR}" lfs untrack "*.pickle" 2>/dev/null || true
+          # Remove stale index entries from previous deploys before tracking
+          git -C "${SPACE_DIR}" rm -rf --cached packages/python/reelix_models/assets/bm25_files/backup 2>/dev/null || true
           git -C "${SPACE_DIR}" lfs track "*.joblib"
 
       - name: Commit and push to Hugging Face
