@@ -17,6 +17,7 @@ dependencies = [
   "sentence_transformers",
   "redis>=5.0",
   "openai",
+  "pyjwt>=2.12.0",
 ]
 
 [tool.uv.sources]
