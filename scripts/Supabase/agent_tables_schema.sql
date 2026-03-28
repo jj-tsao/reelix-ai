@@ -166,3 +166,6 @@ create table if not exists reflection_logs (
 create index if not exists idx_reflection_logs_query_id on reflection_logs (query_id);
 create index if not exists idx_reflection_logs_strategy on reflection_logs (strategy, created_at desc);
 create index if not exists idx_reflection_logs_status on reflection_logs (status);
+
+-- RLS: backend-only table (accessed via service_role, not exposed to frontend)
+alter table reflection_logs enable row level security;
