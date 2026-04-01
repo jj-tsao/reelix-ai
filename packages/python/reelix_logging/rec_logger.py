@@ -109,6 +109,36 @@ class AgentDecisionLog(BaseModel):
     model: str | None = None
 
 
+class RequestTraceLog(BaseModel):
+    """End-to-end request trace — one row per API request."""
+
+    query_id: str
+    session_id: str | None = None
+    user_id: str | None = None
+    endpoint: str
+
+    # Lifecycle
+    status: str = "completed"  # "completed" | "error"
+    error_stage: str | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+
+    # Stage timings (ms)
+    orchestrator_ms: int | None = None
+    pipeline_ms: int | None = None
+    curator_ms: int | None = None
+    tier_ms: int | None = None
+    reflection_ms: int | None = None
+    total_ms: int | None = None
+
+    # Counts
+    candidates_retrieved: int | None = None
+    candidates_served: int | None = None
+    llm_calls: int | None = None
+    total_input_tokens: int | None = None
+    total_output_tokens: int | None = None
+
+
 # ---------- Core logger ----------
 class TelemetryLogger:
     """
@@ -428,6 +458,45 @@ class TelemetryLogger:
         }
 
         await self._post("reflection_logs", [row])
+
+    async def log_trace(
+        self,
+        trace: RequestTraceLog,
+    ) -> None:
+        """
+        Insert end-to-end request trace into request_traces table.
+        One row per API request capturing stage timings, status, and counts.
+        """
+        if not self._enabled():
+            return
+        row = {k: v for k, v in trace.model_dump().items() if v is not None}
+        await self._post("request_traces", [row])
+
+    async def log_error(
+        self,
+        *,
+        query_id: str,
+        endpoint: str,
+        error_stage: str,
+        error: Exception,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        total_ms: int | None = None,
+    ) -> None:
+        """Log a failed request as an error trace — shorthand for common error paths."""
+        await self.log_trace(
+            RequestTraceLog(
+                query_id=query_id,
+                session_id=session_id,
+                user_id=user_id,
+                endpoint=endpoint,
+                status="error",
+                error_stage=error_stage,
+                error_type=type(error).__name__,
+                error_message=str(error)[:500],
+                total_ms=total_ms,
+            )
+        )
 
 
 # ---------- SSE stream aggregator ----------

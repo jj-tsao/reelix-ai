@@ -169,3 +169,127 @@ create index if not exists idx_reflection_logs_status on reflection_logs (status
 
 -- RLS: backend-only table (accessed via service_role, not exposed to frontend)
 alter table reflection_logs enable row level security;
+
+-- -----------------------------------------------------------------------------
+-- request_traces: End-to-end request lifecycle traces
+-- -----------------------------------------------------------------------------
+-- One row per API request capturing:
+-- - Stage timings (orchestrator, pipeline, curator, tier, reflection)
+-- - Overall status (completed vs error) with error details
+-- - Candidate counts
+--
+-- Use for: latency budgets, error rate monitoring, stage-level debugging
+create table if not exists request_traces (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+
+  -- Identifiers
+  query_id text not null,
+  session_id text,
+  user_id uuid,
+  endpoint text not null,
+
+  -- Lifecycle
+  status text not null default 'completed',  -- 'completed' or 'error'
+  error_stage text,    -- orchestrator, pipeline, curator_parse, curator_llm, tier, reflection
+  error_type text,     -- exception class name
+  error_message text,
+
+  -- Stage timings (ms), null if stage didn't run
+  orchestrator_ms int,
+  pipeline_ms int,
+  curator_ms int,
+  tier_ms int,
+  reflection_ms int,
+  total_ms int,
+
+  -- Counts
+  candidates_retrieved int,
+  candidates_served int,
+  llm_calls int,
+  total_input_tokens int,
+  total_output_tokens int
+);
+
+create index if not exists idx_traces_query on request_traces (query_id);
+create index if not exists idx_traces_status on request_traces (status, created_at desc);
+create index if not exists idx_traces_endpoint on request_traces (endpoint, created_at desc);
+
+-- RLS: backend-only table
+alter table request_traces enable row level security;
+
+-- -----------------------------------------------------------------------------
+-- daily_metrics: Automated evaluation metrics (one row per metric per day)
+-- -----------------------------------------------------------------------------
+-- Long/narrow schema: easy to add new metrics without migrations.
+-- Groups: curator, latency, cost, errors, routing
+--
+-- Usage:
+--   python -m jobs.eval_metrics              # compute yesterday's metrics
+--   python -m jobs.eval_metrics --days 7     # backfill last 7 days
+create table if not exists daily_metrics (
+  id              uuid primary key default gen_random_uuid(),
+  created_at      timestamptz not null default now(),
+  metric_date     date not null,
+  metric_name     text not null,
+  metric_group    text not null,
+  value           double precision,
+  details         jsonb,
+  unique (metric_date, metric_name)
+);
+
+create index if not exists idx_daily_metrics_date on daily_metrics (metric_date desc);
+create index if not exists idx_daily_metrics_group on daily_metrics (metric_group, metric_date desc);
+
+-- RLS: backend-only table
+alter table daily_metrics enable row level security;
+
+-- -----------------------------------------------------------------------------
+-- judge_evaluations: LLM-as-judge evaluation scores per candidate
+-- -----------------------------------------------------------------------------
+-- Two separate evaluation types per candidate:
+-- 1. Recommendation quality (relevance + novelty) — evaluates curator picks
+-- 2. Explanation quality — evaluates explanation agent output
+--
+-- Usage:
+--   python -m jobs.eval_judge              # evaluate yesterday's queries
+--   python -m jobs.eval_judge --days 7     # backfill last 7 days
+create table if not exists judge_evaluations (
+  id              uuid primary key default gen_random_uuid(),
+  created_at      timestamptz not null default now(),
+
+  -- Identifiers
+  eval_run_id     text not null,
+  query_id        text not null,
+  media_id        int not null,
+
+  -- Context (denormalized for self-contained analysis)
+  query_text      text,
+  title           text,
+
+  -- Recommendation judge scores (1-5, evaluates curator picks)
+  relevance       int,
+  novelty         int,
+  rec_reasoning   text,
+
+  -- Explanation judge score (1-5, evaluates explanation agent)
+  explanation_quality int,
+  expl_reasoning  text,
+
+  -- Curator comparison (snapshot)
+  curator_total_fit  int,
+  curator_tier       text,
+
+  -- Metadata
+  judge_model     text,
+  input_tokens    int,
+  output_tokens   int,
+
+  unique (eval_run_id, query_id, media_id)
+);
+
+create index if not exists idx_judge_eval_run on judge_evaluations (eval_run_id);
+create index if not exists idx_judge_query on judge_evaluations (query_id);
+
+-- RLS: backend-only table
+alter table judge_evaluations enable row level security;

@@ -346,6 +346,7 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     # Store tier_stats in state for downstream logging
     state.tier_stats = {
         **tier_stats,
+        "pipeline_ms": int(pipeline_ms),
         "curator_latency_ms": int(curator_ms),
         "tier_latency_ms": int(tiers_ms),
     }

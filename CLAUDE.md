@@ -71,6 +71,13 @@ python -m jobs.indexing --media-type tv --media-count 5      # 5k TV shows
 # Rating enrichment (IMDb + OMDb → Qdrant payload sync)
 python -m jobs.enrich_ratings --mode daily --budget 500
 python -m jobs.enrich_ratings --mode weekly --budget 1000
+
+# Evaluation jobs
+python -m jobs.eval_metrics                          # daily metrics (yesterday)
+python -m jobs.eval_metrics --date 2026-03-31        # specific date
+python -m jobs.eval_metrics --days 7                 # backfill 7 days
+python -m jobs.eval_judge                            # LLM-as-judge (yesterday, 50 samples)
+python -m jobs.eval_judge --date 2026-03-31 --sample-size 100 --model gpt-4o-mini
 ```
 
 ### Linting and Formatting (Python)
@@ -203,9 +210,9 @@ Both the pipeline (index-time) and the API (query-time) share critical code from
   1. Orchestrator streams opening summary (fast)
   2. Explanation agent streams individual "why" explanations (JSONL over SSE)
 
-### Logging Systems (Supabase)
+### Logging & Evaluation Systems (Supabase)
 
-Two layered logging systems:
+Three-layer system: logging → tracing → evaluation, all in the same Supabase project.
 
 #### Layer 1: Recommendation Pipeline Logging (All Endpoints)
 | Table | Purpose |
@@ -220,18 +227,49 @@ Two layered logging systems:
 | `curator_evaluations` | Per-candidate fit scores (genre, tone, theme) and tier |
 | `tier_summaries` | Aggregate tier stats and selection rule applied |
 
+#### Layer 3: Request Tracing
+| Table | Purpose |
+|-------|---------|
+| `request_traces` | End-to-end request lifecycle: stage-level latencies (orchestrator/pipeline/curator/reflection), token counts, error tracking |
+
+Logged via `TelemetryLogger.log_trace()` and `log_error()` in explore.py. Each completed request gets one trace row with timing breakdown and candidate counts.
+
+#### Evaluation Jobs (apps/data-pipeline)
+
+| Job | Table | Purpose |
+|-----|-------|---------|
+| `eval_metrics` | `daily_metrics` | Automated daily aggregates: curator quality, latency p50/p95, cost, error rates, routing distribution, judge scores |
+| `eval_judge` | `judge_evaluations` | LLM-as-judge evaluation with two independent calls per query |
+
+**eval_metrics** (`core/metrics_queries.py`): Computes 20+ metrics across 6 groups (cost, latency, curator, errors, routing, judge) and upserts to `daily_metrics` with `UNIQUE(metric_date, metric_name)`.
+
+**eval_judge** (`core/judge.py`): Samples completed agent queries, then runs two separate LLM judge calls:
+1. **Recommendation quality** (relevance + novelty, 1-5) — evaluates curator picks WITHOUT "why" text to avoid bias
+2. **Explanation quality** (1-5) — evaluates explanation agent output WITH "why" text
+
+This separation cleanly isolates curator vs explanation agent quality. If relevance drops, it's the curator; if explanation quality drops, it's the explanation agent.
+
 **Key files:**
 - `reelix_logging/rec_logger.py` - `TelemetryLogger` class with all logging methods
 - `scripts/Supabase/logger_tables_schema.sql` - Pipeline tables schema
-- `scripts/Supabase/agent_tables_schema.sql` - Agent tables schema
+- `scripts/Supabase/agent_tables_schema.sql` - Agent + tracing + evaluation tables schema
+- `apps/data-pipeline/core/metrics_queries.py` - Metric computation queries
+- `apps/data-pipeline/core/judge.py` - LLM-as-judge prompts, data assembly, scoring
 
-**Query pattern for combined analysis:**
+**Query patterns:**
 ```sql
 -- Join curator fits with pipeline scores
 SELECT ce.*, rr.score_dense, rr.score_sparse, rr.score_final
 FROM curator_evaluations ce
 JOIN rec_results rr ON ce.query_id = rr.query_id AND ce.media_id = rr.media_id
 WHERE ce.query_id = 'xxx';
+
+-- Compare judge vs curator agreement
+SELECT je.title, je.relevance, je.novelty, je.explanation_quality,
+       je.curator_total_fit, je.curator_tier
+FROM judge_evaluations je
+WHERE je.eval_run_id = 'xxx'
+ORDER BY je.relevance DESC;
 ```
 
 ## Environment Variables

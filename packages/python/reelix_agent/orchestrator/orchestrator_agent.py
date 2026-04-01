@@ -86,6 +86,8 @@ async def plan_orchestrator_agent(
             state.turn_message = msg
             state.turn_memory = mem
             state.done = True
+            state.meta["orchestrator_input_tokens"] = llm_usage.input_tokens
+            state.meta["orchestrator_output_tokens"] = llm_usage.output_tokens
 
             # Log CHAT mode decision
             if logger:
@@ -117,6 +119,8 @@ async def plan_orchestrator_agent(
             opening = tool_args.get("opening_summary")
             raw_spec = tool_args.get("rec_query_spec") or {}
             state.query_spec = RecQuerySpec(**raw_spec)
+            state.meta["orchestrator_input_tokens"] = llm_usage.input_tokens
+            state.meta["orchestrator_output_tokens"] = llm_usage.output_tokens
 
             # Log RECS mode decision
             if logger:
@@ -307,6 +311,7 @@ def _result_from_state(state: AgentState) -> RecAgentResult:
         ctx_log=state.ctx_log,
         pipeline_traces=state.pipeline_traces,
         agent_trace=state.agent_trace,
+        meta=state.meta,
         tier_stats=state.tier_stats,
     )
 

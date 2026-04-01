@@ -22,7 +22,7 @@ from reelix_agent.explanation.explanation_prompts import build_why_prompt_envelo
 from reelix_agent.explanation.explanation_agent import stream_why_events
 from reelix_agent.reflection import generate_next_steps
 from reelix_agent.reflection.reflection_agent import REFLECTION_MODEL
-from reelix_logging.rec_logger import ReflectionLog
+from reelix_logging.rec_logger import ReflectionLog, RequestTraceLog
 
 from app.deps.deps import (
     get_agent_rec_runner,
@@ -90,15 +90,21 @@ async def explore_stream(
 
     async def gen() -> AsyncIterator[bytes]:
         yield sse("started", {"query_id": req.query_id})
+        t0 = time.perf_counter()
 
         try:
+            _refl_ms = None  # set later if reflection runs
+            reflection = None  # set later if reflection runs
+
             # 1) Orchestrator "plan" step
+            orch_t0 = time.perf_counter()
             state, plan = await plan_orchestrator_agent(
                 agent_input=agent_input,
                 llm_client=chat_llm,
                 tool_registry=tool_registry,
                 logger=logger,
             )
+            orch_ms = int((time.perf_counter() - orch_t0) * 1000)
 
             if plan.mode == "recs":
                 yield sse(
@@ -191,6 +197,21 @@ async def explore_stream(
             # == CHAT mode: stream chat message & done ==
             if str(mode) == "chat":
                 yield sse("chat", {"query_id": req.query_id, "message": plan.message})
+                _meta = agent_result.meta or {}
+                asyncio.create_task(
+                    logger.log_trace(RequestTraceLog(
+                        query_id=req.query_id,
+                        session_id=req.session_id,
+                        user_id=user_id,
+                        endpoint=ENDPOINT,
+                        status="completed",
+                        orchestrator_ms=orch_ms,
+                        total_ms=int((time.perf_counter() - t0) * 1000),
+                        llm_calls=1,
+                        total_input_tokens=_meta.get("orchestrator_input_tokens"),
+                        total_output_tokens=_meta.get("orchestrator_output_tokens"),
+                    ))
+                )
                 yield sse("done", {"ok": True})
                 return
 
@@ -306,11 +327,55 @@ async def explore_stream(
                         )
                     )
 
+            # 7) Log end-to-end request trace (RECS mode)
+            _tier = agent_result.tier_stats or {}
+            _meta = agent_result.meta or {}
+            _orch_in = _meta.get("orchestrator_input_tokens")
+            _orch_out = _meta.get("orchestrator_output_tokens")
+            _refl_in = reflection.input_tokens if reflection else None
+            _refl_out = reflection.output_tokens if reflection else None
+            _total_in = (_orch_in or 0) + (_refl_in or 0) if (_orch_in or _refl_in) else None
+            _total_out = (_orch_out or 0) + (_refl_out or 0) if (_orch_out or _refl_out) else None
+            # Count LLM calls: orchestrator (1) + curator (2 parallel batches) + reflection (0 or 1)
+            _llm_calls = 1 + 2 + (1 if reflection else 0)
+
+            asyncio.create_task(
+                logger.log_trace(RequestTraceLog(
+                    query_id=req.query_id,
+                    session_id=req.session_id,
+                    user_id=user_id,
+                    endpoint=ENDPOINT,
+                    status="completed",
+                    orchestrator_ms=orch_ms,
+                    pipeline_ms=int(_tier["pipeline_ms"]) if "pipeline_ms" in _tier else None,
+                    curator_ms=int(_tier["curator_latency_ms"]) if "curator_latency_ms" in _tier else None,
+                    tier_ms=int(_tier["tier_latency_ms"]) if "tier_latency_ms" in _tier else None,
+                    reflection_ms=_refl_ms,
+                    total_ms=int((time.perf_counter() - t0) * 1000),
+                    candidates_retrieved=len(agent_result.candidates) if agent_result.candidates else None,
+                    candidates_served=len(agent_result.final_recs) if agent_result.final_recs else None,
+                    llm_calls=_llm_calls,
+                    total_input_tokens=_total_in,
+                    total_output_tokens=_total_out,
+                ))
+            )
+
             yield sse("done", {"ok": True})
 
-        except Exception:
+        except Exception as exc:
             error_id = str(uuid.uuid4())
             log.exception("Explore stream failed (error_id=%s)", error_id)
+            asyncio.create_task(
+                logger.log_error(
+                    query_id=req.query_id,
+                    endpoint=ENDPOINT,
+                    error_stage="unknown",
+                    error=exc,
+                    session_id=req.session_id,
+                    user_id=user_id,
+                    total_ms=int((time.perf_counter() - t0) * 1000),
+                )
+            )
             yield sse(
                 "error",
                 {
@@ -383,6 +448,7 @@ async def explore_rerun(
             )
 
     # 3) Build an AgentState (for seen_ids + consistent bookkeeping) BUT do not call LLM
+    rerun_t0 = time.perf_counter()
     agent_input = ExploreAgentInput(
         user_id=user_id,
         query_id=req.query_id,
@@ -443,6 +509,24 @@ async def explore_rerun(
             traces=traces,
             stage="chip_rerun",
         )
+    )
+
+    # Log end-to-end request trace (rerun — no orchestrator or reflection)
+    _tier = agent_result.tier_stats or {}
+    asyncio.create_task(
+        logger.log_trace(RequestTraceLog(
+            query_id=req.query_id,
+            session_id=req.session_id,
+            user_id=user_id,
+            endpoint=ENDPOINT,
+            status="completed",
+            pipeline_ms=int(_tier["pipeline_ms"]) if "pipeline_ms" in _tier else None,
+            curator_ms=int(_tier["curator_latency_ms"]) if "curator_latency_ms" in _tier else None,
+            tier_ms=int(_tier["tier_latency_ms"]) if "tier_latency_ms" in _tier else None,
+            total_ms=int((time.perf_counter() - rerun_t0) * 1000),
+            candidates_retrieved=len(agent_result.candidates) if agent_result.candidates else None,
+            candidates_served=len(agent_result.final_recs) if agent_result.final_recs else None,
+        ))
     )
 
     # 7) WHY ticket (same as /explore)

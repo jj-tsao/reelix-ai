@@ -15,6 +15,7 @@ dependencies = [
   "psycopg[binary]",
   "python-dotenv",
   "tqdm",
+  "openai",
 ]
 
 [tool.uv.sources]
