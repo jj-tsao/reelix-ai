@@ -11,4 +11,13 @@ def get_engine() -> Engine:
     # Prefer psycopg (v3, self-contained wheels) to avoid local libpq issues
     if url.drivername in ("postgresql", "postgresql+psycopg2"):
         url = url.set(drivername="postgresql+psycopg")
-    return create_engine(url)
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        connect_args={
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        },
+    )

@@ -357,7 +357,7 @@ def enrich_omdb_rows(
     engine: Engine,
     rows: Sequence[Mapping],
     sleep_between: float = 0.3,
-    flush_every: int = 50,
+    flush_every: int = 25,
 ) -> None:
     """
     Shared micro-batch OMDb enrichment loop.
