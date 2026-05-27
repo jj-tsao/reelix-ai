@@ -51,7 +51,11 @@ create table if not exists agent_decisions (
   planning_latency_ms int,
   input_tokens int,
   output_tokens int,
-  model text
+  model text,
+
+  -- OpenTelemetry bridge
+  trace_id text,
+  span_id text
 );
 
 create index if not exists idx_agent_decisions_query_id on agent_decisions (query_id);
@@ -90,7 +94,10 @@ create table if not exists curator_evaluations (
 
   -- Selection outcome
   is_served boolean not null default false,
-  final_rank int  -- null if not served
+  final_rank int,  -- null if not served
+
+  -- OpenTelemetry bridge
+  trace_id text
 );
 
 create index if not exists idx_curator_evaluations_query_id on curator_evaluations (query_id);
@@ -123,7 +130,11 @@ create table if not exists tier_summaries (
 
   -- Performance metrics
   curator_latency_ms int,
-  tier_latency_ms int
+  tier_latency_ms int,
+
+  -- OpenTelemetry bridge
+  trace_id text,
+  span_id text
 );
 
 create index if not exists idx_tier_summaries_query_id on tier_summaries (query_id);
@@ -160,7 +171,11 @@ create table if not exists reflection_logs (
   model text,
 
   -- Context snapshot from curator (for offline analysis)
-  tier_stats jsonb
+  tier_stats jsonb,
+
+  -- OpenTelemetry bridge
+  trace_id text,
+  span_id text
 );
 
 create index if not exists idx_reflection_logs_query_id on reflection_logs (query_id);
@@ -208,7 +223,11 @@ create table if not exists request_traces (
   candidates_served int,
   llm_calls int,
   total_input_tokens int,
-  total_output_tokens int
+  total_output_tokens int,
+
+  -- OpenTelemetry bridge (root_span_id = the explore.request server span)
+  trace_id text,
+  root_span_id text
 );
 
 create index if not exists idx_traces_query on request_traces (query_id);
@@ -293,3 +312,18 @@ create index if not exists idx_judge_query on judge_evaluations (query_id);
 
 -- RLS: backend-only table
 alter table judge_evaluations enable row level security;
+
+-- -----------------------------------------------------------------------------
+-- Migration: OpenTelemetry trace bridge columns (idempotent; safe on existing DBs)
+-- -----------------------------------------------------------------------------
+-- Lets a flagged Supabase row pivot to its Tempo trace (and back, by filtering
+-- Tempo on reelix.query_id then joining these tables in SQL). Re-running the
+-- whole schema file is safe — ADD COLUMN IF NOT EXISTS is a no-op once applied.
+alter table agent_decisions     add column if not exists trace_id text, add column if not exists span_id text;
+alter table curator_evaluations add column if not exists trace_id text;
+alter table tier_summaries      add column if not exists trace_id text, add column if not exists span_id text;
+alter table reflection_logs     add column if not exists trace_id text, add column if not exists span_id text;
+alter table request_traces      add column if not exists trace_id text, add column if not exists root_span_id text;
+
+create index if not exists idx_request_traces_trace_id on request_traces (trace_id);
+create index if not exists idx_agent_decisions_trace_id on agent_decisions (trace_id);

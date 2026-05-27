@@ -12,6 +12,8 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from anyio import to_thread
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 from reelix_agent.core.types import AgentMode, RecQuerySpec
 from reelix_agent.curator.curator_agent import run_curator_agent
@@ -20,6 +22,8 @@ from reelix_agent.tools.types import ToolCategory, ToolContext, ToolResult, Tool
 
 if TYPE_CHECKING:
     from reelix_logging.rec_logger import TelemetryLogger
+
+_tracer = trace.get_tracer(__name__)
 
 # JSON Schema for the recommendation_agent tool parameters
 RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
@@ -269,122 +273,157 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     state.turn_mode = AgentMode.RECS
 
     # 2) Run recommendation pipeline
-    def _run_pipeline_sync():
-        return ctx.agent_rec_runner.run_for_agent(
-            user_context=state.user_context,
-            spec=spec,
-            seen_media_ids=state.seen_media_ids,
-            turn_kind=state.turn_kind,
+    with _tracer.start_as_current_span("recommendation.execute") as rec_span:
+        rec_span.set_attribute(
+            "reelix.media_type", getattr(spec.media_type, "value", str(spec.media_type))
         )
+        if state.query_id:
+            rec_span.set_attribute("reelix.query_id", state.query_id)
 
-    pipeline_start = time.perf_counter()
-    candidates, traces, ctx_log = await to_thread.run_sync(_run_pipeline_sync)
-    pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
-    print(f"[timing] rec_pipeline_sync_ms={pipeline_ms:.1f}")
-
-    state.candidates = candidates
-    if traces:
-        state.pipeline_traces.append(traces)
-    if ctx_log:
-        state.ctx_log = ctx_log
-
-    # 3) Run curator agent with parallel batching
-    curator_start = time.perf_counter()
-
-    # Split candidates into 2 batches of ~6 each for parallel evaluation
-    mid_point = len(candidates) // 2
-    batch_1 = candidates[:mid_point]
-    batch_2 = candidates[mid_point:]
-
-    print(f"[curator] Running parallel batches: {len(batch_1)} + {len(batch_2)} candidates")
-
-    # Run both batches in parallel
-    batch_1_output, batch_2_output = await asyncio.gather(
-        run_curator_agent(
-            query_text=spec.query_text,
-            spec=state.query_spec,
-            candidates=batch_1,
-            llm_client=ctx.llm_client,
-            user_signals=None,
-        ),
-        run_curator_agent(
-            query_text=spec.query_text,
-            spec=state.query_spec,
-            candidates=batch_2,
-            llm_client=ctx.llm_client,
-            user_signals=None,
-        ),
-    )
-
-    # Merge results
-    curator_output = _merge_curator_outputs(batch_1_output, batch_2_output)
-
-    curator_ms = (time.perf_counter() - curator_start) * 1000
-    print(f"[timing] curator_llm_ms={curator_ms:.1f} (parallel batches)")
-
-    # 4) Parse curator output
-    parse_start = time.perf_counter()
-    try:
-        curator_data = json.loads(curator_output)
-    except json.JSONDecodeError as e:
-        return ToolResult.error(f"Curator output parse error: {e}")
-    parse_ms = (time.perf_counter() - parse_start) * 1000
-    print(f"[timing] curator_parse_ms={parse_ms:.1f}")
-
-    state.curator_eval = curator_data.get("evaluation_results", [])
-
-    # 5) Apply curator tiers for final selection
-    tiers_start = time.perf_counter()
-    state.final_recs, tier_stats = apply_curator_tiers(
-        evaluation_results=state.curator_eval,
-        candidates=state.candidates,
-        limit=spec.num_recs or 8,
-    )
-    tiers_ms = (time.perf_counter() - tiers_start) * 1000
-    print(f"[timing] curator_tiers_ms={tiers_ms:.1f}")
-
-    # Store tier_stats in state for downstream logging
-    state.tier_stats = {
-        **tier_stats,
-        "pipeline_ms": int(pipeline_ms),
-        "curator_latency_ms": int(curator_ms),
-        "tier_latency_ms": int(tiers_ms),
-    }
-
-    # 5b) Log curator evaluations and tier summary (async, fire-and-forget)
-    logger: TelemetryLogger | None = ctx.extra.get("logger")
-    if logger:
-        asyncio.create_task(
-            _log_curator_data(
-                logger=logger,
-                query_id=state.query_id,
-                media_type=state.media_type,
-                candidates=state.candidates,
-                final_recs=state.final_recs,
-                tier_stats=state.tier_stats,
+        def _run_pipeline_sync():
+            return ctx.agent_rec_runner.run_for_agent(
+                user_context=state.user_context,
+                spec=spec,
+                seen_media_ids=state.seen_media_ids,
+                turn_kind=state.turn_kind,
             )
+
+        pipeline_start = time.perf_counter()
+        candidates, traces, ctx_log = await to_thread.run_sync(_run_pipeline_sync)
+        pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
+        print(f"[timing] rec_pipeline_sync_ms={pipeline_ms:.1f}")
+
+        rec_span.set_attribute("reelix.candidates.count", len(candidates))
+
+        state.candidates = candidates
+        if traces:
+            state.pipeline_traces.append(traces)
+        if ctx_log:
+            state.ctx_log = ctx_log
+
+        # 3) Run curator agent with parallel batching
+        curator_start = time.perf_counter()
+
+        # Split candidates into 2 batches of ~6 each for parallel evaluation
+        mid_point = len(candidates) // 2
+        batch_1 = candidates[:mid_point]
+        batch_2 = candidates[mid_point:]
+
+        print(f"[curator] Running parallel batches: {len(batch_1)} + {len(batch_2)} candidates")
+
+        async def _eval_batch(batch_id: int, batch: list):
+            with _tracer.start_as_current_span("curator.batch") as batch_span:
+                batch_span.set_attribute("reelix.curator.batch_id", batch_id)
+                batch_span.set_attribute("reelix.curator.candidate_count", len(batch))
+                return await run_curator_agent(
+                    query_text=spec.query_text,
+                    spec=state.query_spec,
+                    candidates=batch,
+                    llm_client=ctx.llm_client,
+                    user_signals=None,
+                )
+
+        # Run both batches in parallel (siblings under curator.evaluate)
+        with _tracer.start_as_current_span("curator.evaluate") as curator_span:
+            curator_span.set_attribute("reelix.curator.candidate_count", len(candidates))
+            batch_1_output, batch_2_output = await asyncio.gather(
+                _eval_batch(1, batch_1),
+                _eval_batch(2, batch_2),
+            )
+
+        # Merge results
+        curator_output = _merge_curator_outputs(batch_1_output, batch_2_output)
+
+        curator_ms = (time.perf_counter() - curator_start) * 1000
+        print(f"[timing] curator_llm_ms={curator_ms:.1f} (parallel batches)")
+
+        # 4) Parse curator output
+        parse_start = time.perf_counter()
+        try:
+            curator_data = json.loads(curator_output)
+        except json.JSONDecodeError as e:
+            rec_span.set_status(Status(StatusCode.ERROR, "curator output parse error"))
+            return ToolResult.error(f"Curator output parse error: {e}")
+        parse_ms = (time.perf_counter() - parse_start) * 1000
+        print(f"[timing] curator_parse_ms={parse_ms:.1f}")
+
+        state.curator_eval = curator_data.get("evaluation_results", [])
+
+        # 5) Apply curator tiers for final selection
+        with _tracer.start_as_current_span("curator.tier_selection") as tier_span:
+            tiers_start = time.perf_counter()
+            state.final_recs, tier_stats = apply_curator_tiers(
+                evaluation_results=state.curator_eval,
+                candidates=state.candidates,
+                limit=spec.num_recs or 8,
+            )
+            tiers_ms = (time.perf_counter() - tiers_start) * 1000
+            tier_span.set_attribute(
+                "reelix.tier.strong_count", tier_stats.get("strong_count", 0)
+            )
+            tier_span.set_attribute(
+                "reelix.tier.moderate_count", tier_stats.get("moderate_count", 0)
+            )
+            tier_span.set_attribute(
+                "reelix.tier.no_match_count", tier_stats.get("no_match_count", 0)
+            )
+            tier_span.set_attribute(
+                "reelix.tier.served_count", tier_stats.get("served_count", 0)
+            )
+            tier_span.set_attribute(
+                "reelix.tier.served_strong_count",
+                tier_stats.get("served_strong_count", 0),
+            )
+            tier_span.set_attribute(
+                "reelix.tier.served_moderate_count",
+                tier_stats.get("served_moderate_count", 0),
+            )
+        print(f"[timing] curator_tiers_ms={tiers_ms:.1f}")
+
+        # Store tier_stats in state for downstream logging
+        state.tier_stats = {
+            **tier_stats,
+            "pipeline_ms": int(pipeline_ms),
+            "curator_latency_ms": int(curator_ms),
+            "tier_latency_ms": int(tiers_ms),
+        }
+
+        # 5b) Log curator evaluations and tier summary (async, fire-and-forget).
+        # Plain create_task is fine here: it snapshots the current contextvars,
+        # so this task's spans stay in the recommendation.execute trace.
+        logger: TelemetryLogger | None = ctx.extra.get("logger")
+        if logger:
+            asyncio.create_task(
+                _log_curator_data(
+                    logger=logger,
+                    query_id=state.query_id,
+                    media_type=state.media_type,
+                    candidates=state.candidates,
+                    final_recs=state.final_recs,
+                    tier_stats=state.tier_stats,
+                )
+            )
+
+        # 6) Record trace for multi-turn (appended to messages by orchestrator if needed)
+        state.agent_trace.append(
+            {
+                "step": state.step_count,
+                "tool": "recommendation_agent",
+                "args": args,
+                "result": {"count": len(state.final_recs)},
+            }
         )
 
-    # 6) Record trace for multi-turn (appended to messages by orchestrator if needed)
-    state.agent_trace.append(
-        {
-            "step": state.step_count,
-            "tool": "recommendation_agent",
-            "args": args,
-            "result": {"count": len(state.final_recs)},
-        }
-    )
-
-    # 7) Build result payload
-    return ToolResult.success(
-        payload={
-            "count": len(state.final_recs),
-            "tier_stats": tier_stats,
-        },
-        pipeline_ms=pipeline_ms,
-        curator_ms=curator_ms,
-        tiers_ms=tiers_ms,
-    )
+        # 7) Build result payload
+        return ToolResult.success(
+            payload={
+                "count": len(state.final_recs),
+                "tier_stats": tier_stats,
+            },
+            pipeline_ms=pipeline_ms,
+            curator_ms=curator_ms,
+            tiers_ms=tiers_ms,
+        )
 
 
 # Create the ToolSpec instance for registration

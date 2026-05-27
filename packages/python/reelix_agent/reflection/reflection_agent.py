@@ -5,6 +5,9 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
 from reelix_agent.core.types import RecQuerySpec
 from reelix_agent.reflection.reflection_prompts import (
     STRATEGY_NAMES,
@@ -17,6 +20,8 @@ if TYPE_CHECKING:
     from reelix_ranking.types import Candidate
 
 log = logging.getLogger(__name__)
+
+_tracer = trace.get_tracer(__name__)
 
 REFLECTION_MODEL = "gpt-4o-mini"
 
@@ -82,21 +87,31 @@ async def generate_next_steps(
         {"role": "user", "content": user_prompt},
     ]
 
-    try:
-        resp = await chat_llm.chat(
-            messages=messages,
-            model=model,
-            temperature=0.5,
-            max_tokens=200,
-        )
-        content = resp.choices[0].message.content
-        if not content:
+    with _tracer.start_as_current_span("reflection.generate") as refl_span:
+        try:
+            resp = await chat_llm.chat(
+                messages=messages,
+                model=model,
+                temperature=0.5,
+                max_tokens=200,
+                agent_role="reflection",
+            )
+            content = resp.choices[0].message.content
+            if not content:
+                refl_span.set_attribute("reelix.reflection.status", "empty")
+                return None
+            result = _parse_reflection_response(content)
+            if result and resp.usage:
+                result.input_tokens = resp.usage.prompt_tokens
+                result.output_tokens = resp.usage.completion_tokens
+            if result:
+                refl_span.set_attribute("reelix.reflection.strategy", result.strategy)
+                refl_span.set_attribute("reelix.reflection.status", "success")
+            else:
+                refl_span.set_attribute("reelix.reflection.status", "parse_failed")
+            return result
+        except Exception as exc:
+            refl_span.record_exception(exc)
+            refl_span.set_status(Status(StatusCode.ERROR, "reflection failed"))
+            log.exception("Reflection agent failed")
             return None
-        result = _parse_reflection_response(content)
-        if result and resp.usage:
-            result.input_tokens = resp.usage.prompt_tokens
-            result.output_tokens = resp.usage.completion_tokens
-        return result
-    except Exception:
-        log.exception("Reflection agent failed")
-        return None

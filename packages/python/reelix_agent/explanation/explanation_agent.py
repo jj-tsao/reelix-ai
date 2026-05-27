@@ -34,7 +34,13 @@ async def stream_why_events(
       - WhyEvent(type="heartbeat")
     """
     buffer = ""
-    stream = chat_llm.chat_stream(messages=messages, model=model, **params)
+    stream = chat_llm.chat_stream(
+        messages=messages,
+        model=model,
+        agent_role="explanation",
+        include_usage=True,
+        **params,
+    )
     it = stream.__aiter__()
 
     while True:

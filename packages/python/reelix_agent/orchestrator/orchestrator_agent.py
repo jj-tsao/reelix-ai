@@ -6,6 +6,8 @@ import re
 import time
 from typing import Any
 
+from opentelemetry import trace
+
 from reelix_agent.core.llm import call_llm_with_tools, LlmUsage
 from reelix_agent.core.types import (
     AgentMode,
@@ -21,6 +23,8 @@ from reelix_agent.tools import ToolContext, ToolRegistry, ToolRunner
 from reelix_core.llm_client import LlmClient
 
 MEMORY_RE = re.compile(r"<MEMORY>\s*(.*?)\s*</MEMORY>", re.DOTALL)
+
+_tracer = trace.get_tracer(__name__)
 
 
 async def plan_orchestrator_agent(
@@ -60,9 +64,18 @@ async def plan_orchestrator_agent(
 
     while not state.done and state.step_count < state.max_steps:
         state.step_count += 1
-        plan_start = time.perf_counter()
-        decision, llm_usage = await call_llm_with_tools(state, llm_client=llm_client, tools=tools)
-        planning_ms = int((time.perf_counter() - plan_start) * 1000)
+        with _tracer.start_as_current_span("orchestrator.plan") as plan_span:
+            if state.query_id:
+                plan_span.set_attribute("reelix.query_id", state.query_id)
+            if state.session_id:
+                plan_span.set_attribute("reelix.session_id", state.session_id)
+            plan_start = time.perf_counter()
+            decision, llm_usage = await call_llm_with_tools(state, llm_client=llm_client, tools=tools)
+            planning_ms = int((time.perf_counter() - plan_start) * 1000)
+            if not decision.is_tool_call:
+                plan_span.set_attribute("reelix.orchestrator.mode", "CHAT")
+            elif decision.tool_name in terminal_tools:
+                plan_span.set_attribute("reelix.orchestrator.mode", "RECS")
         print("Orchestrator decision: ", decision)
 
         # == Case 1: Non-tool response: CHAT mode ==

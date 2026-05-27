@@ -56,6 +56,7 @@ async def call_llm_with_tools(
         tools=tools,
         tool_choice="auto",
         model="gpt-4.1-mini",
+        agent_role="orchestrator",
     )
 
     # 3) Extract the assistant message from the response.

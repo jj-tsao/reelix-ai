@@ -179,6 +179,19 @@ def apply_curator_tiers(
 
     no_match_tier = [c for c in candidates if int(c.id) in no_tier_ids]
 
+    # Served split by tier (the selection rules mix strong + moderate), read
+    # back off the stamped category so it always matches what was served.
+    served_strong_count = sum(
+        1
+        for c in final_candidates
+        if (c.payload or {}).get("curator_category") == "strong_match"
+    )
+    served_moderate_count = sum(
+        1
+        for c in final_candidates
+        if (c.payload or {}).get("curator_category") == "moderate_match"
+    )
+
     stats = {
         "limit": limit,
         "total_candidates": len(candidates),
@@ -187,6 +200,8 @@ def apply_curator_tiers(
         "no_match_count": len(no_tier_ids),
         "no_match_ids": no_tier_ids,
         "served_count": len(final_candidates),
+        "served_strong_count": served_strong_count,
+        "served_moderate_count": served_moderate_count,
         # Some extra debug sugar if you want aggregates later:
         "strong_ids": [int(c.id) for c in strong_tier],
         "moderate_ids": [int(c.id) for c in moderate_tier],
