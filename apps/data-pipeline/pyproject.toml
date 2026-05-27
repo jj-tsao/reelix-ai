@@ -16,6 +16,9 @@ dependencies = [
   "python-dotenv",
   "tqdm",
   "openai",
+  # reelix-core's llm_client emits OpenTelemetry spans; eval jobs import it.
+  # API only (no SDK/provider) — spans are no-ops here, just keeps imports working.
+  "opentelemetry-api",
 ]
 
 [tool.uv.sources]

@@ -25,6 +25,7 @@ from app.infrastructure.cache.redis_infra import make_redis_clients
 from app.infrastructure.cache.ticket_store import TicketStore
 from app.infrastructure.cache.state_store import StateStore
 from app.infrastructure.cache.why_cache import WhyCache
+from app.observability import init_tracing
 from .routers import all_routers
 
 
@@ -148,8 +149,6 @@ def _init_recommendation_stack(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    load_dotenv(find_dotenv(), override=False)
-
     settings = Settings()
     app.state.settings = settings
 
@@ -192,6 +191,8 @@ async def lifespan(app: FastAPI):
         await app.state.why_cache.aclose()
 
 
+load_dotenv(find_dotenv(), override=False)
+
 app = FastAPI(title="Reelix Discovery Agent API", lifespan=lifespan)
 
 app.add_middleware(
@@ -201,6 +202,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+init_tracing(app)
 
 
 def _custom_openapi():

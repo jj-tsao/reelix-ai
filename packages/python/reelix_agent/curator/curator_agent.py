@@ -34,6 +34,7 @@ async def run_curator_agent(
         tool_choice=None,
         temperature=0.1,
         model="gpt-4.1-mini",
+        agent_role="curator",
     )
 
     content = resp.choices[0].message.content

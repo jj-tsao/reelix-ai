@@ -5,6 +5,7 @@ from typing import Any, Literal, Mapping
 
 import httpx
 from fastapi.encoders import jsonable_encoder
+from opentelemetry import trace as otel_trace
 from pydantic import BaseModel
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_core.types import QueryFilter
@@ -14,6 +15,19 @@ Endpoint = Literal[
     "discovery/explore",
     "recommendations/interactive",
 ]
+
+
+def _current_trace_ids() -> tuple[str | None, str | None]:
+    """Return (trace_id, span_id) of the active OTel span as zero-padded hex,
+    or (None, None) when no valid span is recording (e.g. tracing disabled).
+
+    This is what lets a Supabase telemetry row pivot to its matching Tempo
+    trace and back.
+    """
+    ctx = otel_trace.get_current_span().get_span_context()
+    if not ctx.is_valid:
+        return None, None
+    return format(ctx.trace_id, "032x"), format(ctx.span_id, "016x")
 
 
 # ---------- Public models (optional typing nicety) ----------
@@ -233,6 +247,7 @@ class TelemetryLogger:
         if device_info is not None:
             meta["device"] = device_info.model_dump()
 
+        tid, _ = _current_trace_ids()
         row = {
             "endpoint": endpoint,
             "query_id": query_id,
@@ -243,6 +258,7 @@ class TelemetryLogger:
             "pipeline_version": pipeline_version,
             "batch_size": int(batch_size),
             "request_meta": meta,
+            "trace_id": tid,
         }
         if query_text:
             row["query_text"] = query_text
@@ -266,6 +282,7 @@ class TelemetryLogger:
         """
         if not self._enabled():
             return
+        tid, _ = _current_trace_ids()
         rows = []
         for r, c in enumerate(candidates, start=1):
             cid = c.id
@@ -284,6 +301,7 @@ class TelemetryLogger:
                 if trace
                 else None,
                 "stage": stage,
+                "trace_id": tid,
             }
             rows.append(row)
         if not rows:
@@ -359,6 +377,7 @@ class TelemetryLogger:
         if not self._enabled() or not evals:
             return
 
+        tid, _ = _current_trace_ids()
         rows = []
         for e in evals:
             row = {
@@ -374,6 +393,7 @@ class TelemetryLogger:
                 "tier": e.tier,
                 "is_served": e.is_served,
                 "final_rank": e.final_rank,
+                "trace_id": tid,
             }
             rows.append(row)
 
@@ -390,6 +410,7 @@ class TelemetryLogger:
         if not self._enabled():
             return
 
+        tid, sid = _current_trace_ids()
         row = {
             "query_id": summary.query_id,
             "total_candidates": summary.total_candidates,
@@ -400,6 +421,8 @@ class TelemetryLogger:
             "selection_rule": summary.selection_rule,
             "curator_latency_ms": summary.curator_latency_ms,
             "tier_latency_ms": summary.tier_latency_ms,
+            "trace_id": tid,
+            "span_id": sid,
         }
 
         await self._post("tier_summaries", [row])
@@ -414,6 +437,7 @@ class TelemetryLogger:
         if not self._enabled():
             return
 
+        tid, sid = _current_trace_ids()
         row = {
             "query_id": decision.query_id,
             "session_id": decision.session_id,
@@ -428,6 +452,8 @@ class TelemetryLogger:
             "input_tokens": decision.input_tokens,
             "output_tokens": decision.output_tokens,
             "model": decision.model,
+            "trace_id": tid,
+            "span_id": sid,
         }
 
         await self._post("agent_decisions", [row])
@@ -443,6 +469,7 @@ class TelemetryLogger:
         if not self._enabled():
             return
 
+        tid, sid = _current_trace_ids()
         row = {
             "query_id": reflection.query_id,
             "session_id": reflection.session_id,
@@ -455,6 +482,8 @@ class TelemetryLogger:
             "output_tokens": reflection.output_tokens,
             "model": reflection.model,
             "tier_stats": self.to_jsonable(reflection.tier_stats) if reflection.tier_stats else None,
+            "trace_id": tid,
+            "span_id": sid,
         }
 
         await self._post("reflection_logs", [row])
@@ -470,6 +499,10 @@ class TelemetryLogger:
         if not self._enabled():
             return
         row = {k: v for k, v in trace.model_dump().items() if v is not None}
+        tid, sid = _current_trace_ids()
+        if tid:
+            row["trace_id"] = tid
+            row["root_span_id"] = sid
         await self._post("request_traces", [row])
 
     async def log_error(
