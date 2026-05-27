@@ -21,5 +21,14 @@ torch
 tqdm
 numpy
 
+# Observability (OpenTelemetry) — must mirror apps/api/pyproject.toml
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-semantic-conventions
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx
+opentelemetry-instrumentation-redis
+
 # Local packages
 -e ../../packages/python
