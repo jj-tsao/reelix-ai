@@ -54,6 +54,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Check requirements.txt ↔ pyproject.toml are in sync
+        run: python ../../scripts/check_requirements_sync.py
+
       - name: Install uv
         run: pip install uv
 
