@@ -113,7 +113,6 @@ async def explore_stream(
       - done / error
     """
     session_state = await state_store.get_session(session_id=req.session_id, touch=True)
-    print (session_state)
 
     agent_input = ExploreAgentInput(
         user_id=user_id,

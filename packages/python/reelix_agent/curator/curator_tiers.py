@@ -103,8 +103,8 @@ def apply_curator_tiers(
     """
     curator_index = _build_curator_index(evaluation_results)
 
-    for c in candidates:
-        print (c.payload.get("title"), curator_index.get(int(c.id)))
+    # for c in candidates:
+    #     print (c.payload.get("title"), curator_index.get(int(c.id)))
 
     strong_tier: list[Candidate] = []
     moderate_tier: list[Candidate] = []
