@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -115,4 +117,4 @@ class SupabaseTasteProfileRepo:
             }
             self.client.table(TABLE_TASTE).upsert(payload).execute()
         except Exception as e:
-            print(f"Unexpected DB error: {repr(e)}")
+            logging.getLogger(__name__).warning("Unexpected DB error: %r", e)

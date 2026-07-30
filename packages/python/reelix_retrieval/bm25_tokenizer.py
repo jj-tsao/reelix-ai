@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import threading
 from typing import List
@@ -13,7 +14,7 @@ _stop_words_lock = threading.Lock()
 try:
     _STOP_WORDS = set(stopwords.words("english"))
 except Exception as _e:
-    print("Failed to preload NLTK stopwords:", _e)
+    logging.getLogger(__name__).warning("Failed to preload NLTK stopwords: %s", _e)
     _STOP_WORDS = set()
 
 _STEMMER = PorterStemmer()

@@ -2,7 +2,7 @@ from reelix_agent.orchestrator.session_memory import (
     build_turn_memory_delta,
     apply_delta_to_payload,
 )
-from app.infrastructure.cache.state_store import StateStore, SessionState
+from reelix_runtime.cache.state_store import StateStore, SessionState
 
 
 async def upsert_session_memory(

@@ -3,6 +3,9 @@
 import json
 from fastapi import HTTPException
 from reelix_agent.core.types import PromptsEnvelope
+from reelix_runtime.views import item_view
+
+__all__ = ["sse", "item_view", "pick_call"]
 
 
 def sse(event: str, data: dict | str) -> bytes:
@@ -12,23 +15,6 @@ def sse(event: str, data: dict | str) -> bytes:
     else:
         payload = data
     return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
-
-
-def item_view(c) -> dict:
-    """Convert a candidate to a JSON-serializable item view."""
-    p = c.payload or {}
-    return {
-        "id": c.id,
-        "media_id": p.get("media_id"),
-        "title": p.get("title"),
-        "release_year": p.get("release_year"),
-        "genres": p.get("genres", []),
-        "imdb_rating": p.get("imdb_rating", 0.0),
-        "rt_score": p.get("rt_score", "N/A"),
-        "poster_url": p.get("poster_url"),
-        "backdrop_url": p.get("backdrop_url"),
-        "trailer_key": p.get("trailer_key"),
-    }
 
 
 def pick_call(env: PromptsEnvelope, batch: int | None) -> dict:

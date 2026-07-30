@@ -1,6 +1,7 @@
 from typing import Any, Iterable
-import time
 from datetime import datetime
+
+from opentelemetry import trace
 
 from reelix_agent.core.types import RecQuerySpec
 from reelix_core.types import UserTasteContext
@@ -8,6 +9,8 @@ from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_recommendation.recommend import RecommendPipeline
 from reelix_retrieval.qdrant_filter import build_qfilter, provider_ids_from_names
 from reelix_retrieval.query_encoder import Encoder as QueryEncoder
+
+_tracer = trace.get_tracer(__name__)
 
 def _safe_final_score(t: ScoreTrace | None) -> float:
     if t is None or t.final_score is None:
@@ -47,22 +50,17 @@ class AgentRecRunner:
           (candidates, traces, ctx_log, meta)
         """
         # 1) Build dense/sparse vectors from spec
-        encode_start = time.perf_counter()
-        dense_vec, sparse_vec = self._query_encoder.dense_and_sparse(
-            text=spec.query_text, media_type=spec.media_type
-        )
-        encode_ms = (time.perf_counter() - encode_start) * 1000
-        print(f"[timing] query_encode_ms={encode_ms:.1f}")
+        with _tracer.start_as_current_span("retrieval.encode"):
+            dense_vec, sparse_vec = self._query_encoder.dense_and_sparse(
+                text=spec.query_text, media_type=spec.media_type
+            )
 
         # 2) Build filters (providers, genres, runtime, etc.)
-        filter_start = time.perf_counter()
         qfilter = self._build_filters(
             user_context=user_context,
             spec=spec,
             # exclude_media_ids=exclude_media_ids,
         )
-        filter_ms = (time.perf_counter() - filter_start) * 1000
-        print(f"[timing] qfilter_ms={filter_ms:.1f}")
 
         # 3) Choose weights/top_k
         pipeline_params = self._build_pipeline_params(spec)

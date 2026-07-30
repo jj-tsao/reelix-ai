@@ -1,8 +1,8 @@
 from fastapi import Request
 from typing import cast
-from app.infrastructure.cache.ticket_store import TicketStore
-from app.infrastructure.cache.state_store import StateStore
-from app.infrastructure.cache.why_cache import WhyCache
+from reelix_runtime.cache.ticket_store import TicketStore
+from reelix_runtime.cache.state_store import StateStore
+from reelix_runtime.cache.why_cache import WhyCache
 
 
 def get_ticket_store(request: Request) -> TicketStore:

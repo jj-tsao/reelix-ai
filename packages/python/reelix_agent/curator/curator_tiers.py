@@ -1,5 +1,8 @@
+import logging
 from typing import Iterable, Literal
 from reelix_ranking.types import Candidate
+
+log = logging.getLogger(__name__)
 
 CuratorCategory = Literal["strong_match", "moderate_match", "no_match"]
 
@@ -207,9 +210,9 @@ def apply_curator_tiers(
         "moderate_ids": [int(c.id) for c in moderate_tier],
     }
 
-    print("strong_tier: ", [c.payload.get("title") for c in strong_tier])
-    print("moderate_tier: ", [c.payload.get("title") for c in moderate_tier])
-    print("no_match: ", [c.payload.get("title") for c in no_match_tier])
-    print("final_candidates: ", [c.payload.get("title") for c in final_candidates])
+    log.debug("strong_tier: %s", [c.payload.get("title") for c in strong_tier])
+    log.debug("moderate_tier: %s", [c.payload.get("title") for c in moderate_tier])
+    log.debug("no_match: %s", [c.payload.get("title") for c in no_match_tier])
+    log.debug("final_candidates: %s", [c.payload.get("title") for c in final_candidates])
 
     return final_candidates, stats

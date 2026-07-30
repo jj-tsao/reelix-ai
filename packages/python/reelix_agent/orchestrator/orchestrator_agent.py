@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
 from typing import Any
@@ -25,6 +26,7 @@ from reelix_core.llm_client import LlmClient
 MEMORY_RE = re.compile(r"<MEMORY>\s*(.*?)\s*</MEMORY>", re.DOTALL)
 
 _tracer = trace.get_tracer(__name__)
+log = logging.getLogger(__name__)
 
 
 async def plan_orchestrator_agent(
@@ -76,7 +78,7 @@ async def plan_orchestrator_agent(
                 plan_span.set_attribute("reelix.orchestrator.mode", "CHAT")
             elif decision.tool_name in terminal_tools:
                 plan_span.set_attribute("reelix.orchestrator.mode", "RECS")
-        print("Orchestrator decision: ", decision)
+        log.debug("Orchestrator decision: %s", decision)
 
         # == Case 1: Non-tool response: CHAT mode ==
         if not decision.is_tool_call:
@@ -226,7 +228,7 @@ async def execute_orchestrator_plan(
 
     # Log any errors (tool already logs trace to state.agent_trace)
     if result.is_error:
-        print(f"[orchestrator] tool error: {result.error_message}")
+        log.error("[orchestrator] tool error: %s", result.error_message)
 
     state.done = True
     return _result_from_state(state)
@@ -240,10 +242,11 @@ async def run_rec_engine_direct(
     tool_registry: ToolRegistry,
     tool_runner: ToolRunner,
     logger: Any | None = None,
+    turn_kind: str = "refine",
 ) -> RecAgentResult:
     """
     Run the recommendation engine directly without LLM planning.
-    Used for chip-based filter reruns.
+    Used for chip-based filter reruns and direct-spec transports (MCP).
 
     Args:
         agent_input: User input for context
@@ -254,6 +257,8 @@ async def run_rec_engine_direct(
         tool_registry: Tool registry (required, unused in this function but kept for consistency)
         tool_runner: Tool runner for executing recommendation_agent tool (required)
         logger: Telemetry logger for curator logging
+        turn_kind: "refine" applies the seen-media penalty against session
+            memory; "new" treats the query as a fresh turn
 
     Returns:
         InteractiveAgentResult with recommendations
@@ -263,7 +268,7 @@ async def run_rec_engine_direct(
 
     tool_args = {
         "rec_query_spec": spec.model_dump(mode="json"),
-        "memory_delta": {"turn_kind": "refine", "recent_feedback": None},
+        "memory_delta": {"turn_kind": turn_kind, "recent_feedback": None},
     }
     decision = LlmDecision(
         is_tool_call=True,
@@ -374,4 +379,4 @@ async def _log_agent_decision(
             )
         )
     except Exception as e:
-        print(f"[agent_logging] Failed to log decision: {e}")
+        log.warning("[agent_logging] Failed to log decision: %s", e)

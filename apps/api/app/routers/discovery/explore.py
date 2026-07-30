@@ -12,7 +12,6 @@ from pydantic import BaseModel, ValidationError
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace
-from opentelemetry.trace import Link, SpanContext, TraceFlags
 from reelix_agent.core.types import PromptsEnvelope, RecQuerySpec, ExploreAgentInput
 from reelix_agent.orchestrator.orchestrator_agent import (
     run_rec_engine_direct,
@@ -38,8 +37,9 @@ from app.deps.supabase_client import (
     get_user_context_service,
 )
 from app.observability import traced_create_task
-from app.services.session_memory import upsert_session_memory
-from app.infrastructure.cache.ticket_store import Ticket
+from reelix_runtime.session_memory import upsert_session_memory
+from reelix_runtime.cache.ticket_store import Ticket
+from reelix_runtime.telemetry.links import link_from_ticket_meta, otel_link_meta
 from app.schemas import InteractiveRequest, ExploreRerunRequest
 
 from ._helpers import sse, item_view, pick_call
@@ -52,39 +52,6 @@ HEARTBEAT_SEC = 15
 log = logging.getLogger(__name__)
 
 _tracer = trace.get_tracer(__name__)
-
-
-def _otel_link_meta() -> dict | None:
-    """Capture the current (explore.request) span context for stashing in a
-    /why ticket, so the later /explore/why trace can link back to this one.
-    Returns None when no valid span is recording."""
-    ctx = trace.get_current_span().get_span_context()
-    if not ctx.is_valid:
-        return None
-    return {
-        "otel": {
-            "trace_id": format(ctx.trace_id, "032x"),
-            "span_id": format(ctx.span_id, "016x"),
-            "trace_flags": int(ctx.trace_flags),
-        }
-    }
-
-
-def _link_from_ticket_meta(meta: dict | None) -> Link | None:
-    """Rebuild a span Link to the originating /explore trace from ticket meta."""
-    otel = (meta or {}).get("otel")
-    if not isinstance(otel, dict):
-        return None
-    try:
-        parent_ctx = SpanContext(
-            trace_id=int(otel["trace_id"], 16),
-            span_id=int(otel["span_id"], 16),
-            is_remote=True,
-            trace_flags=TraceFlags(int(otel.get("trace_flags", TraceFlags.SAMPLED))),
-        )
-    except (KeyError, ValueError, TypeError):
-        return None
-    return Link(parent_ctx) if parent_ctx.is_valid else None
 
 
 @router.post("/explore")
@@ -275,7 +242,7 @@ async def explore_stream(
                     prompts=why_agent_prompts.model_dump(mode="json")
                     if why_agent_prompts
                     else {},
-                    meta=_otel_link_meta(),
+                    meta=otel_link_meta(),
                 )
                 await ticket_store.put(req.query_id, ticket, ttl_sec=IDLE_TTL_SEC)
 
@@ -598,7 +565,7 @@ async def explore_rerun(
             prompts=why_agent_prompts.model_dump(mode="json")
             if why_agent_prompts
             else {},
-            meta=_otel_link_meta(),
+            meta=otel_link_meta(),
         )
         await ticket_store.put(req.query_id, ticket, ttl_sec=IDLE_TTL_SEC)
 
@@ -646,7 +613,7 @@ async def explore_why_stream(
 
     # Link this /explore/why trace back to the originating /explore trace.
     # Separate root traces (the SSE gap can be minutes) joined via a span link.
-    parent_link = _link_from_ticket_meta(ticket.meta)
+    parent_link = link_from_ticket_meta(ticket.meta)
 
     async def gen() -> AsyncIterator[bytes]:
         yield sse("started", {"query_id": query_id, "batch_id": batch_id})

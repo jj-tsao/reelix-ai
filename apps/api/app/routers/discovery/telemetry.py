@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from app.deps.deps import get_logger
 from app.deps.supabase_client import get_current_user_id
 from app.deps.deps_redis_caches import get_why_cache
-from app.infrastructure.cache.why_cache import WhyCache, CachedWhy
+from reelix_runtime.cache.why_cache import WhyCache, CachedWhy
 from app.schemas import FinalRecsRequest
 
 router = APIRouter(tags=["telemetry"])

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple
+import logging
 import re
-import time
 from reelix_core.types import UserTasteContext
 from reelix_ranking.rrf import rrf
 from reelix_ranking.metadata import metadata_rerank
@@ -15,6 +15,7 @@ from opentelemetry import context as otel_context
 from opentelemetry import trace
 
 _tracer = trace.get_tracer(__name__)
+log = logging.getLogger(__name__)
 
 
 def _normalize_title(title: str) -> str:
@@ -41,7 +42,7 @@ def _filter_mentioned_titles(
         if _normalize_title(title) not in normalized_mentioned:
             filtered.append(candidate)
         else:
-            print(f"[Pipeline] Filtered mentioned title: {title}")
+            log.debug("[Pipeline] Filtered mentioned title: %s", title)
 
     return filtered
 
@@ -81,12 +82,10 @@ class RecommendPipeline:
         final_top_k: int = 20,
         mentioned_titles: List[str] | None = None,
     ) -> Tuple[List[Candidate], Dict[int, ScoreTrace]]:
-        total_start = time.perf_counter()
         # 1) retrieve - parallelize Qdrant searches to reduce network latency
         with _tracer.start_as_current_span("retrieval.hybrid") as hybrid_span:
             hybrid_span.set_attribute("reelix.retrieval.dense_depth", dense_depth)
             hybrid_span.set_attribute("reelix.retrieval.sparse_depth", sparse_depth)
-            retrieval_start = time.perf_counter()
 
             # ThreadPoolExecutor does not propagate OTel context across threads;
             # capture it here and re-attach inside each worker so retrieval.dense
@@ -118,8 +117,6 @@ class RecommendPipeline:
                 f_sparse = ex.submit(_sparse_call)
                 dense = f_dense.result()
                 sparse = f_sparse.result()
-            retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
-            print(f"[timing] recommend_retrieval_ms={retrieval_ms:.1f}")
             hybrid_span.set_attribute("reelix.retrieval.dense_count", len(dense))
             hybrid_span.set_attribute("reelix.retrieval.sparse_count", len(sparse))
 
@@ -140,30 +137,24 @@ class RecommendPipeline:
             # 2c) Filter mentioned titles before reranking
             if mentioned_titles:
                 pool = _filter_mentioned_titles(pool, mentioned_titles)
-                print(f"[Pipeline] After filtering mentioned titles: {len(pool)} candidates")
+                log.debug("[Pipeline] After filtering mentioned titles: %d candidates", len(pool))
 
             rank_span.set_attribute("reelix.ranking.pool_size", len(pool))
             rank_span.set_attribute("reelix.ranking.final_top_k", final_top_k)
 
             # 2d) metadata rerank
             with _tracer.start_as_current_span("ranking.metadata"):
-                meta_start = time.perf_counter()
                 meta_scored = metadata_rerank(
                     candidates=pool,
                     media_type=media_type,
                     user_context=user_context,
                     weights=weights,
                 )
-                meta_ms = (time.perf_counter() - meta_start) * 1000
-                print(f"[timing] recommend_metadata_ms={meta_ms:.1f}")
                 meta_sorted = [c for c, m_score, m_trace in meta_scored][:meta_top_n]
-                diversify_start = time.perf_counter()
                 meta_sorted, _ = diversify_by_collection(
                     meta_sorted,
                     per_collection_cap=1,
                 )
-                diversify_ms = (time.perf_counter() - diversify_start) * 1000
-                print(f"[timing] recommend_diversify_ms={diversify_ms:.1f}")
 
             meta_top_ids = [c.id for c in meta_sorted[:meta_ce_top_n]]
 
@@ -196,13 +187,10 @@ class RecommendPipeline:
                         weights_used=weights.copy(),
                         title=c.payload.get("title", ""),
                     )
-                total_ms = (time.perf_counter() - total_start) * 1000
-                print(f"[timing] recommend_total_ms={total_ms:.1f}")
                 return final, traces
 
             # 2f) CE over dense top-K2
             with _tracer.start_as_current_span("ranking.cross_encoder"):
-                ce_start = time.perf_counter()
                 dense_top = dense[:meta_ce_top_n]
                 if self.ce:
                     docs = [(c.payload or {}).get("embedding_text") or "" for c in dense_top]
@@ -221,12 +209,9 @@ class RecommendPipeline:
                 else:
                     ce_order = [c.id for c in dense_top]
                     ce_score_map = {}
-                ce_ms = (time.perf_counter() - ce_start) * 1000
-                print(f"[timing] recommend_ce_ms={ce_ms:.1f}")
 
             # 2g) final fusion
             with _tracer.start_as_current_span("ranking.rrf"):
-                fusion_start = time.perf_counter()
                 final_rrf = rrf([meta_top_ids, ce_order], k=self.rrf_k)
                 final_ids = [i for i, _ in final_rrf]
 
@@ -246,14 +231,10 @@ class RecommendPipeline:
                     ce_score=ce_score_map.get(cid),
                     final_score=final_rrf_map.get(cid),
                 )
-            fusion_ms = (time.perf_counter() - fusion_start) * 1000
-            print(f"[timing] recommend_fusion_ms={fusion_ms:.1f}")
-            total_ms = (time.perf_counter() - total_start) * 1000
-            print(f"[timing] recommend_total_ms={total_ms:.1f}")
             return final, traces
 
     def summarize_ranking(self, ranking: List[Candidate], top_k: int = 20):
         for idx, r in enumerate(ranking[:top_k], start=1):
-            print(
+            log.info(
                 f"#{idx}: Title: {r.payload['title']} | Dense Score: {r.dense_score} | Sparse Score: {r.sparse_score} | Rating: {r.payload['vote_average']} | Popularity: {r.payload['popularity']}"
             )

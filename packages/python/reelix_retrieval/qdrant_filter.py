@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Tuple, Iterable, Literal
 from datetime import datetime
 from qdrant_client.models import (
@@ -151,7 +152,8 @@ def provider_ids_from_names(
                 f"Unknown provider name(s): {unknown}. Allowed: {sorted(WATCH_PROVIDERS)}"
             )
         if on_unknown == "warn":
-            # TODO replace with logger / ScoreTrace / telemetry
-            print(f"[warn] Unknown provider(s) dropped: {unknown}")
+            logging.getLogger(__name__).warning(
+                "Unknown provider(s) dropped: %s", unknown
+            )
 
     return out

@@ -1,6 +1,4 @@
 import os
-import time
-import httpx
 from contextlib import asynccontextmanager
 
 from dotenv import find_dotenv, load_dotenv
@@ -10,46 +8,19 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError as PgRestError
 from reelix_core.errors import DomainError
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from qdrant_client import QdrantClient
 
-from reelix_core.config import (
-    NLTK_PATH,
-    QDRANT_MOVIE_COLLECTION_NAME,
-    QDRANT_TV_COLLECTION_NAME,
+from reelix_runtime import (
+    RuntimeSettings,
+    build_recommendation_runtime,
+    build_stores,
+    build_telemetry,
 )
-
-os.environ.setdefault("NLTK_DATA", str(NLTK_PATH))
-from reelix_logging.rec_logger import TelemetryLogger
-from app.infrastructure.cache.redis_infra import make_redis_clients
-from app.infrastructure.cache.ticket_store import TicketStore
-from app.infrastructure.cache.state_store import StateStore
-from app.infrastructure.cache.why_cache import WhyCache
 from app.observability import init_tracing
 from .routers import all_routers
 
 
-class Settings(BaseSettings):
+class Settings(RuntimeSettings):
     app_name: str = "Reelix Discovery Agent API"
-
-    # credentials
-    qdrant_endpoint: str | None = None
-    qdrant_api_key: str | None = None
-    supabase_url: str | None = None
-    supabase_api_key: str | None = None
-    openai_api_key: str | None = None
-    redis_url: str | None = None
-
-    # ticket_store config
-    ticket_namespace: str = "reelix:ticket:"
-    why_cache_namespace: str = "reelix:why:"
-    session_namespace: str = "reelix:agent:session:"
-    ticket_ttl_sec: int = 3600  # 60 min cap
-    session_ttl_sec: int = 7 * 24 * 3600  # 7d cap
-    why_cache_ttl_sec: int = 14 * 24 * 3600  # 2 weeks cap
-
-    # env config
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 def _should_init_recommendation() -> bool:
@@ -58,93 +29,20 @@ def _should_init_recommendation() -> bool:
 
 
 def _init_recommendation_stack(app: FastAPI) -> None:
+    runtime = build_recommendation_runtime(app.state.settings)
+    stores = build_stores(app.state.settings)
 
-    from reelix_models.custom_models import (
-        load_bm25_files,
-        load_sentence_model,
-    )
-    from reelix_retrieval.base_retriever import BaseRetriever
-    from reelix_recommendation.recommend import RecommendPipeline
-    from reelix_retrieval.query_encoder import Encoder
-    from reelix_agent.orchestrator.agent_rec_runner import AgentRecRunner
-    from reelix_recommendation.recipes import InteractiveRecipe, ForYouFeedRecipe
-    from reelix_agent.tools import build_registry, ToolRunner
+    app.state.qdrant = runtime.qdrant
+    app.state.query_encoder = runtime.query_encoder
+    app.state.recommend_pipeline = runtime.recommend_pipeline
+    app.state.agent_rec_runner = runtime.agent_rec_runner
+    app.state.recipes = runtime.recipes
+    app.state.tool_registry = runtime.tool_registry
+    app.state.tool_runner = runtime.tool_runner
 
-    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    startup_t0 = time.perf_counter()
-
-    # == Verify required credits ==
-    required = {
-        "QDRANT_ENDPOINT": app.state.settings.qdrant_endpoint,
-        "QDRANT_API_KEY": app.state.settings.qdrant_api_key,
-        "SUPABASE_URL": app.state.settings.supabase_url,
-        "SUPABASE_API_KEY": app.state.settings.supabase_api_key,
-        "OPENAI_API_KEY": app.state.settings.openai_api_key,
-        "REDIS_URL": app.state.settings.redis_url,
-    }
-    missing = [
-        name for name, value in required.items() if not (value and value.strip())
-    ]
-    if missing:
-        raise RuntimeError(
-            "Missing credentials in environment: " + ", ".join(sorted(missing))
-        )
-
-    # == Initialize recommendation stacks ==
-    embed_model = load_sentence_model()
-    bm25_models, bm25_vocabs = load_bm25_files()
-    query_encoder = Encoder(embed_model, bm25_models, bm25_vocabs)
-    app.state.qdrant = QdrantClient(
-        url=app.state.settings.qdrant_endpoint,
-        api_key=app.state.settings.qdrant_api_key,
-    )
-
-    base_retriever = BaseRetriever(
-        app.state.qdrant,
-        movie_collection=QDRANT_MOVIE_COLLECTION_NAME,
-        tv_collection=QDRANT_TV_COLLECTION_NAME,
-        dense_vector_name="dense_vector",
-        sparse_vector_name="sparse_vector",
-    )
-    pipeline = RecommendPipeline(base_retriever, rrf_k=60)
-
-    app.state.query_encoder = query_encoder
-    app.state.recommend_pipeline = pipeline
-    app.state.agent_rec_runner = AgentRecRunner(
-        pipeline=pipeline,
-        query_encoder=query_encoder,
-    )
-    app.state.recipes = {
-        "for_you_feed": ForYouFeedRecipe(query_encoder=app.state.query_encoder),
-        "interactive": InteractiveRecipe(query_encoder=app.state.query_encoder),
-    }
-    # == Initialize agent Tool Infrastructure ==
-
-    app.state.tool_registry = build_registry()
-    app.state.tool_runner = ToolRunner(app.state.tool_registry)
-
-    # == Initialize Redis stores ==
-    redis_clients = make_redis_clients(app.state.settings.redis_url)
-
-    app.state.ticket_store = TicketStore(
-        client=redis_clients.bytes,
-        namespace=app.state.settings.ticket_namespace,
-        absolute_ttl_sec=app.state.settings.ticket_ttl_sec,
-    )
-
-    app.state.state_store = StateStore(
-        client=redis_clients.bytes,
-        namespace=app.state.settings.session_namespace,
-        absolute_ttl_sec=app.state.settings.session_ttl_sec,
-    )
-
-    app.state.why_cache = WhyCache(
-        client=redis_clients.text,
-        namespace=app.state.settings.why_cache_namespace,
-        absolute_ttl_sec=app.state.settings.why_cache_ttl_sec,
-    )
-
-    print(f"🔧 Total startup time: {time.perf_counter() - startup_t0:.2f}s")
+    app.state.ticket_store = stores.ticket_store
+    app.state.state_store = stores.state_store
+    app.state.why_cache = stores.why_cache
 
 
 @asynccontextmanager
@@ -152,21 +50,7 @@ async def lifespan(app: FastAPI):
     settings = Settings()
     app.state.settings = settings
 
-    supabase_url = app.state.settings.supabase_url
-    supabase_api_key = app.state.settings.supabase_api_key
-
-    if not supabase_url or not supabase_api_key:
-        raise RuntimeError("Missing Supabase credits")
-
-    http_client = httpx.AsyncClient(timeout=5.0)
-
-    logger = TelemetryLogger(
-        supabase_url,
-        supabase_api_key,
-        client=http_client,
-        timeout_s=5.0,
-    )
-
+    http_client, logger = build_telemetry(settings, timeout_s=5.0)
     app.state.logger = logger
 
     # Eager init of external clients/models

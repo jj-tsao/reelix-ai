@@ -25,8 +25,8 @@ from app.deps.supabase_client import (
     get_user_context_service,
 )
 from app.deps.deps_redis_caches import get_ticket_store, get_why_cache
-from app.infrastructure.cache.why_cache import WhyCache, CachedWhy
-from app.infrastructure.cache.ticket_store import Ticket
+from reelix_runtime.cache.why_cache import WhyCache, CachedWhy
+from reelix_runtime.cache.ticket_store import Ticket
 from app.schemas import DiscoverRequest
 
 from ._helpers import sse, pick_call

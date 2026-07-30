@@ -1,19 +1,23 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Literal, Mapping
 
 import httpx
-from fastapi.encoders import jsonable_encoder
 from opentelemetry import trace as otel_trace
 from pydantic import BaseModel
+from pydantic_core import to_jsonable_python
 from reelix_ranking.types import Candidate, ScoreTrace
 from reelix_core.types import QueryFilter
+
+log = logging.getLogger(__name__)
 
 Endpoint = Literal[
     "discovery/for-you",
     "discovery/explore",
     "recommendations/interactive",
+    "mcp/explore",
 ]
 
 
@@ -211,15 +215,15 @@ class TelemetryLogger:
                 timeout=self.timeout_s,
             )
             if r.status_code not in (200, 201, 204):
-                print(
-                    f"⚠️ rec_logger POST {path} failed {r.status_code}: {r.text}"
+                log.warning(
+                    "⚠️ rec_logger POST %s failed %s: %s", path, r.status_code, r.text
                 )
         except Exception as e:
-            print(f"❌ rec_logger POST {path} error: {e}")
+            log.warning("❌ rec_logger POST %s error: %s", path, e)
 
     @staticmethod
     def to_jsonable(x):
-        return jsonable_encoder(x, exclude_none=True)
+        return to_jsonable_python(x, exclude_none=True)
 
     # ---------- Public APIs ----------
     async def log_query_intake(

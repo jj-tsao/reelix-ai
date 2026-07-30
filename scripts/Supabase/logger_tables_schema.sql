@@ -2,7 +2,7 @@
 create table if not exists rec_queries (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
-  endpoint text not null check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive')),
+  endpoint text not null check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive','mcp/explore')),
   query_id text not null,
   user_id uuid,
   session_id text not null,
@@ -23,7 +23,7 @@ create index if not exists idx_rec_queries_qid on rec_queries (query_id);
 create table if not exists rec_results (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
-  endpoint text not null check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive')),
+  endpoint text not null check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive','mcp/explore')),
   query_id text not null,
   media_type text,
   media_id int not null,
@@ -46,3 +46,13 @@ create UNIQUE INDEX rec_results_unq_endp_qid_mid ON rec_results (endpoint, query
 -- -----------------------------------------------------------------------------
 alter table rec_queries add column if not exists trace_id text;
 alter table rec_results add column if not exists trace_id text;
+
+-- -----------------------------------------------------------------------------
+-- Migration: allow the MCP transport endpoint (idempotent; safe on existing DBs)
+-- -----------------------------------------------------------------------------
+alter table rec_queries drop constraint if exists rec_queries_endpoint_check;
+alter table rec_queries add constraint rec_queries_endpoint_check
+  check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive','mcp/explore'));
+alter table rec_results drop constraint if exists rec_results_endpoint_check;
+alter table rec_results add constraint rec_results_endpoint_check
+  check (endpoint in ('discovery/for-you','discovery/explore','recommendations/interactive','mcp/explore'));

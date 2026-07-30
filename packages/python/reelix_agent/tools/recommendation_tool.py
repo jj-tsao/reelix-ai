@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from reelix_logging.rec_logger import TelemetryLogger
 
 _tracer = trace.get_tracer(__name__)
+log = logging.getLogger(__name__)
 
 # JSON Schema for the recommendation_agent tool parameters
 RECOMMENDATION_AGENT_SCHEMA: dict[str, Any] = {
@@ -261,13 +263,13 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     mentioned_titles = raw_spec.get("mentioned_titles") or []
     if mentioned_titles:
         spec.seed_titles = mentioned_titles
-        print(f"[recommendation_tool] Will exclude mentioned titles: {mentioned_titles}")
+        log.debug("[recommendation_tool] Will exclude mentioned titles: %s", mentioned_titles)
 
     # Extract exclude_genres for Qdrant hard filtering
     exclude_genres = raw_spec.get("exclude_genres") or []
     if exclude_genres:
         spec.exclude_genres = exclude_genres
-        print(f"[recommendation_tool] Will exclude genres: {exclude_genres}")
+        log.debug("[recommendation_tool] Will exclude genres: %s", exclude_genres)
 
     state.query_spec = spec
     state.turn_mode = AgentMode.RECS
@@ -291,7 +293,6 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
         pipeline_start = time.perf_counter()
         candidates, traces, ctx_log = await to_thread.run_sync(_run_pipeline_sync)
         pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
-        print(f"[timing] rec_pipeline_sync_ms={pipeline_ms:.1f}")
 
         rec_span.set_attribute("reelix.candidates.count", len(candidates))
 
@@ -309,7 +310,7 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
         batch_1 = candidates[:mid_point]
         batch_2 = candidates[mid_point:]
 
-        print(f"[curator] Running parallel batches: {len(batch_1)} + {len(batch_2)} candidates")
+        log.debug("[curator] Running parallel batches: %d + %d candidates", len(batch_1), len(batch_2))
 
         async def _eval_batch(batch_id: int, batch: list):
             with _tracer.start_as_current_span("curator.batch") as batch_span:
@@ -335,17 +336,13 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
         curator_output = _merge_curator_outputs(batch_1_output, batch_2_output)
 
         curator_ms = (time.perf_counter() - curator_start) * 1000
-        print(f"[timing] curator_llm_ms={curator_ms:.1f} (parallel batches)")
 
         # 4) Parse curator output
-        parse_start = time.perf_counter()
         try:
             curator_data = json.loads(curator_output)
         except json.JSONDecodeError as e:
             rec_span.set_status(Status(StatusCode.ERROR, "curator output parse error"))
             return ToolResult.error(f"Curator output parse error: {e}")
-        parse_ms = (time.perf_counter() - parse_start) * 1000
-        print(f"[timing] curator_parse_ms={parse_ms:.1f}")
 
         state.curator_eval = curator_data.get("evaluation_results", [])
 
@@ -378,7 +375,6 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
                 "reelix.tier.served_moderate_count",
                 tier_stats.get("served_moderate_count", 0),
             )
-        print(f"[timing] curator_tiers_ms={tiers_ms:.1f}")
 
         # Store tier_stats in state for downstream logging
         state.tier_stats = {
@@ -541,7 +537,7 @@ async def _log_curator_data(
         try:
             await logger.log_curator_evaluations(evals)
         except Exception as e:
-            print(f"[curator_logging] Failed to log evaluations: {e}")
+            log.warning("[curator_logging] Failed to log evaluations: %s", e)
 
     # Determine selection rule based on tier counts
     strong = tier_stats.get("strong_count", 0)
@@ -573,4 +569,4 @@ async def _log_curator_data(
             )
         )
     except Exception as e:
-        print(f"[curator_logging] Failed to log tier summary: {e}")
+        log.warning("[curator_logging] Failed to log tier summary: %s", e)
