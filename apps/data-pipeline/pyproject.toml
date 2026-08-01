@@ -16,6 +16,8 @@ dependencies = [
   "python-dotenv",
   "tqdm",
   "openai",
+  # LLM-as-judge (reelix_eval.judge) calls Claude via the Anthropic SDK.
+  "anthropic>=0.69",
   # reelix-core's llm_client emits OpenTelemetry spans; eval jobs import it.
   # API only (no SDK/provider) — spans are no-ops here, just keeps imports working.
   "opentelemetry-api",

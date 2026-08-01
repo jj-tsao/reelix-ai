@@ -292,6 +292,11 @@ OPENAI_API_KEY=
 TMDB_API_KEY=
 OMDB_API_KEY=
 DATABASE_URL=          # PostgreSQL connection string
+
+# LLM-as-judge (reelix_eval.judge). Deliberately NOT named ANTHROPIC_API_KEY:
+# that name is resolved first by both the Anthropic SDK and the Claude Code CLI,
+# so exporting it would shadow the Claude Code login. Passed explicitly.
+REELIX_JUDGE_ANTHROPIC_KEY=
 ```
 
 ## Python Package Dependencies

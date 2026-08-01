@@ -13,6 +13,10 @@ QDRANT_ENDPOINT = os.getenv("QDRANT_ENDPOINT")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# LLM-as-judge key for reelix_eval.judge. Not ANTHROPIC_API_KEY on purpose —
+# that name would shadow the Claude Code login; see reelix_eval.judge.runner.
+REELIX_JUDGE_ANTHROPIC_KEY = os.getenv("REELIX_JUDGE_ANTHROPIC_KEY")
 IMDB_RATINGS_URL = "https://datasets.imdbws.com/title.ratings.tsv.gz"
 
 BM25_DIR = Path(__file__).resolve().parent.parent / "data" / "bm25_files"
