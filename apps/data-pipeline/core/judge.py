@@ -16,7 +16,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -123,7 +123,11 @@ class JudgeScore:
 
 def sample_queries(engine: Engine, target_date: date, sample_size: int = 50) -> list[str]:
     """Sample query_ids from completed agent requests with curator data."""
-    start = datetime(target_date.year, target_date.month, target_date.day)
+    # Timezone-aware: created_at is timestamptz, so naive bounds would be read in
+    # the server's timezone and drift the day boundary.
+    start = datetime(
+        target_date.year, target_date.month, target_date.day, tzinfo=timezone.utc
+    )
     end = start + timedelta(days=1)
 
     with engine.connect() as conn:

@@ -16,6 +16,7 @@ from anyio import to_thread
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from reelix_agent.core.llm import LlmUsage
 from reelix_agent.core.types import AgentMode, RecQuerySpec
 from reelix_agent.curator.curator_agent import run_curator_agent
 from reelix_agent.curator.curator_tiers import apply_curator_tiers
@@ -257,6 +258,8 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
     try:
         spec = RecQuerySpec(**raw_spec)
     except Exception as e:
+        state.meta["error_stage"] = "tool_args"
+        state.meta["error_message"] = f"Invalid rec_query_spec: {e}"
         return ToolResult.error(f"Invalid rec_query_spec: {e}")
 
     # Extract mentioned_titles and store in spec for filtering
@@ -290,6 +293,10 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
                 turn_kind=state.turn_kind,
             )
 
+        # Stage breadcrumb: read by the API layer to attribute an error to the
+        # stage that actually failed instead of logging error_stage='unknown'.
+        state.meta["stage"] = "pipeline"
+
         pipeline_start = time.perf_counter()
         candidates, traces, ctx_log = await to_thread.run_sync(_run_pipeline_sync)
         pipeline_ms = (time.perf_counter() - pipeline_start) * 1000
@@ -303,6 +310,7 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
             state.ctx_log = ctx_log
 
         # 3) Run curator agent with parallel batching
+        state.meta["stage"] = "curator_llm"
         curator_start = time.perf_counter()
 
         # Split candidates into 2 batches of ~6 each for parallel evaluation
@@ -312,7 +320,7 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
 
         log.debug("[curator] Running parallel batches: %d + %d candidates", len(batch_1), len(batch_2))
 
-        async def _eval_batch(batch_id: int, batch: list):
+        async def _eval_batch(batch_id: int, batch: list) -> tuple[str, LlmUsage]:
             with _tracer.start_as_current_span("curator.batch") as batch_span:
                 batch_span.set_attribute("reelix.curator.batch_id", batch_id)
                 batch_span.set_attribute("reelix.curator.candidate_count", len(batch))
@@ -327,26 +335,39 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
         # Run both batches in parallel (siblings under curator.evaluate)
         with _tracer.start_as_current_span("curator.evaluate") as curator_span:
             curator_span.set_attribute("reelix.curator.candidate_count", len(candidates))
-            batch_1_output, batch_2_output = await asyncio.gather(
+            batch_results = await asyncio.gather(
                 _eval_batch(1, batch_1),
                 _eval_batch(2, batch_2),
             )
 
-        # Merge results
-        curator_output = _merge_curator_outputs(batch_1_output, batch_2_output)
+        # Accumulate real curator usage — one entry per LLM call actually issued.
+        state.meta["curator_llm_calls"] = len(batch_results)
+        state.meta["curator_input_tokens"] = sum(
+            (u.input_tokens or 0) for _, u in batch_results
+        )
+        state.meta["curator_output_tokens"] = sum(
+            (u.output_tokens or 0) for _, u in batch_results
+        )
+
+        # 4) Merge and parse curator output (both steps parse JSON, so a failure
+        # in either is a curator_parse failure)
+        state.meta["stage"] = "curator_parse"
+        batch_1_output, batch_2_output = (out for out, _ in batch_results)
+        try:
+            curator_output = _merge_curator_outputs(batch_1_output, batch_2_output)
+            curator_data = json.loads(curator_output)
+        except (ValueError, json.JSONDecodeError) as e:
+            rec_span.set_status(Status(StatusCode.ERROR, "curator output parse error"))
+            state.meta["error_stage"] = "curator_parse"
+            state.meta["error_message"] = f"Curator output parse error: {e}"
+            return ToolResult.error(f"Curator output parse error: {e}")
 
         curator_ms = (time.perf_counter() - curator_start) * 1000
-
-        # 4) Parse curator output
-        try:
-            curator_data = json.loads(curator_output)
-        except json.JSONDecodeError as e:
-            rec_span.set_status(Status(StatusCode.ERROR, "curator output parse error"))
-            return ToolResult.error(f"Curator output parse error: {e}")
 
         state.curator_eval = curator_data.get("evaluation_results", [])
 
         # 5) Apply curator tiers for final selection
+        state.meta["stage"] = "tier"
         with _tracer.start_as_current_span("curator.tier_selection") as tier_span:
             tiers_start = time.perf_counter()
             state.final_recs, tier_stats = apply_curator_tiers(
@@ -411,6 +432,7 @@ async def handle_recommendation_agent(ctx: ToolContext, args: dict[str, Any]) ->
         )
 
         # 7) Build result payload
+        state.meta["stage"] = "complete"
         return ToolResult.success(
             payload={
                 "count": len(state.final_recs),

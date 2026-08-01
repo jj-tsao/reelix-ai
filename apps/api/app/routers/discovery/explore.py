@@ -7,6 +7,8 @@ from collections.abc import AsyncIterator
 import logging
 import time
 import uuid
+from typing import NamedTuple
+
 from pydantic import BaseModel, ValidationError
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -54,6 +56,45 @@ log = logging.getLogger(__name__)
 _tracer = trace.get_tracer(__name__)
 
 
+class _UsageTotals(NamedTuple):
+    llm_calls: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+def _usage_totals(meta: dict | None, reflection=None) -> _UsageTotals:
+    """Sum real per-call LLM usage across the stages of one request.
+
+    Sources are the accumulators the orchestrator and recommendation tool write
+    into ``AgentState.meta``, plus the reflection agent's own usage. Returns
+    ``None`` for a field when nothing reported it, so a missing measurement stays
+    distinguishable from a genuine zero.
+
+    Note: the explanation agent runs in a separate ``/explore/why`` request and
+    is not counted here — it emits no telemetry rows at all today.
+    """
+    meta = meta or {}
+
+    calls = (meta.get("orchestrator_llm_calls") or 0) + (meta.get("curator_llm_calls") or 0)
+    if reflection is not None:
+        calls += 1
+
+    parts_in = [meta.get("orchestrator_input_tokens"), meta.get("curator_input_tokens")]
+    parts_out = [meta.get("orchestrator_output_tokens"), meta.get("curator_output_tokens")]
+    if reflection is not None:
+        parts_in.append(reflection.input_tokens)
+        parts_out.append(reflection.output_tokens)
+
+    total_in = sum(p for p in parts_in if p is not None) if any(
+        p is not None for p in parts_in
+    ) else None
+    total_out = sum(p for p in parts_out if p is not None) if any(
+        p is not None for p in parts_out
+    ) else None
+
+    return _UsageTotals(calls or None, total_in, total_out)
+
+
 @router.post("/explore")
 async def explore_stream(
     req: InteractiveRequest,
@@ -99,6 +140,11 @@ async def explore_stream(
         # Supabase rows pivot to the right trace.
         trace.get_current_span().set_attribute("reelix.query_id", req.query_id)
 
+        # Stage the request is currently in — surfaced as error_stage when the
+        # request blows up, so failures are attributable instead of "unknown".
+        stage = "orchestrator"
+        state = None
+
         try:
             _refl_ms = None  # set later if reflection runs
             reflection = None  # set later if reflection runs
@@ -128,6 +174,7 @@ async def explore_stream(
                 )
 
             # 2) Execute the recommendation agent, keeping SSE connection alive with heartbeats.
+            stage = "pipeline"
             task = traced_create_task(
                 execute_orchestrator_plan(
                     state=state,
@@ -153,6 +200,8 @@ async def explore_stream(
             except asyncio.CancelledError:
                 task.cancel()
                 raise
+
+            stage = "response"
 
             # 3) Persist session memory
             traced_create_task(
@@ -208,7 +257,7 @@ async def explore_stream(
             # == CHAT mode: stream chat message & done ==
             if str(mode) == "chat":
                 yield sse("chat", {"query_id": req.query_id, "message": plan.message})
-                _meta = agent_result.meta or {}
+                _usage = _usage_totals(agent_result.meta)
                 traced_create_task(
                     logger.log_trace(RequestTraceLog(
                         query_id=req.query_id,
@@ -218,9 +267,9 @@ async def explore_stream(
                         status="completed",
                         orchestrator_ms=orch_ms,
                         total_ms=int((time.perf_counter() - t0) * 1000),
-                        llm_calls=1,
-                        total_input_tokens=_meta.get("orchestrator_input_tokens"),
-                        total_output_tokens=_meta.get("orchestrator_output_tokens"),
+                        llm_calls=_usage.llm_calls,
+                        total_input_tokens=_usage.input_tokens,
+                        total_output_tokens=_usage.output_tokens,
                     )),
                     name="telemetry.trace",
                 )
@@ -345,14 +394,17 @@ async def explore_stream(
             # 7) Log end-to-end request trace (RECS mode)
             _tier = agent_result.tier_stats or {}
             _meta = agent_result.meta or {}
-            _orch_in = _meta.get("orchestrator_input_tokens")
-            _orch_out = _meta.get("orchestrator_output_tokens")
-            _refl_in = reflection.input_tokens if reflection else None
-            _refl_out = reflection.output_tokens if reflection else None
-            _total_in = (_orch_in or 0) + (_refl_in or 0) if (_orch_in or _refl_in) else None
-            _total_out = (_orch_out or 0) + (_refl_out or 0) if (_orch_out or _refl_out) else None
-            # Count LLM calls: orchestrator (1) + curator (2 parallel batches) + reflection (0 or 1)
-            _llm_calls = 1 + 2 + (1 if reflection else 0)
+            _usage = _usage_totals(_meta, reflection=reflection)
+
+            # A tool-level failure (unparseable curator output, a pipeline
+            # exception) is swallowed by ToolRunner into a ToolResult.error
+            # rather than raising, so it lands here and would otherwise be
+            # recorded as a completed request. The tool's stage breadcrumb only
+            # reads "complete" if it ran all the way through.
+            _tool_stage = _meta.get("stage")
+            _tool_error_stage = _meta.get("error_stage") or (
+                _tool_stage if _tool_stage not in (None, "complete") else None
+            )
 
             traced_create_task(
                 logger.log_trace(RequestTraceLog(
@@ -360,7 +412,9 @@ async def explore_stream(
                     session_id=req.session_id,
                     user_id=user_id,
                     endpoint=ENDPOINT,
-                    status="completed",
+                    status="error" if _tool_error_stage else "completed",
+                    error_stage=_tool_error_stage,
+                    error_message=_meta.get("error_message"),
                     orchestrator_ms=orch_ms,
                     pipeline_ms=int(_tier["pipeline_ms"]) if "pipeline_ms" in _tier else None,
                     curator_ms=int(_tier["curator_latency_ms"]) if "curator_latency_ms" in _tier else None,
@@ -369,9 +423,9 @@ async def explore_stream(
                     total_ms=int((time.perf_counter() - t0) * 1000),
                     candidates_retrieved=len(agent_result.candidates) if agent_result.candidates else None,
                     candidates_served=len(agent_result.final_recs) if agent_result.final_recs else None,
-                    llm_calls=_llm_calls,
-                    total_input_tokens=_total_in,
-                    total_output_tokens=_total_out,
+                    llm_calls=_usage.llm_calls,
+                    total_input_tokens=_usage.input_tokens,
+                    total_output_tokens=_usage.output_tokens,
                 )),
                 name="telemetry.trace",
             )
@@ -381,11 +435,17 @@ async def explore_stream(
         except Exception as exc:
             error_id = str(uuid.uuid4())
             log.exception("Explore stream failed (error_id=%s)", error_id)
+            # The recommendation tool writes a finer-grained breadcrumb into
+            # state.meta as it moves through pipeline → curator → tier; prefer
+            # it over the coarse stage tracked here.
+            _stage = stage
+            if stage == "pipeline" and state is not None:
+                _stage = (state.meta or {}).get("stage") or stage
             traced_create_task(
                 logger.log_error(
                     query_id=req.query_id,
                     endpoint=ENDPOINT,
-                    error_stage="unknown",
+                    error_stage=_stage,
                     error=exc,
                     session_id=req.session_id,
                     user_id=user_id,
@@ -533,19 +593,30 @@ async def explore_rerun(
 
     # Log end-to-end request trace (rerun — no orchestrator or reflection)
     _tier = agent_result.tier_stats or {}
+    _meta = agent_result.meta or {}
+    _usage = _usage_totals(_meta)
+    _tool_stage = _meta.get("stage")
+    _tool_error_stage = _meta.get("error_stage") or (
+        _tool_stage if _tool_stage not in (None, "complete") else None
+    )
     traced_create_task(
         logger.log_trace(RequestTraceLog(
             query_id=req.query_id,
             session_id=req.session_id,
             user_id=user_id,
             endpoint=ENDPOINT,
-            status="completed",
+            status="error" if _tool_error_stage else "completed",
+            error_stage=_tool_error_stage,
+            error_message=_meta.get("error_message"),
             pipeline_ms=int(_tier["pipeline_ms"]) if "pipeline_ms" in _tier else None,
             curator_ms=int(_tier["curator_latency_ms"]) if "curator_latency_ms" in _tier else None,
             tier_ms=int(_tier["tier_latency_ms"]) if "tier_latency_ms" in _tier else None,
             total_ms=int((time.perf_counter() - rerun_t0) * 1000),
             candidates_retrieved=len(agent_result.candidates) if agent_result.candidates else None,
             candidates_served=len(agent_result.final_recs) if agent_result.final_recs else None,
+            llm_calls=_usage.llm_calls,
+            total_input_tokens=_usage.input_tokens,
+            total_output_tokens=_usage.output_tokens,
         )),
         name="telemetry.trace",
     )

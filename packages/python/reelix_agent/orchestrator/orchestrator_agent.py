@@ -101,8 +101,7 @@ async def plan_orchestrator_agent(
             state.turn_message = msg
             state.turn_memory = mem
             state.done = True
-            state.meta["orchestrator_input_tokens"] = llm_usage.input_tokens
-            state.meta["orchestrator_output_tokens"] = llm_usage.output_tokens
+            _accumulate_orchestrator_usage(state, llm_usage)
 
             # Log CHAT mode decision
             if logger:
@@ -134,8 +133,7 @@ async def plan_orchestrator_agent(
             opening = tool_args.get("opening_summary")
             raw_spec = tool_args.get("rec_query_spec") or {}
             state.query_spec = RecQuerySpec(**raw_spec)
-            state.meta["orchestrator_input_tokens"] = llm_usage.input_tokens
-            state.meta["orchestrator_output_tokens"] = llm_usage.output_tokens
+            _accumulate_orchestrator_usage(state, llm_usage)
 
             # Log RECS mode decision
             if logger:
@@ -298,8 +296,24 @@ async def run_rec_engine_direct(
         ctx_log=state.ctx_log,
         pipeline_traces=state.pipeline_traces,
         agent_trace=state.agent_trace,
+        meta=state.meta,
         tier_stats=state.tier_stats,
     )
+
+
+def _accumulate_orchestrator_usage(state: AgentState, llm_usage: LlmUsage) -> None:
+    """Add one orchestrator LLM call's usage to the running per-request totals.
+
+    Accumulates rather than overwrites: the planning loop may run several steps,
+    and the request trace needs the sum of them all.
+    """
+    state.meta["orchestrator_llm_calls"] = state.meta.get("orchestrator_llm_calls", 0) + 1
+    state.meta["orchestrator_input_tokens"] = (
+        state.meta.get("orchestrator_input_tokens") or 0
+    ) + (llm_usage.input_tokens or 0)
+    state.meta["orchestrator_output_tokens"] = (
+        state.meta.get("orchestrator_output_tokens") or 0
+    ) + (llm_usage.output_tokens or 0)
 
 
 def _strip_memory_block(text: str) -> tuple[str, str | None]:

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -29,8 +29,15 @@ class MetricRow:
 
 
 def _date_bounds(target_date: date) -> tuple[datetime, datetime]:
-    """Return (start_of_day_utc, start_of_next_day_utc) for SQL filtering."""
-    start = datetime(target_date.year, target_date.month, target_date.day)
+    """Return (start_of_day_utc, start_of_next_day_utc) for SQL filtering.
+
+    Must be timezone-aware: the columns these bounds filter are ``timestamptz``,
+    so a naive datetime is interpreted in the *server's* timezone and silently
+    shifts the day boundary.
+    """
+    start = datetime(
+        target_date.year, target_date.month, target_date.day, tzinfo=timezone.utc
+    )
     end = start + timedelta(days=1)
     return start, end
 
