@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Literal, Mapping
 
 import httpx
@@ -375,13 +376,27 @@ class TelemetryLogger:
         evals: list[CuratorEvalLog],
     ) -> None:
         """
-        Insert curator evaluation rows into curator_evaluations table.
+        Upsert curator evaluation rows into curator_evaluations table.
         Logs per-candidate LLM evaluation scores and tier assignments.
+
+        Upsert, not insert: `/explore/rerun` deliberately reuses the same
+        query_id, so a plain insert appended a whole extra set of rows on every
+        chip rerun. That silently double-counted 21 of 513 queries in any
+        AVG/COUNT over this table — see
+        scripts/Supabase/fix_curator_evaluations_dupes.sql.
+
+        `created_at` is stamped explicitly, once per run: ON CONFLICT DO UPDATE
+        only writes the columns present in the payload, so relying on the column
+        default would leave a rerun's rows carrying the *original* timestamp.
+        Readers isolate a single run by MAX(created_at), so every row of one run
+        must share one fresh value — that also lets candidates dropped by a rerun
+        age out instead of lingering with a stale is_served.
         """
         if not self._enabled() or not evals:
             return
 
         tid, _ = _current_trace_ids()
+        run_at = datetime.now(timezone.utc).isoformat()
         rows = []
         for e in evals:
             row = {
@@ -398,10 +413,13 @@ class TelemetryLogger:
                 "is_served": e.is_served,
                 "final_rank": e.final_rank,
                 "trace_id": tid,
+                "created_at": run_at,
             }
             rows.append(row)
 
-        await self._post("curator_evaluations", rows)
+        # Requires the unique index on (query_id, media_id); the
+        # `Prefer: resolution=merge-duplicates` header is already set in _headers().
+        await self._post("curator_evaluations?on_conflict=query_id,media_id", rows)
 
     async def log_tier_summary(
         self,
