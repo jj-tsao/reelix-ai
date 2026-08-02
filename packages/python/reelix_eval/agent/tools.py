@@ -252,7 +252,33 @@ async def sample_queries(args: dict[str, Any]) -> dict:
         )
     except ValueError as e:
         return _err(str(e))
-    return _ok({"count": len(ids), "query_ids": ids})
+
+    payload: dict[str, Any] = {"count": len(ids), "query_ids": ids}
+
+    # A filter is only selective while it can discard candidates. On a narrow
+    # window the eligible population can be barely larger than the limit, at
+    # which point every filter returns most of the same queries and "low_fit"
+    # stops meaning low fit. Say so rather than letting the caller read a
+    # near-census as a targeted sample.
+    population = len(
+        store.sample_queries(
+            ctx.engine,
+            _parse_date(args["start"]),
+            _parse_date(args["end"]),
+            10_000,
+            "random",
+        )
+    )
+    payload["eligible_population"] = population
+    if population and len(ids) / population > 0.5:
+        payload["WARNING"] = (
+            f"This filter returned {len(ids)} of {population} eligible queries "
+            f"({len(ids) / population:.0%}) — it is close to a census, not a "
+            "targeted sample. Different filters will overlap heavily here, so do "
+            "not treat membership as evidence that a query exhibits the symptom. "
+            "Widen the window or lower the limit."
+        )
+    return _ok(payload)
 
 
 @tool(

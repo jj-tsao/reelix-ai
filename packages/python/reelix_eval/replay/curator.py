@@ -94,11 +94,29 @@ class ReplayRun:
             ]
             return sum(stats) / len(stats) if stats else None
 
+        # Per-dimension means over every scored candidate. Without these a rubric
+        # edit can only be observed through its downstream slate effect, which is
+        # the weakest possible signal: the mechanism the edit targets stays
+        # unmeasured, so "no slate change" cannot be distinguished from "the
+        # scores moved but the tiering absorbed it".
+        dims = ("genre_fit", "tone_fit", "theme_fit", "total_fit")
+        dim_means: dict[str, float | None] = {}
+        for d in dims:
+            vals = [
+                f[d]
+                for c in ok
+                for f in c.fits.values()
+                if f.get(d) is not None
+            ]
+            dim_means[f"mean_{d}"] = sum(vals) / len(vals) if vals else None
+        dim_means["scored_candidates"] = sum(len(c.fits) for c in ok)
+
         return {
             "label": self.label,
             "cases": len(self.cases),
             "cases_ok": len(ok),
             "cases_failed": len(self.cases) - len(ok),
+            **dim_means,
             "mean_served_overlap": (
                 sum(overlaps) / len(overlaps) if overlaps else None
             ),
