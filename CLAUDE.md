@@ -76,8 +76,19 @@ python -m jobs.enrich_ratings --mode weekly --budget 1000
 python -m jobs.eval_metrics                          # daily metrics (yesterday)
 python -m jobs.eval_metrics --date 2026-03-31        # specific date
 python -m jobs.eval_metrics --days 7                 # backfill 7 days
-python -m jobs.eval_judge                            # LLM-as-judge (yesterday, 50 samples)
-python -m jobs.eval_judge --date 2026-03-31 --sample-size 100 --model gpt-4o-mini
+
+# LLM-as-judge (Claude; Batch API by default, ~$0.02/query)
+python -m jobs.eval_judge                            # yesterday, 50 samples
+python -m jobs.eval_judge --date 2026-07-31 --sample-size 100
+python -m jobs.eval_judge --days 7                   # backfill a week
+python -m jobs.eval_judge --sync                     # instant, ~2x cost
+python -m jobs.eval_judge --dry-run                  # show what would be judged
+
+# Eval agent — investigates quality from the logs and proposes fixes
+python -m jobs.eval_agent --since 7d                 # investigate + report (read-only)
+python -m jobs.eval_agent --since 7d --apply         # + branch, edit, replay-verify
+python -m jobs.eval_agent --focus curator --since 14d # scope to one stage
+python -m jobs.eval_agent --since 7d --dry-run       # print the plan, no LLM calls
 ```
 
 ### Linting and Formatting (Python)
