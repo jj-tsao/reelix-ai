@@ -162,19 +162,19 @@ class Report:
                     mark = "verified by replay" if f.verified else "NOT confirmed by replay"
                     note = f" — {f.verification_note}" if f.verification_note else ""
                     out.append(f"- **Verification**: {mark}{note}")
-                out += [
-                    "",
-                    f"**Symptom.** {f.symptom}",
-                    "",
-                    f"**Evidence.** {f.evidence}",
-                    "",
-                    f"**Hypothesis.** {f.hypothesis}",
-                    "",
-                    "**Proposed fix.**",
-                    "",
-                    f.proposed_fix,
-                    "",
-                ]
+                out.append("")
+                # Skip empty sections rather than emitting a bare heading — an
+                # author who put everything in `evidence` should produce a
+                # shorter report, not one littered with empty headings.
+                for label, text in (
+                    ("Symptom", f.symptom),
+                    ("Evidence", f.evidence),
+                    ("Hypothesis", f.hypothesis),
+                ):
+                    if (text or "").strip():
+                        out += [f"**{label}.** {text.strip()}", ""]
+                if (f.proposed_fix or "").strip():
+                    out += ["**Proposed fix.**", "", f.proposed_fix.strip(), ""]
                 if f.query_ids:
                     shown = ", ".join(f"`{q}`" for q in f.query_ids[:10])
                     more = f" (+{len(f.query_ids) - 10} more)" if len(f.query_ids) > 10 else ""

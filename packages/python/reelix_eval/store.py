@@ -313,6 +313,191 @@ def compare_windows(
     return deltas
 
 
+#: Metrics computed live from the logging tables, with the direction that counts
+#: as "worse" — used to label a delta rather than leaving the reader to guess.
+LIVE_METRIC_DIRECTION: dict[str, str] = {
+    "error_rate": "lower_better",
+    "total_ms_p50": "lower_better",
+    "total_ms_p95": "lower_better",
+    "curator_ms_p50": "lower_better",
+    "pipeline_ms_p50": "lower_better",
+    "avg_total_tokens": "lower_better",
+    "avg_llm_calls": "lower_better",
+    "mean_strong_count": "higher_better",
+    "mean_no_match_count": "lower_better",
+    "mean_served_count": "higher_better",
+    "mean_total_fit": "higher_better",
+    "recs_share": "neutral",
+    "judge_relevance": "higher_better",
+    "judge_novelty": "higher_better",
+    "judge_explanation_quality": "higher_better",
+    "judge_spec_fidelity": "higher_better",
+    "judge_list_coherence": "higher_better",
+}
+
+
+def compute_window_metrics(engine: Engine, start: date, end: date) -> dict[str, Any]:
+    """Aggregate the logging tables directly for [start, end).
+
+    `daily_metrics` is only populated when the `eval_metrics` batch job runs, and
+    it may be stale or empty for the window under investigation. Computing live
+    means a comparison works on any window without depending on a job having run.
+    Returns metric values plus the sample sizes needed to judge them.
+    """
+    lo, hi = range_bounds(start, end)
+    params = {"start": lo, "end": hi}
+    out: dict[str, Any] = {}
+
+    with engine.connect() as conn:
+        t = conn.execute(
+            text("""
+                SELECT COUNT(*) AS n,
+                       COUNT(*) FILTER (WHERE status = 'error') AS errors,
+                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_ms) AS p50,
+                       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY total_ms) AS p95,
+                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY curator_ms) AS cur_p50,
+                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY pipeline_ms) AS pipe_p50,
+                       AVG(COALESCE(total_input_tokens,0) + COALESCE(total_output_tokens,0))
+                           AS avg_tokens,
+                       AVG(llm_calls) AS avg_calls
+                FROM request_traces
+                WHERE created_at >= :start AND created_at < :end
+            """),
+            params,
+        ).fetchone()
+
+        out["n_requests"] = t.n or 0
+        if t.n:
+            out["error_rate"] = (t.errors or 0) / t.n
+            out["total_ms_p50"] = t.p50
+            out["total_ms_p95"] = t.p95
+            out["curator_ms_p50"] = t.cur_p50
+            out["pipeline_ms_p50"] = t.pipe_p50
+            out["avg_total_tokens"] = float(t.avg_tokens) if t.avg_tokens else None
+            out["avg_llm_calls"] = float(t.avg_calls) if t.avg_calls else None
+
+        stages = conn.execute(
+            text("""
+                SELECT error_stage, COUNT(*) AS n FROM request_traces
+                WHERE created_at >= :start AND created_at < :end AND status = 'error'
+                GROUP BY 1 ORDER BY 2 DESC
+            """),
+            params,
+        ).fetchall()
+        out["errors_by_stage"] = {r.error_stage or "unknown": r.n for r in stages}
+
+        tier = conn.execute(
+            text("""
+                SELECT COUNT(*) AS n,
+                       AVG(strong_count) AS strong, AVG(moderate_count) AS moderate,
+                       AVG(no_match_count) AS no_match, AVG(served_count) AS served
+                FROM tier_summaries
+                WHERE created_at >= :start AND created_at < :end
+            """),
+            params,
+        ).fetchone()
+        out["n_curated"] = tier.n or 0
+        if tier.n:
+            out["mean_strong_count"] = float(tier.strong) if tier.strong else None
+            out["mean_moderate_count"] = float(tier.moderate) if tier.moderate else None
+            out["mean_no_match_count"] = float(tier.no_match) if tier.no_match else None
+            out["mean_served_count"] = float(tier.served) if tier.served else None
+
+        fit = conn.execute(
+            text("""
+                SELECT AVG(total_fit) AS f, COUNT(*) AS n FROM curator_evaluations
+                WHERE created_at >= :start AND created_at < :end AND is_served = true
+            """),
+            params,
+        ).fetchone()
+        out["n_served_candidates"] = fit.n or 0
+        if fit.n:
+            out["mean_total_fit"] = float(fit.f) if fit.f else None
+
+        mode = conn.execute(
+            text("""
+                SELECT mode, COUNT(*) AS n FROM agent_decisions
+                WHERE created_at >= :start AND created_at < :end
+                GROUP BY 1
+            """),
+            params,
+        ).fetchall()
+        modes = {r.mode: r.n for r in mode}
+        total_modes = sum(modes.values())
+        out["n_decisions"] = total_modes
+        if total_modes:
+            out["recs_share"] = modes.get("RECS", 0) / total_modes
+
+        judged = conn.execute(
+            text("""
+                SELECT COUNT(*) AS n, AVG(relevance) AS rel, AVG(novelty) AS nov,
+                       AVG(explanation_quality) AS expl
+                FROM judge_evaluations
+                WHERE created_at >= :start AND created_at < :end
+            """),
+            params,
+        ).fetchone()
+        out["n_judged_items"] = judged.n or 0
+        if judged.n:
+            out["judge_relevance"] = float(judged.rel) if judged.rel else None
+            out["judge_novelty"] = float(judged.nov) if judged.nov else None
+            out["judge_explanation_quality"] = float(judged.expl) if judged.expl else None
+
+        jq = conn.execute(
+            text("""
+                SELECT COUNT(*) AS n, AVG(spec_fidelity) AS sf, AVG(list_coherence) AS lc
+                FROM judge_query_evaluations
+                WHERE created_at >= :start AND created_at < :end AND status = 'ok'
+            """),
+            params,
+        ).fetchone()
+        out["n_judged_queries"] = jq.n or 0
+        if jq.n:
+            out["judge_spec_fidelity"] = float(jq.sf) if jq.sf else None
+            out["judge_list_coherence"] = float(jq.lc) if jq.lc else None
+
+    return out
+
+
+def compare_windows_live(
+    engine: Engine,
+    baseline: tuple[date, date],
+    current: tuple[date, date],
+) -> tuple[list[MetricDelta], dict[str, Any]]:
+    """Compare two windows using live aggregates. Returns (deltas, sample sizes)."""
+    b = compute_window_metrics(engine, *baseline)
+    c = compute_window_metrics(engine, *current)
+
+    counts = {
+        k: {"baseline": b.get(k, 0), "current": c.get(k, 0)}
+        for k in (
+            "n_requests",
+            "n_curated",
+            "n_served_candidates",
+            "n_decisions",
+            "n_judged_items",
+            "n_judged_queries",
+        )
+    }
+
+    deltas = [
+        MetricDelta(
+            metric_name=name,
+            metric_group=LIVE_METRIC_DIRECTION.get(name, "neutral"),
+            baseline=b.get(name),
+            current=c.get(name),
+            baseline_n=b.get("n_requests", 0),
+            current_n=c.get("n_requests", 0),
+        )
+        for name in LIVE_METRIC_DIRECTION
+        if b.get(name) is not None or c.get(name) is not None
+    ]
+    return deltas, {"counts": counts, "errors_by_stage": {
+        "baseline": b.get("errors_by_stage", {}),
+        "current": c.get("errors_by_stage", {}),
+    }}
+
+
 # ---------------------------------------------------------------------------
 # Sampling
 # ---------------------------------------------------------------------------
