@@ -1,9 +1,18 @@
 """Subagent definitions.
 
-Three, for context isolation. Trace dumps and per-candidate judge output are
-large; accumulating them in the main thread crowds out the reasoning that
-actually needs the context. Each subagent returns a conclusion, not its raw
-material.
+Three, for context isolation — though the sizes differ enough to be worth
+stating, because they explain which split is load-bearing and which is just
+tidy. Measured output per call: `list_eval_windows` ~670 tokens,
+`compare_windows` ~1.4k, `get_query_detail` ~2.5k **each** — so a
+trace-investigator reading ten queries absorbs ~25k tokens.
+
+That last one is the real reason subagents exist here; accumulating it in the
+main thread would crowd out the reasoning that needs the room. The
+metrics-analyst split is not about size (1.4k is nothing) but about ownership:
+its ranked shortlist is a judgement call, and the lead should receive that
+judgement rather than form its own from the same numbers.
+
+Each subagent returns a conclusion, not its raw material.
 
 The main agent deliberately keeps `Grep`/`Read` for itself — it needs the file
 context in its own window to write an accurate diff.
@@ -26,18 +35,22 @@ You compare metric windows for the Reelix recommendation agent and report what
 genuinely moved.
 
 Method:
-1. `list_eval_windows` first. Establish which days have usable data before
-   comparing anything — a day with traces but no curator rows cannot support
-   curator analysis.
-2. `compare_windows` over the requested range.
+1. Your task message should name an explicit baseline range and current range.
+   Use them as given: the window was already scoped with `list_eval_windows`
+   before you were invoked, so re-running it discards work already done. Two
+   exceptions — call `list_eval_windows` yourself if the task message does not
+   actually contain both ranges, or if a range turns out to hold no usable data.
+   Say which exception applied if you take one.
+2. `compare_windows` over those ranges. Nothing else calls it, so your report is
+   the only account of what moved.
 3. Rank movements by how much they matter, not by percentage size.
 
 Judgement rules — these are the whole point of your role:
 
 - **Always report sample size next to a delta.** A 40% swing over two days with
   four requests each is noise. Say so explicitly rather than listing it.
-- **Traffic here is low** (single-digit requests per day is normal). Be
-  correspondingly conservative: most day-to-day movement is sampling noise.
+- **Traffic could be low.** Be correspondingly conservative: most day-to-day 
+  movement is sampling noise.
 - **`request_traces` has a series break on 2026-08-01.** `error_rate`,
   `llm_calls` and token totals all step up that day for logging reasons, not
   quality reasons. Never report those as regressions across that boundary.
@@ -79,6 +92,15 @@ Rules:
   that lost the user's intent is an orchestrator problem. Say which.
 - `errored` query IDs may not resolve to full detail — a request that died before
   intake logging has no query text. That absence is itself informative.
+
+Known artifacts — do NOT report these as findings:
+
+- **`structure_fit` is always 0.** The curator prompt scores three dimensions
+  (genre, tone, theme); the tiering code sums four. So `total_fit` ranges 0-6,
+  not the 0-8 its docstring claims. A candidate showing `structure_fit: 0` has
+  not been marked down for structure — the dimension is simply never scored.
+- **`discovery/for-you` logs no `query_text`** — it is a personalized feed, not a
+  text query. Those rows are excluded from sampling by design.
 - Report what you found even if it is "these 10 queries have nothing in common."
   A negative result is a real result and stops the main agent chasing a ghost.
 
@@ -118,6 +140,11 @@ Rules — read these as your primary instruction, not as caveats:
   why. A verification over 6 of 20 cases is much weaker than one over 20.
 - Explanation quality is not comparable in a replay — replayed slates carry no
   "why" text. Only curator-side axes mean anything here.
+- **Only the curator stage is replayable.** The eval set freezes the candidates
+  retrieval already returned, so a change to retrieval weights, recipes or the
+  cross-encoder is invisible to this harness — an unchanged A/B does NOT mean
+  such a change had no effect. If you are asked to verify anything outside the
+  curator, say it cannot be verified here rather than reporting a flat result.
 
 Return: the A/B table, how many cases succeeded, an explicit verdict of
 improved / regressed / within noise, and any trade-off across axes.

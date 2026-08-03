@@ -292,7 +292,7 @@ async def run(cfg: RunConfig, engine=None, llm_client=None) -> dict[str, Any]:
     tools_mod.configure(
         ToolContext(
             engine=engine or get_engine(),
-            llm_client=llm_client or _default_llm_client(),
+            llm_client=llm_client or _default_llm_client(),  # The OpenAI client used for curator replay
             judge_cfg=judge_cfg,
             run_id=cfg.run_id,
             apply_mode=cfg.apply_mode,

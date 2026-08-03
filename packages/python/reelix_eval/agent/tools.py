@@ -1,4 +1,4 @@
-"""In-process MCP tools — thin wrappers over the Phase 1 library.
+"""In-process MCP tools — thin wrappers over the reelix_eval library.
 
 Each tool runs inside *this* Python process (not the SDK's `claude` subprocess),
 so anything a tool calls is billed to whatever credential that code uses. That is
