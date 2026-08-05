@@ -386,6 +386,10 @@ async def _log_agent_decision(
                 tool_called=tool_called,
                 spec_json=spec_json,
                 opening_summary=opening_summary,
+                # The orchestrator's *input* for this turn. Logged so a decision
+                # can be replayed: on a refine turn the spec depends on the
+                # session-memory system message, not just query_text.
+                session_memory=state.session_memory,
                 planning_latency_ms=planning_ms,
                 input_tokens=llm_usage.input_tokens,
                 output_tokens=llm_usage.output_tokens,

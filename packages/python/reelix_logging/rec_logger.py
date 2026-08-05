@@ -121,6 +121,17 @@ class AgentDecisionLog(BaseModel):
     spec_json: dict | None = None
     opening_summary: str | None = None
 
+    #: The session memory the orchestrator was given for this turn, as-is.
+    #:
+    #: Every other field here is *output*. Without the input, a decision cannot
+    #: be reproduced: on a refine turn `AgentState.from_agent_input` injects an
+    #: extra system message built from this dict (the prior spec, the slot_map
+    #: of titles shown last turn, recent feedback), so a query like "more like
+    #: #3 but funnier" is unresolvable from `query_text` alone. Logged raw
+    #: rather than rendered, so a replay re-runs the live formatting code — the
+    #: same principle as curator replay re-running the live prompt.
+    session_memory: dict | None = None
+
     # Performance
     planning_latency_ms: int | None = None
     input_tokens: int | None = None
@@ -470,6 +481,9 @@ class TelemetryLogger:
             "tool_called": decision.tool_called,
             "spec_json": self.to_jsonable(decision.spec_json) if decision.spec_json else None,
             "opening_summary": decision.opening_summary,
+            "session_memory": self.to_jsonable(decision.session_memory)
+            if decision.session_memory
+            else None,
             "planning_latency_ms": decision.planning_latency_ms,
             "input_tokens": decision.input_tokens,
             "output_tokens": decision.output_tokens,
