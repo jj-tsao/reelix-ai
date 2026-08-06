@@ -4,7 +4,7 @@ Judging a day of traffic is offline work with no latency requirement, which is
 exactly what the Message Batches API is for: identical requests at 50% of the
 standard token price. Most batches finish well inside an hour.
 
-**Not a drop-in replacement for the synchronous path.** The eval agent's
+**Not a drop-in replacement for the synchronous path.** The Investigator's
 `run_judge` tool needs answers inside a turn, so it keeps using
 `runner.judge_queries`. This module is for `jobs.eval_judge`, where waiting is
 free. Both share `runner.merge_verdicts`, so their output can't drift.

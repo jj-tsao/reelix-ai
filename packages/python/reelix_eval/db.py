@@ -1,9 +1,9 @@
 """Engine factory for the eval harness.
 
-Mirrors `apps/data-pipeline/core/db.py` rather than importing it: a package under
+Mirrors `apps/jobs/core/db.py` rather than importing it: a package under
 `packages/python/` must not depend on an app. Every `store` function takes an
-`Engine` explicitly, so callers that already have one (the data-pipeline jobs)
-should pass theirs instead of building a second.
+`Engine` explicitly, so callers that already have one (the jobs app) should pass
+theirs instead of building a second.
 """
 
 from __future__ import annotations

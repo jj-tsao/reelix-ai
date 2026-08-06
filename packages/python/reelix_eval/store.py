@@ -1,7 +1,7 @@
 """Read-only queries over the Reelix logging tables.
 
 Every function takes an `Engine` and returns plain dataclasses — no LLM calls, no
-mutation. This is the layer the eval agent's tools wrap.
+mutation. This is the layer the Investigator's tools wrap.
 
 All day boundaries are timezone-aware UTC. The logging tables store `timestamptz`,
 so a naive datetime (or a bare `created_at::date` cast) is interpreted in the

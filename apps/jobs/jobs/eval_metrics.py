@@ -17,7 +17,7 @@ from datetime import date, timedelta
 
 from core.config import DATABASE_URL
 from core.db import get_engine
-from core.metrics_queries import compute_all_metrics, print_summary, upsert_metrics
+from reelix_eval.metrics import compute_all_metrics, print_summary, upsert_metrics
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

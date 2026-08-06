@@ -5,7 +5,7 @@ imported by the serving path — the API and MCP server never depend on it.
 
 | Module | Purpose |
 |---|---|
-| `db` | Engine factory (`DATABASE_URL`). Mirrors the data-pipeline's rather than importing an app. |
+| `db` | Engine factory (`DATABASE_URL`). Mirrors the jobs app's rather than importing an app. |
 | `store` | Read-only queries over the logging tables: windows, metrics, window comparison, symptom-filtered sampling, full per-query assembly. |
 | `judge` | LLM-as-judge on Claude via the Anthropic SDK. Two calls per query so curator and explanation quality stay separable. Synchronous (`judge_queries`) or Batch API (`judge_queries_batch`, half price). |
 | `replay` | Freeze real queries into an eval set, then re-run the curator stage against the working tree. |

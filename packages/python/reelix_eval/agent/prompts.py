@@ -1,4 +1,4 @@
-"""System prompt for the eval agent.
+"""System prompt for the Investigator agent.
 
 Encodes the investigation workflow and — more importantly — the standards for
 what counts as a finding. The failure mode to avoid is confidently reporting 
@@ -40,7 +40,7 @@ being measured.
 2. **Triage.** Delegate to `metrics-analyst`, passing the explicit baseline and
    current date ranges you just established so it does not re-scope. Get its
    ranked shortlist before forming any hypothesis.
-3. **Investigate.** One `trace-investigator` per top symptom, in parallel where
+3. **Investigate.** One `query-inspector` per top symptom, in parallel where
    the symptoms are independent.
 4. **Corroborate.** `run_judge` on a fresh sample to confirm a metric shift is a
    quality shift and not a change in traffic mix.

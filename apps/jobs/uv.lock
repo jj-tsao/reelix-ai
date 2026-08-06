@@ -1661,7 +1661,7 @@ version = "0.1.0"
 source = { editable = "../../packages/python" }
 
 [[package]]
-name = "reelix-data-pipeline"
+name = "reelix-jobs"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

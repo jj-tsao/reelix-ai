@@ -1,9 +1,14 @@
-"""The eval agent — a Claude Agent SDK agent that reads the logs and proposes fixes.
+"""The Investigator — a Claude Agent SDK agent that reads the logs and proposes fixes.
+
+Named for what it does rather than the package that houses it: `reelix_eval` is
+the eval toolkit (judge, replay, metrics queries), and this agent is one consumer
+of it alongside the `eval_judge` and `eval_metrics` jobs. Its own work runs wider
+than eval — it triages, locates the responsible code, and proposes diffs.
 
 Layers:
 
 - `tools`     in-process MCP tools wrapping the Phase 1 library
-- `subagents` three context-isolated specialists (metrics, traces, verification)
+- `subagents` three context-isolated specialists (metrics, queries, verification)
 - `prompts`   the workflow and, more importantly, the evidence standards
 - `run`       options assembly, the safety gate, and the run loop
 

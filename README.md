@@ -565,7 +565,7 @@ User Interactions ──▶ Taste Vector (Long term memory)
 This is a **pnpm monorepo** using **Turborepo**:
 - **apps/api** - FastAPI backend (Python 3.11+, managed with `uv`)
 - **apps/web** - React frontend (Vite + TypeScript + Tailwind)
-- **apps/data-pipeline** - ETL, embedding, rating enrichment, and evaluation jobs (Python 3.11+, managed with `uv`)
+- **apps/jobs** - ETL, embedding, rating enrichment, and evaluation jobs (Python 3.11+, managed with `uv`)
 - **packages/python** - Shared Python packages (reelix_agent, reelix_core, reelix_ranking, reelix_retrieval, etc.)
 
 ---

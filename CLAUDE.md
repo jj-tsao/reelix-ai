@@ -16,7 +16,7 @@ The system combines dense embeddings (fine-tuned bge-base-en-v1.5), BM25 sparse 
 This is a pnpm monorepo using Turborepo:
 - **apps/api** - FastAPI backend (Python 3.11+, managed with `uv`)
 - **apps/web** - React frontend (Vite + TypeScript + Tailwind)
-- **apps/data-pipeline** - ETL + embedding + Qdrant indexing pipeline (Python 3.11+, managed with `uv`)
+- **apps/jobs** - Everything invoked outside a request: ETL + embedding + Qdrant indexing, rating enrichment, and the evaluation/investigation jobs (Python 3.11+, managed with `uv`)
 - **packages/python** - Shared Python packages (reelix_agent, reelix_core, reelix_ranking, reelix_retrieval, etc.)
 
 ## Development Commands
@@ -58,9 +58,9 @@ pytest -k "test_name"            # Run tests matching pattern
 REELIX_SKIP_RECOMMENDER_INIT=1 uvicorn app.main:app --reload --port 7860
 ```
 
-### Data Pipeline (apps/data-pipeline)
+### Jobs (apps/jobs)
 ```bash
-cd apps/data-pipeline
+cd apps/jobs
 uv sync                   # Install Python dependencies
 source .venv/bin/activate # Activate venv
 
@@ -84,11 +84,11 @@ python -m jobs.eval_judge --days 7                   # backfill a week
 python -m jobs.eval_judge --sync                     # instant, ~2x cost
 python -m jobs.eval_judge --dry-run                  # show what would be judged
 
-# Eval agent — investigates quality from the logs and proposes fixes
-python -m jobs.eval_agent --since 7d                 # investigate + report (read-only)
-python -m jobs.eval_agent --since 7d --apply         # + branch, edit, replay-verify
-python -m jobs.eval_agent --focus curator --since 14d # scope to one stage
-python -m jobs.eval_agent --since 7d --dry-run       # print the plan, no LLM calls
+# Investigator agent — investigates quality from the logs and proposes fixes
+python -m jobs.investigate --since 7d                 # investigate + report (read-only)
+python -m jobs.investigate --since 7d --apply         # + branch, edit, replay-verify
+python -m jobs.investigate --focus curator --since 14d # scope to one stage
+python -m jobs.investigate --since 7d --dry-run       # print the plan, no LLM calls
 ```
 
 ### Linting and Formatting (Python)
@@ -151,7 +151,7 @@ User Query
 3. **Ranking** - `reelix_ranking/`: Multi-stage reranking (metadata scorer + cross-encoder)
 4. **Recommendation** - `reelix_recommendation/recommend.py`: Orchestrates retrieval + ranking + RRF fusion
 
-### Data Pipeline (apps/data-pipeline)
+### Data Pipeline (apps/jobs)
 
 ETL pipeline that populates and maintains the Qdrant vector store. Two main pipelines:
 
@@ -245,16 +245,16 @@ Three-layer system: logging → tracing → evaluation, all in the same Supabase
 
 Logged via `TelemetryLogger.log_trace()` and `log_error()` in explore.py. Each completed request gets one trace row with timing breakdown and candidate counts.
 
-#### Evaluation Jobs (apps/data-pipeline)
+#### Evaluation Jobs (apps/jobs)
 
 | Job | Table | Purpose |
 |-----|-------|---------|
 | `eval_metrics` | `daily_metrics` | Automated daily aggregates: curator quality, latency p50/p95, cost, error rates, routing distribution, judge scores |
 | `eval_judge` | `judge_evaluations` | LLM-as-judge evaluation with two independent calls per query |
 
-**eval_metrics** (`core/metrics_queries.py`): Computes 20+ metrics across 6 groups (cost, latency, curator, errors, routing, judge) and upserts to `daily_metrics` with `UNIQUE(metric_date, metric_name)`.
+**eval_metrics** (`reelix_eval/metrics.py`): Computes 20+ metrics across 6 groups (cost, latency, curator, errors, routing, judge) and upserts to `daily_metrics` with `UNIQUE(metric_date, metric_name)`.
 
-**eval_judge** (`core/judge.py`): Samples completed agent queries, then runs two separate LLM judge calls:
+**eval_judge** (`reelix_eval/judge/`): Samples completed agent queries, then runs two separate LLM judge calls:
 1. **Recommendation quality** (relevance + novelty, 1-5) — evaluates curator picks WITHOUT "why" text to avoid bias
 2. **Explanation quality** (1-5) — evaluates explanation agent output WITH "why" text
 
@@ -264,8 +264,10 @@ This separation cleanly isolates curator vs explanation agent quality. If releva
 - `reelix_logging/rec_logger.py` - `TelemetryLogger` class with all logging methods
 - `scripts/Supabase/logger_tables_schema.sql` - Pipeline tables schema
 - `scripts/Supabase/agent_tables_schema.sql` - Agent + tracing + evaluation tables schema
-- `apps/data-pipeline/core/metrics_queries.py` - Metric computation queries
-- `apps/data-pipeline/core/judge.py` - LLM-as-judge prompts, data assembly, scoring
+- `packages/python/reelix_eval/metrics.py` - Metric computation queries
+- `packages/python/reelix_eval/judge/` - LLM-as-judge prompts, data assembly, scoring
+- `packages/python/reelix_eval/store.py` - Read-only queries over the logging tables
+- `packages/python/reelix_eval/agent/` - The Investigator agent (`jobs.investigate`)
 
 **Query patterns:**
 ```sql
@@ -295,7 +297,7 @@ OPENAI_API_KEY=
 REDIS_URL=
 ```
 
-Required in `apps/data-pipeline/.env`:
+Required in `apps/jobs/.env`:
 ```
 QDRANT_ENDPOINT=
 QDRANT_API_KEY=
@@ -312,7 +314,7 @@ REELIX_JUDGE_ANTHROPIC_KEY=
 
 ## Python Package Dependencies
 
-Both `apps/api` and `apps/data-pipeline` depend on shared packages via `uv` editable installs:
+Both `apps/api` and `apps/jobs` depend on shared packages via `uv` editable installs:
 - `reelix-core` from `packages/python` (config, types, shared constants)
 
 The data pipeline imports from shared packages for the encoding contract:

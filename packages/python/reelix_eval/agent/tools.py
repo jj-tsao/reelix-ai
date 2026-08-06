@@ -29,6 +29,9 @@ from reelix_eval.replay import curator as replay_mod
 
 logger = logging.getLogger(__name__)
 
+#: The repo the agent reads and (under --apply) edits. Used to stamp reports with
+#: a git sha and to fence Edit/Write inside the tree — NOT to locate output. Where
+#: evalsets and reports land is the caller's decision; see `ToolContext`.
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
@@ -42,13 +45,19 @@ class ToolContext:
 
     Held module-level because the `@tool` decorator hands the handler only its
     arguments — there is no per-call context parameter.
+
+    `evalsets_dir` and `reports_dir` are deliberately required rather than
+    defaulted. They previously pointed into the jobs app's directory, which had
+    this package reaching into a specific app to decide where its output went —
+    backwards, and silently wrong for any other caller. The app that runs the
+    agent knows where its own output belongs; this package does not.
     """
 
     engine: Any
+    evalsets_dir: Path
+    reports_dir: Path
     llm_client: Any = None
     judge_cfg: JudgeConfig = field(default_factory=JudgeConfig)
-    evalsets_dir: Path = REPO_ROOT / "apps/data-pipeline/evalsets"
-    reports_dir: Path = REPO_ROOT / "apps/data-pipeline/reports"
     run_id: str = "adhoc"
     apply_mode: bool = False
     #: Replay runs produced this session, keyed by label, so `score_replay` can

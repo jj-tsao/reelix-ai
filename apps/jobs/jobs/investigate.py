@@ -1,19 +1,24 @@
 """
-Eval agent job — investigates Reelix quality from the production logs.
+Investigator job — investigates Reelix quality from the production logs.
 
 A thin argparse wrapper over `reelix_eval.agent.run`, matching the jobs/*
 convention: the logic lives in the package, the job is the entry point.
+
+Named `investigate` rather than `eval_agent` because the agent's remit is wider
+than eval: it triages metrics, reads real queries, locates the responsible code
+and proposes diffs. The sibling `eval_judge` and `eval_metrics` jobs keep their
+names — those really are just eval.
 
 Read-only by default. `--apply` additionally lets the agent branch and edit
 prompt/config files; pushing is denied unconditionally in every mode.
 
 Usage:
-    python -m jobs.eval_agent --since 7d                    # investigate + report
-    python -m jobs.eval_agent --since 7d --apply            # + branch, edit, verify
-    python -m jobs.eval_agent --query-ids a,b,c             # deep-dive specific queries
-    python -m jobs.eval_agent --focus curator --since 14d   # scope to one stage
-    python -m jobs.eval_agent --replay-only --evalset base  # re-verify a branch
-    python -m jobs.eval_agent --since 7d --dry-run          # print the plan, no LLM calls
+    python -m jobs.investigate --since 7d                    # investigate + report
+    python -m jobs.investigate --since 7d --apply            # + branch, edit, verify
+    python -m jobs.investigate --query-ids a,b,c             # deep-dive specific queries
+    python -m jobs.investigate --focus curator --since 14d   # scope to one stage
+    python -m jobs.investigate --replay-only --evalset base  # re-verify a branch
+    python -m jobs.investigate --since 7d --dry-run          # print the plan, no LLM calls
 """
 
 import argparse
@@ -21,6 +26,7 @@ import asyncio
 import json
 import logging
 import sys
+from pathlib import Path
 
 from core.config import DATABASE_URL, OPENAI_API_KEY
 
@@ -28,6 +34,10 @@ from reelix_eval.agent import RunConfig, run
 from reelix_eval.judge import DEFAULT_JUDGE_MODEL
 
 logger = logging.getLogger(__name__)
+
+#: This app's own directory. Output is anchored here rather than to the caller's
+#: cwd so `python -m jobs.investigate` writes to the same place from anywhere.
+APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _validate_env(cfg: RunConfig) -> None:
@@ -60,6 +70,10 @@ def main() -> None:
                    help="Roughly how many queries to sample for evidence. Default: 20.")
     p.add_argument("--evalset", default="default",
                    help="Eval-set name for snapshot/replay. Default: default.")
+    p.add_argument("--evalsets-dir", default=None, type=Path,
+                   help=f"Where eval-set snapshots live. Default: {APP_ROOT / 'evalsets'}.")
+    p.add_argument("--reports-dir", default=None, type=Path,
+                   help=f"Where reports are written. Default: {APP_ROOT / 'reports'}.")
     p.add_argument("--replay-only", action="store_true",
                    help="Skip investigation; replay an existing eval set and score it.")
     p.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL,
@@ -87,6 +101,8 @@ def main() -> None:
         baseline=args.baseline,
         focus=args.focus,
         evalset=args.evalset,
+        evalsets_dir=args.evalsets_dir or APP_ROOT / "evalsets",
+        reports_dir=args.reports_dir or APP_ROOT / "reports",
         sample_size=args.sample_size,
         judge_model=args.judge_model,
         model=args.model,
@@ -99,7 +115,7 @@ def main() -> None:
         _validate_env(cfg)
 
     logger.info("=" * 60)
-    logger.info("Reelix eval_agent — run %s", cfg.run_id)
+    logger.info("Reelix Investigator — run %s", cfg.run_id)
     logger.info(
         "Window: %s | baseline: %s | focus: %s | mode: %s",
         cfg.since, cfg.baseline or "auto", cfg.focus or "all",

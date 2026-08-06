@@ -1,20 +1,20 @@
-"""Subagent definitions.
+"""Subagent definitions — the Investigator's staff.
 
 Three, for context isolation — though the sizes differ enough to be worth
 stating, because they explain which split is load-bearing and which is just
 tidy. Measured output per call: `list_eval_windows` ~670 tokens,
 `compare_windows` ~1.4k, `get_query_detail` ~2.5k **each** — so a
-trace-investigator reading ten queries absorbs ~25k tokens.
+query-inspector reading ten queries absorbs ~25k tokens.
 
 That last one is the real reason subagents exist here; accumulating it in the
 main thread would crowd out the reasoning that needs the room. The
 metrics-analyst split is not about size (1.4k is nothing) but about ownership:
-its ranked shortlist is a judgement call, and the lead should receive that
-judgement rather than form its own from the same numbers.
+its ranked shortlist is a judgement call, and the Investigator should receive
+that judgement rather than form its own from the same numbers.
 
 Each subagent returns a conclusion, not its raw material.
 
-The main agent deliberately keeps `Grep`/`Read` for itself — it needs the file
+The Investigator deliberately keeps `Grep`/`Read` for itself — it needs the file
 context in its own window to write an accurate diff.
 """
 
@@ -62,7 +62,7 @@ real. If nothing moved beyond noise, say exactly that — do not pad the list.
 """,
 )
 
-TRACE_INVESTIGATOR = AgentDefinition(
+QUERY_INSPECTOR = AgentDefinition(
     description=(
         "Pulls concrete example queries for one symptom and reports the shared "
         "pattern, quoting query IDs as evidence. Use one per symptom."
@@ -102,7 +102,7 @@ Known artifacts — do NOT report these as findings:
 - **`discovery/for-you` logs no `query_text`** — it is a personalized feed, not a
   text query. Those rows are excluded from sampling by design.
 - Report what you found even if it is "these 10 queries have nothing in common."
-  A negative result is a real result and stops the main agent chasing a ghost.
+  A negative result is a real result and stops the Investigator chasing a ghost.
 
 Return: the symptom, the shared pattern (or its absence), which stage you believe
 is responsible, supporting query IDs with the specific numbers that make the
@@ -155,6 +155,6 @@ improved / regressed / within noise, and any trade-off across axes.
 def build_agents() -> dict[str, AgentDefinition]:
     return {
         "metrics-analyst": METRICS_ANALYST,
-        "trace-investigator": TRACE_INVESTIGATOR,
+        "query-inspector": QUERY_INSPECTOR,
         "fix-verifier": FIX_VERIFIER,
     }

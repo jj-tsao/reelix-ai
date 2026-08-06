@@ -39,8 +39,8 @@ htmlcov/
 .turbo
 
 # Eval harness run artifacts (reports + frozen eval sets)
-apps/data-pipeline/reports/
-apps/data-pipeline/evalsets/
+apps/jobs/reports/
+apps/jobs/evalsets/
 
 # Local CI / debug artifacts
 .ci_logs/

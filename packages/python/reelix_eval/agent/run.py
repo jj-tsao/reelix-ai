@@ -83,10 +83,22 @@ class RunConfig:
     max_turns: int = DEFAULT_MAX_TURNS
     apply_mode: bool = False
     dry_run: bool = False
+    #: Where snapshots and reports land. Left unset they resolve against the
+    #: current working directory, which suits an ad-hoc run from a shell; the
+    #: `investigate` job passes explicit paths anchored to its own app directory
+    #: so output does not follow whoever happened to invoke it.
+    evalsets_dir: Path | None = None
+    reports_dir: Path | None = None
     run_id: str = field(
         default_factory=lambda: "eval-"
         + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     )
+
+    def resolved_evalsets_dir(self) -> Path:
+        return self.evalsets_dir or Path.cwd() / "evalsets"
+
+    def resolved_reports_dir(self) -> Path:
+        return self.reports_dir or Path.cwd() / "reports"
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +304,8 @@ async def run(cfg: RunConfig, engine=None, llm_client=None) -> dict[str, Any]:
     tools_mod.configure(
         ToolContext(
             engine=engine or get_engine(),
+            evalsets_dir=cfg.resolved_evalsets_dir(),
+            reports_dir=cfg.resolved_reports_dir(),
             llm_client=llm_client or _default_llm_client(),  # The OpenAI client used for curator replay
             judge_cfg=judge_cfg,
             run_id=cfg.run_id,
@@ -310,6 +324,8 @@ async def run(cfg: RunConfig, engine=None, llm_client=None) -> dict[str, Any]:
             "model": cfg.model,
             "judge_model": judge_cfg.model,
             "apply_mode": cfg.apply_mode,
+            "evalsets_dir": str(cfg.resolved_evalsets_dir()),
+            "reports_dir": str(cfg.resolved_reports_dir()),
             "allowed_tools": options.allowed_tools,
             "subagents": list((options.agents or {}).keys()),
             "max_turns": cfg.max_turns,

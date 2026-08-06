@@ -5,7 +5,7 @@ around the OpenAI Chat Completions API.
 The async methods emit OpenTelemetry spans (`llm.chat`, `llm.chat_stream`) with
 GenAI semantic-convention attributes plus a Reelix-specific `reelix.agent.role`.
 OTel is treated as a no-op when no TracerProvider is configured (e.g. in the
-data-pipeline eval jobs), so this module stays importable everywhere.
+offline eval jobs), so this module stays importable everywhere.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from opentelemetry.trace import Span, SpanKind, Status, StatusCode
 # ── GenAI semantic-convention attribute keys ──────────────────────────
 # Plain string literals (rather than the opentelemetry-semantic-conventions
 # package) so reelix-core needs only opentelemetry-api — keeping the
-# data-pipeline venv lean. These keys are stable across the GenAI conventions.
+# jobs venv lean. These keys are stable across the GenAI conventions.
 _GEN_AI_SYSTEM = "gen_ai.system"
 _GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
 _GEN_AI_REQUEST_MODEL = "gen_ai.request.model"

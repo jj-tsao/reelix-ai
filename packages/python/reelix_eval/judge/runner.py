@@ -170,7 +170,7 @@ def build_client(api_key: str | None = None, timeout: float = 120.0):
     key = api_key or os.getenv(JUDGE_KEY_ENV)
     if not key:
         raise RuntimeError(
-            f"{JUDGE_KEY_ENV} not set. Add it to apps/data-pipeline/.env — do not "
+            f"{JUDGE_KEY_ENV} not set. Add it to apps/jobs/.env — do not "
             "export ANTHROPIC_API_KEY, which would shadow the Claude Code login."
         )
     return AsyncAnthropic(api_key=key, timeout=timeout, max_retries=3)

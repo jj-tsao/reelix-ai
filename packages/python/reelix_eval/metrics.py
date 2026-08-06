@@ -4,6 +4,16 @@ Automated evaluation metrics for Reelix agent logging.
 Queries the logging tables (request_traces, tier_summaries, curator_evaluations,
 agent_decisions, rec_results) and computes daily metrics for monitoring
 recommendation quality, latency, cost, and reliability.
+
+Library code, like its neighbour `store`: takes an `Engine`, returns dataclasses,
+reads env vars from nowhere. It lived in the jobs app's `core/` for historical
+reasons, next to the TMDB client and the Qdrant upserter, which had nothing to do
+with it.
+
+This is the write side of `daily_metrics`; `store.get_metrics` is the read side.
+They are coupled through the table, not through an import, which is why a metric
+renamed here silently disappears from the Investigator's `get_metrics` rather
+than failing at import time.
 """
 
 from __future__ import annotations
