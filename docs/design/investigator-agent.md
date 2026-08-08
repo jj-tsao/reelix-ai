@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Implemented. Read-only by default; Branching and verfication gated by `--apply`. |
+| **Status** | Implemented. Read-only by default; Branching, implementation, and verification gated by `--apply`. |
 | **Last reviewed** | 2026-08-06 |
 | **Owner** | jj-tsao |
 | **Code** | `packages/python/reelix_eval/agent/` — `run.py` (assembly, safety gate), `tools.py`, `subagents.py`, `prompts.py` |
@@ -16,7 +16,7 @@
 
 ## Summary
 
-The Investigator Agent (built on Claude Agent SDK) reads Reelix's own production logs, attributes a quality regression to a specific stage of the recommendation pipeline, proposes a concrete diff; and, when `apply_mode` is enabled, it branches, implements the fix, and verifies it by replaying a frozen eval set. Finaly, the agent writes a report with findings and veried solutions for human review and approval.
+The Investigator Agent (built on Claude Agent SDK) reads Reelix's own production logs, attributes a quality regression to a specific stage of the recommendation pipeline, proposes a concrete diff; and, when `apply_mode` is enabled, it branches, implements the fix, and verifies it by replaying a frozen eval set. Finally, the agent writes a report with findings and verified solutions for human review and approval.
 
 Observability is done separately: OpenTelemetry and Grafana for live traces, batch metrics and LLM-as-a-judge evals for daily aggregates (`jobs.eval_judge`). The Investigator's main job is root-cause attribution, solutioning, and verification: **which stage caused it, on the evidence of which specific queries, and what change would fix it — then testing that change against a frozen baseline and handing the human a diff for approval.**
 
@@ -28,7 +28,7 @@ Reelix has two existing evaluation layers. The batched **LLM-as-a-judge eval** (
 
 Investigating a regression means a human reading query logs and traces, attributing the root cause to a pipeline stage, composing a candidate fix, and verifying it by hand. 1–2 hours of effort per regression.
 
-The Investigator Agent makes investigation a repeatable, autonomous job. The key challegne is designing the harness layer that constrains the agent to:
+The Investigator Agent makes investigation a repeatable, autonomous job. The key challenge is designing the harness layer that constrains the agent to:
 
 1. Ground findings in real production evidence
 2. Attribute root causes to a single pipeline stage
@@ -48,7 +48,7 @@ A lead agent (`claude-opus-5`, 60-turn ceiling) plus three context-isolated suba
                                 │           │            │
                       ┌─────────▼───┐ ┌─────▼───────┐ ┌──▼──────────┐
                       │ metrics-    │ │ query-      │ │ fix-verifier│
-                      │ analyst     │ │ inspector xN│ │             │
+                      │ analyst     │ │ inspector   │ │             │
                       │ What moved? │ │ Why?        │ │ Did it help?│
                       └─────────────┘ └─────────────┘ └─────────────┘
                               │             │            │
@@ -58,8 +58,32 @@ A lead agent (`claude-opus-5`, 60-turn ceiling) plus three context-isolated suba
                            └─────────────────────────────────┘
 ```
 
-**The workflow** 
-* Scope the window → delegate triage (`metric-analyst`) → investigate each symptom in parallel (`query-inspector`) → corroborate with a fresh judge sample → locate the responsible code → propose a diff → (under `apply_mode`) branch and implement → verify by replay (`fix-verifier`) → write the report.
+**Agent Workflow** 
+
+```mermaid
+flowchart TD
+    A[Scope window] --> B[metrics-analyst<br/>triage metrics]
+    B -->|nothing moved| CLEAN[Clean report:<br/>metric summary<br/>no findings]
+    B -->|symptoms found| C[query-inspector xN<br/>attribute to one stage]
+    C --> D[run_judge<br/>fresh sample corroborates]
+    D --> E[Locate code, compose diff]
+    E --> F{apply_mode?}
+
+    F -->|no| PROP[Proposed report:<br/>findings + evidence<br/>proposed diff, unverified]
+
+    F -->|yes| G[snapshot_evalset<br/>freeze replay baseline]
+    G --> H[Branch + edit]
+    H --> I[fix-verifier<br/>replay_curator, score_replay]
+
+    I -->|verified gain| VER[Verified report:<br/>findings + evidence<br/>diff on branch<br/>replay result vs baseline<br/>recommend merge]
+    I -->|within noise, no gain| ATT[Attempted report:<br/>findings + evidence<br/>diff on branch<br/>replay result vs baseline<br/>recommend do not merge]
+
+    H -.->|every write call| GATE[can_use_tool gate]
+    GATE -.->|push, remote: denied in all modes| X[Refused:<br/>call denied, run continues]
+
+    classDef gate stroke-dasharray: 4 3
+    class GATE,X gate
+```
 
 **Why subagents?** 
 * Measured tool output: `get_query_detail` **~2.5k each**. A `query-inspector` reading ten queries absorbs ~25k tokens of raw material. Accumulating it in the lead's window would crowd out the reasoning that needs the room. 
@@ -79,7 +103,7 @@ A lead agent (`claude-opus-5`, 60-turn ceiling) plus three context-isolated suba
 | Judge uses structured outputs with `Literal[1..5]` scores | Bare `json.loads` with a fallback | The v1.0 judge silently fell back to `{}` on a malformed response, scoring every candidate `None` — which in aggregate looked exactly like a quality regression. `Literal` rather than `Field(ge=…, le=…)` because structured outputs enforce `enum` server-side but strip numeric constraints. |
 | Judge key is `REELIX_JUDGE_ANTHROPIC_KEY` | Reuse `ANTHROPIC_API_KEY` | That name resolves first for both the Anthropic SDK and the Claude Code CLI, so exporting it would silently move every agent turn off plan credit onto pay-as-you-go. Preflight *fails the run* if it's set. |
 | Two independent judge calls; recommendation quality judged **blind** to the "why" text | One call scoring everything | A persuasive explanation must not be able to rescue a bad pick. Relevance drops → curator. Explanation quality drops → explanation agent. Stage attribution again. |
-| Batch API for `jobs.eval_judge`, synchronous for the agent's `run_judge` | One path for both | Batch is half price ($0.0195 vs $0.0380 per query) but takes minutes. The batch job can wait (not time-sensitive); an agent mid-investigation is low volumne but time-sensitive. |
+| Batch API for `jobs.eval_judge`, synchronous for the agent's `run_judge` | One path for both | Batch is half price ($0.0195 vs $0.0380 per query) but takes minutes. The batch job can wait (not time-sensitive); an agent mid-investigation is low volume but time-sensitive. |
 | Tools run **in-process**, not in the SDK subprocess | Separate MCP server | Anything a tool calls is billed to that code's own credential. Deliberate for `run_judge`: judge spend stays separate and measurable from agent spend. |
 | `compare_windows` aggregates **live** from the logging tables | Read `daily_metrics` | `daily_metrics` is only written when the batch job runs. Live aggregation allows a comparison to run on any window without depending on a job having run. |
 | `setting_sources=[]` | Inherit `~/.claude` and repo settings | A run's configuration is explicit. Unrelated local config cannot silently change what an investigation is allowed to do. |
@@ -94,7 +118,7 @@ Encoded in the agent prompt as standards that explicitly outrank completing the 
 
 **Evidence is query IDs and numbers.** Every claim names the queries it rests on. A hypothesis that couldn't be checked against real queries is labelled low-confidence, not stated as fact.
 
-**Attribute to a stage.** Bad candidates scored accurately is retrieval. Good candidates scored wrongly is the curator. A spec that lost the user's intent is the orchestrator. Every finding picks one.
+**Attribute to a stage.** Bad candidates scored accurately is a retrieval issue. Good candidates scored wrongly is the curator. A spec that lost the user's intent is the orchestrator. Every finding picks one.
 
 **A clean run is a valid result.** If nothing is wrong, the agent says so in one line and writes a report with no findings. The prompt forbids manufacturing findings to justify the run — the likeliest way an agent like this fails is by rewarding itself for output.
 
