@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 
 from core.bm25_utils import create_bm25_sparse_vector
 from reelix_core.config import EMBEDDING_MODEL as EMBEDDING_MODEL_NAME
-from reelix_retrieval.text_formatting import format_embedding_text, format_llm_context
+from reelix_retrieval.text_formatting import format_llm_context
 
 sentence_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 print(f"Embedding Model '{EMBEDDING_MODEL_NAME}' loaded.")
