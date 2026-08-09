@@ -18,13 +18,13 @@
 
 The Investigator Agent (built on Claude Agent SDK) reads Reelix's own production logs, attributes a quality regression to a specific stage of the recommendation pipeline, proposes a concrete diff; and, when `apply_mode` is enabled, it branches, implements the fix, and verifies it by replaying a frozen eval set. Finally, the agent writes a report with findings and verified solutions for human review and approval.
 
-Observability is done separately: OpenTelemetry and Grafana for live traces, batch metrics and LLM-as-a-judge evals for daily aggregates (`jobs.eval_judge`). The Investigator's main job is root-cause attribution, solutioning, and verification: **which stage caused it, on the evidence of which specific queries, and what change would fix it — then testing that change against a frozen baseline and handing the human a diff for approval.**
+The Investigator's main job is root-cause attribution, solutioning, and verification: **which stage caused it, on the evidence of which specific queries, and what change would fix it; then testing that change against a frozen baseline and handing the human a diff for approval.**
 
 ---
 
 ## What problem does it solve?
 
-Reelix has two existing evaluation layers. The batched **LLM-as-a-judge eval** (`jobs.eval_judge`) samples completed queries and scores them on relevance, novelty, spec fidelity, list coherence, and explanation quality. **Distributed tracing (OTel)** gives per-request stage timing and metadata. Together they are sufficient for detection but inefficient for diagnosis. 
+Reelix has two existing evaluation layers. The batched **LLM-as-a-judge eval** (`jobs.eval_judge`) samples completed queries and scores them on relevance, novelty, spec fidelity, list coherence, and explanation quality. **Distributed tracing** (OTel, surfaced in Grafana) gives per-request stage timing and metadata. Together they are sufficient for detection but inefficient for diagnosis and mitigation. 
 
 Investigating a regression means a human reading query logs and traces, attributing the root cause to a pipeline stage, composing a candidate fix, and verifying it by hand. 1–2 hours of effort per regression.
 
@@ -79,7 +79,7 @@ flowchart TD
     I -->|within noise, no gain| ATT[Attempted report:<br/>findings + evidence<br/>diff on branch<br/>replay result vs baseline<br/>recommend do not merge]
 
     H -.->|every write call| GATE[can_use_tool gate]
-    GATE -.->|push, remote: denied in all modes| X[Refused:<br/>call denied, run continues]
+    GATE -.->|push, remote: denied in all modes| X[Refused:<br/>call denied, run continues   ]
 
     classDef gate stroke-dasharray: 4 3
     class GATE,X gate
