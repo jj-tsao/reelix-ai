@@ -42,7 +42,7 @@ A lead agent (`claude-opus-5`, 60-turn ceiling) plus three context-isolated suba
 
 ```
                         ┌────────────────────────────────────────┐
-   jobs.investigate ───▶│  Investigator (lead)                   │
+   jobs.investigate ───▶│  Investigator (lead agent)             │
                         │  scope · locate/compose code · report  │
                         └───────┬───────────┬────────────┬───────┘
                                 │           │            │
@@ -64,7 +64,7 @@ A lead agent (`claude-opus-5`, 60-turn ceiling) plus three context-isolated suba
 flowchart TD
     A[Scope window] --> B[metrics-analyst<br/>triage metrics]
     B -->|nothing moved| CLEAN[Clean report:<br/>metric summary<br/>no findings]
-    B -->|symptoms found| C[query-inspector xN<br/>attribute to one stage]
+    B -->|symptoms found| C[query-inspector xN <br/>attribute to one stage]
     C --> D[run_judge<br/>fresh sample corroborates]
     D --> E[Locate code, compose diff]
     E --> F{apply_mode?}
