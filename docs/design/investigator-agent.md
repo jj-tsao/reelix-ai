@@ -62,24 +62,24 @@ A lead agent (`claude-opus-5`, 60-turn ceiling) plus three context-isolated suba
 
 ```mermaid
 flowchart TD
-    A[Scope window] --> B[metrics-analyst<br/>triage metrics]
-    B -->|nothing moved| CLEAN[Clean report:<br/>metric summary<br/>no findings]
-    B -->|symptoms found| C[query-inspector xN <br/>attribute to one stage]
-    C --> D[run_judge<br/>fresh sample corroborates]
+    A[Scope window] --> B[metrics-analyst\ntriage metrics]
+    B -->|nothing moved| CLEAN[Clean report:\nmetric summary\nno findings]
+    B -->|symptoms found| C[query-inspector xN \nattribute to one stage]
+    C --> D[run_judge\nfresh sample corroborates]
     D --> E[Locate code, compose diff]
     E --> F{apply_mode?}
 
-    F -->|no| PROP[Proposed report:<br/>findings + evidence<br/>proposed diff, unverified]
+    F -->|no| PROP[Proposed report:\nfindings + evidence\nproposed diff, unverified]
 
-    F -->|yes| G[snapshot_evalset<br/>freeze replay baseline]
+    F -->|yes| G[snapshot_evalset\nfreeze replay baseline]
     G --> H[Branch + edit]
-    H --> I[fix-verifier<br/>replay_curator, score_replay]
+    H --> I[fix-verifier\nreplay_curator, score_replay]
 
-    I -->|verified gain| VER[Verified report:<br/>findings + evidence<br/>diff on branch<br/>replay result vs baseline<br/>recommend merge]
-    I -->|within noise, no gain| ATT[Attempted report:<br/>findings + evidence<br/>diff on branch<br/>replay result vs baseline<br/>recommend do not merge]
+    I -->|verified gain| VER[Verified report:\nfindings + evidence\ndiff on branch\nreplay result vs baseline\nrecommend merge]
+    I -->|within noise, no gain| ATT[Attempted report:\nfindings + evidence\ndiff on branch\nreplay result vs baseline\nrecommend do not merge]
 
     H -.->|every write call| GATE[can_use_tool gate]
-    GATE -.->|push, remote: denied in all modes| X[Refused:<br/>call denied, run continues   ]
+    GATE -.->|push, remote: denied in all modes| X[Refused:\ncall denied, run continues   ]
 
     classDef gate stroke-dasharray: 4 3
     class GATE,X gate
