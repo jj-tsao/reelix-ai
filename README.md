@@ -294,6 +294,89 @@ Automated evaluation that runs on logged data to measure recommendation and expl
 Over time, these feedback loops turn Reelix into a richer **discovery agent**, not just a static recommender: it can adapt its plans, retrieval parameters, and even suggestion style based on how you interact.
 
 ---
+## Recommendation Pipeline Architecture (High‑Level)
+
+```
+User Interactions ──▶ Taste Vector (Long term memory)
+                                    │
+                                    ▼
+              User Prompt ──▶ Orchestrator Agent (LLM)
+                                    │
+                                    ▼
+                               RecQuerySpec 
+                                    │
+                 ┌──────────────────┴──────────────────┐
+                 ▼                                     ▼
+           Sparse Search                         Dense Search
+              (BM25)                   (fine-tuned sentence transformer)
+                 │                                     │
+                 └──────────────────┬──────────────────┘
+                                    │
+                                    ▼
+                 RRF #1: Candidate Pool (dense ⊕ sparse)
+                                    │
+                                    ▼
+                        Metadata Rerank (top 100)
+                (genre, rating, popularity, freshness)
+                                    │
+                                    ▼
+                            Top-K Candidates
+                                    │
+                                    ▼
+                          Curator Agent (LLM)
+                          (parallel batches)
+                                    │
+                       Evaluate fit on 4 dimensions:
+                         • genre_fit (0-2)
+                         • tone_fit (0-2)
+                         • theme_fit (0-2)
+                         • structure_fit (0-2)
+                                    │
+                                    ▼
+                     Tier Assignment (based on scoring)
+           ┌────────────────────────┼────────────────────────┐
+           ▼                        ▼                        ▼
+      strong_match            moderate_match            no_match
+           │                        │                        │
+           └────────────────────────┴────────────────────────┘
+                                    │
+                                    ▼
+                          Final Selection Logic
+                          (dynamic, tier-based)
+                                    │
+                                    ▼
+                            Top N Final Recs (~8)
+                                    │
+                                    ▼
+                            UI (streaming SSE)
+                                    │
+                                    ▼
+                          Reflection Agent (LLM)
+                      (propose next-step suggestion)
+                                    │
+                                    ▼
+                        UI (next_steps SSE event)
+                        + Session Memory (Redis)
+                                    │
+                                    ▼
+                         Explanation Agent (LLM)
+                     (generate "why" for each item)
+                                    │
+                                    ▼
+                             UI (streaming SSE)
+
+```
+
+**Tunable knobs** (with sensible defaults):
+
+- Retrieval depths: `dense_depth`, `sparse_depth`
+- Fusion: `rrf_k`
+- Metadata weights: `{dense, sparse, rating, popularity, recency, genre}`
+- Curator pass size: `top-k`
+- Curator dimensions: `genre_fit`, `tone_fit`, `theme_fit`, `structure_fit`
+- Tiering criteria: dynamic `final_recs` count from each tier
+
+---
 
 ## Key API Endpoints
 
@@ -399,89 +482,6 @@ Analytics and logging endpoints for tracking recommendation performance and cach
    - Caches LLM-generated "why" explanations in Redis for reuse
    - Skips caching for items where `why_source == "cache"` to avoid redundant writes
    - Writes to Supabase for offline analysis and A/B testing
-
----
-## Recommendation Pipeline Architecture (High‑Level)
-
-```
-User Interactions ──▶ Taste Vector (Long term memory)
-                                    │
-                                    ▼
-              User Prompt ──▶ Orchestrator Agent (LLM)
-                                    │
-                                    ▼
-                               RecQuerySpec 
-                                    │
-                 ┌──────────────────┴──────────────────┐
-                 ▼                                     ▼
-           Sparse Search                         Dense Search
-              (BM25)                   (fine-tuned sentence transformer)
-                 │                                     │
-                 └──────────────────┬──────────────────┘
-                                    │
-                                    ▼
-                 RRF #1: Candidate Pool (dense ⊕ sparse)
-                                    │
-                                    ▼
-                        Metadata Rerank (top 100)
-                (genre, rating, popularity, freshness)
-                                    │
-                                    ▼
-                            Top-K Candidates
-                                    │
-                                    ▼
-                          Curator Agent (LLM)
-                          (parallel batches)
-                                    │
-                       Evaluate fit on 4 dimensions:
-                         • genre_fit (0-2)
-                         • tone_fit (0-2)
-                         • theme_fit (0-2)
-                         • structure_fit (0-2)
-                                    │
-                                    ▼
-                     Tier Assignment (based on scoring)
-           ┌────────────────────────┼────────────────────────┐
-           ▼                        ▼                        ▼
-      strong_match            moderate_match            no_match
-           │                        │                        │
-           └────────────────────────┴────────────────────────┘
-                                    │
-                                    ▼
-                          Final Selection Logic
-                          (dynamic, tier-based)
-                                    │
-                                    ▼
-                            Top N Final Recs (~8)
-                                    │
-                                    ▼
-                            UI (streaming SSE)
-                                    │
-                                    ▼
-                          Reflection Agent (LLM)
-                      (propose next-step suggestion)
-                                    │
-                                    ▼
-                        UI (next_steps SSE event)
-                        + Session Memory (Redis)
-                                    │
-                                    ▼
-                         Explanation Agent (LLM)
-                     (generate "why" for each item)
-                                    │
-                                    ▼
-                             UI (streaming SSE)
-
-```
-
-**Tunable knobs** (with sensible defaults):
-
-- Retrieval depths: `dense_depth`, `sparse_depth`
-- Fusion: `rrf_k`
-- Metadata weights: `{dense, sparse, rating, popularity, recency, genre}`
-- Curator pass size: `top-k`
-- Curator dimensions: `genre_fit`, `tone_fit`, `theme_fit`, `structure_fit`
-- Tiering criteria: dynamic `final_recs` count from each tier
 
 ---
 ## Tech Stack
