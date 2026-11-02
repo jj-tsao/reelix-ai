@@ -275,6 +275,7 @@ def select_weekly_omdb_candidates(
     limit: int = 1000,
     stale_months: int = 6,
     min_votes: int | None = None,
+    rt_retry_months: int = 3,
 ) -> Sequence[Mapping]:
     """
     WEEKLY selector: sweep broader catalog with budget-aware prioritization.
@@ -282,8 +283,10 @@ def select_weekly_omdb_candidates(
     Priority tiers (lower = higher priority):
       0) Never checked (omdb_status IS NULL) — highest value, no data at all
       1) Previously errored (omdb_status = 'error') — transient failure, worth retrying
-      2) Has RT score but stale (omdb_last_checked > stale_months) — keep data fresh
-      3) not_found but >12 months since last check — low-value retry, OMDb may have added data
+      2) ok but no RT score, >rt_retry_months since last check — RT often lags
+         the release, so the first check can land before a score exists
+      3) Has RT score but stale (omdb_last_checked > stale_months) — keep data fresh
+      4) not_found but >12 months since last check — low-value retry, OMDb may have added data
       99) Everything else — skip
 
     Guards:
@@ -317,13 +320,18 @@ def select_weekly_omdb_candidates(
               WHEN omdb_status = 'error'
                 THEN 1  -- transient failure, retry
 
+              WHEN omdb_status = 'ok'
+                AND rt_score IS NULL
+                AND omdb_last_checked < now() - interval '{rt_retry_months} months'
+                THEN 2  -- checked before RT populated, retry
+
               WHEN rt_score IS NOT NULL
                 AND omdb_last_checked < now() - interval '{stale_months} months'
-                THEN 2  -- stale RT score, refresh
+                THEN 3  -- stale RT score, refresh
 
               WHEN omdb_status = 'not_found'
                 AND omdb_last_checked < now() - interval '12 months'
-                THEN 3  -- old not_found, worth retrying
+                THEN 4  -- old not_found, worth retrying
 
               ELSE 99   -- skip
             END AS priority
@@ -336,11 +344,17 @@ def select_weekly_omdb_candidates(
             OR omdb_status = 'error'
             OR (rt_score IS NOT NULL
                 AND omdb_last_checked < now() - interval '{stale_months} months')
+            OR (omdb_status = 'ok'
+                AND rt_score IS NULL
+                AND omdb_last_checked < now() - interval '{rt_retry_months} months')
             OR (omdb_status = 'not_found'
                 AND omdb_last_checked < now() - interval '12 months')
           )
         ORDER BY
           priority ASC,
+          -- tier 2: newest releases first (most likely to have RT by now)
+          CASE WHEN omdb_status = 'ok' AND rt_score IS NULL
+               THEN release_date END DESC NULLS LAST,
           imdb_votes DESC NULLS LAST,
           release_date DESC
         LIMIT :limit
@@ -379,15 +393,17 @@ def enrich_omdb_rows(
             omdb_status       = :omdb_status,
             metascore         = :metascore,
             awards_summary    = :awards_summary,
-            updated_at        = now()
+            -- only mark changed rows for Qdrant resync
+            updated_at        = CASE
+              WHEN rt_score       IS DISTINCT FROM :rt_score
+                OR omdb_status    IS DISTINCT FROM :omdb_status
+                OR metascore      IS DISTINCT FROM :metascore
+                OR awards_summary IS DISTINCT FROM :awards_summary
+              THEN now()
+              ELSE updated_at
+            END
         WHERE tmdb_id   = :tmdb_id
           AND media_type = :media_type
-          AND (
-               rt_score       IS DISTINCT FROM :rt_score
-            OR omdb_status    IS DISTINCT FROM :omdb_status
-            OR metascore      IS DISTINCT FROM :metascore
-            OR awards_summary IS DISTINCT FROM :awards_summary
-          )
         """
     )
 
