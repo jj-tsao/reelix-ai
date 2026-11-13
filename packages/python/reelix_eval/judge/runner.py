@@ -404,8 +404,10 @@ def persist(
     eval_run_id: str,
     cfg: JudgeConfig | None = None,
 ) -> None:
-    """Upsert judgements. Tokens are written to the per-query table only."""
+    """Upsert judgements when enabled. Tokens live on the per-query table only."""
     cfg = cfg or JudgeConfig()
+    if not cfg.persist:
+        raise PermissionError("Evaluation persistence is disabled by JudgeConfig.")
     if not judgements:
         return
 

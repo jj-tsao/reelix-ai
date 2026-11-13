@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -65,6 +65,12 @@ class ToolContext:
     replays: dict[str, replay_mod.ReplayRun] = field(default_factory=dict)
     #: Findings the agent has recorded, in order, for `write_report`.
     judge_cache: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # Carry the authorization into shared judge helpers too. Copy rather
+        # than changing a config that a standalone evaluation job may reuse.
+        if not self.apply_mode:
+            self.judge_cfg = replace(self.judge_cfg, persist=False)
 
 
 _ctx: ToolContext | None = None
@@ -367,6 +373,9 @@ async def get_query_detail(args: dict[str, Any]) -> dict:
 )
 async def run_judge(args: dict[str, Any]) -> dict:
     ctx = _require_ctx()
+    if args.get("persist") and not (ctx.apply_mode and ctx.judge_cfg.persist):
+        return _err("Evaluation persistence is disabled for this Investigator run.")
+
     ids = _ids(args.get("query_ids"))
     if not ids:
         return _err("query_ids is required")

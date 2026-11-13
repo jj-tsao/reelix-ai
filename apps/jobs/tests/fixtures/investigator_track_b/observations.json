@@ -1,0 +1,212 @@
+{
+  "format_version": 1,
+  "synthetic": true,
+  "description": "Entirely fabricated requests, titles, IDs and telemetry. No production data or judge labels.",
+  "windows": [
+    {
+      "day": "2000-01-02",
+      "traces": 3,
+      "errors": 0,
+      "curator_queries": 2,
+      "judged_queries": 0
+    }
+  ],
+  "details": [
+    {
+      "query_id": "fixture-c284",
+      "query_text": "Recommend an upbeat family comedy; avoid horror.",
+      "spec": {
+        "query_text": "Recommend an upbeat family comedy; avoid horror.",
+        "core_genres": [
+          "Comedy"
+        ],
+        "core_tone": [
+          "upbeat"
+        ],
+        "exclude_genres": [
+          "Horror"
+        ],
+        "num_recs": 2
+      },
+      "endpoint": "synthetic/explore",
+      "trace": {
+        "status": "completed",
+        "error_stage": null,
+        "total_ms": 1000,
+        "orchestrator_ms": 100,
+        "pipeline_ms": 200,
+        "curator_ms": 300,
+        "llm_calls": 2,
+        "input_tokens": null,
+        "output_tokens": null
+      },
+      "tier_stats": {
+        "total_candidates": 2,
+        "strong_count": 1,
+        "moderate_count": 0,
+        "no_match_count": 1,
+        "served_count": 1
+      },
+      "candidates": [
+        {
+          "media_id": 910000001,
+          "title": "Comet Picnic",
+          "year": 2020,
+          "genres": [
+            "Comedy",
+            "Family"
+          ],
+          "keywords": [],
+          "curator": {
+            "genre_fit": 2,
+            "tone_fit": 2,
+            "theme_fit": 2,
+            "total_fit": 6,
+            "tier": "strong_match"
+          },
+          "served": true,
+          "rank": 1,
+          "score_final": 0.9,
+          "why": null
+        },
+        {
+          "media_id": 910000002,
+          "title": "Thunder Basement",
+          "year": 2020,
+          "genres": [
+            "Horror"
+          ],
+          "keywords": [],
+          "curator": {
+            "genre_fit": 0,
+            "tone_fit": 0,
+            "theme_fit": 0,
+            "total_fit": 0,
+            "tier": "no_match"
+          },
+          "served": false,
+          "rank": null,
+          "score_final": 0.8,
+          "why": null
+        }
+      ]
+    },
+    {
+      "query_id": "fixture-b615",
+      "query_text": "Recommend an upbeat family comedy; avoid horror.",
+      "spec": null,
+      "endpoint": "synthetic/explore",
+      "trace": {
+        "status": "completed",
+        "error_stage": null,
+        "total_ms": 1000,
+        "orchestrator_ms": null,
+        "pipeline_ms": 200,
+        "curator_ms": null,
+        "llm_calls": null,
+        "input_tokens": null,
+        "output_tokens": null
+      },
+      "tier_stats": null,
+      "candidates": [
+        {
+          "media_id": 910000003,
+          "title": "Unavailable fixture item",
+          "year": null,
+          "genres": [],
+          "keywords": [],
+          "curator": {
+            "genre_fit": null,
+            "tone_fit": null,
+            "theme_fit": null,
+            "total_fit": null,
+            "tier": null
+          },
+          "served": true,
+          "rank": 1,
+          "score_final": null,
+          "why": null
+        }
+      ]
+    },
+    {
+      "query_id": "fixture-e791",
+      "query_text": "Recommend an upbeat family comedy; avoid horror.",
+      "spec": {
+        "query_text": "Recommend an upbeat family comedy; avoid horror.",
+        "core_genres": [
+          "Comedy"
+        ],
+        "core_tone": [
+          "upbeat"
+        ],
+        "exclude_genres": [
+          "Horror"
+        ],
+        "num_recs": 2
+      },
+      "endpoint": "synthetic/explore",
+      "trace": {
+        "status": "completed",
+        "error_stage": null,
+        "total_ms": 1000,
+        "orchestrator_ms": 100,
+        "pipeline_ms": 200,
+        "curator_ms": 300,
+        "llm_calls": 2,
+        "input_tokens": null,
+        "output_tokens": null
+      },
+      "tier_stats": {
+        "total_candidates": 2,
+        "strong_count": 1,
+        "moderate_count": 1,
+        "no_match_count": 0,
+        "served_count": 2
+      },
+      "candidates": [
+        {
+          "media_id": 910000001,
+          "title": "Comet Picnic",
+          "year": 2020,
+          "genres": [
+            "Comedy",
+            "Family"
+          ],
+          "keywords": [],
+          "curator": {
+            "genre_fit": 2,
+            "tone_fit": 2,
+            "theme_fit": 2,
+            "total_fit": 6,
+            "tier": "strong_match"
+          },
+          "served": true,
+          "rank": 1,
+          "score_final": 0.9,
+          "why": null
+        },
+        {
+          "media_id": 910000002,
+          "title": "Thunder Basement",
+          "year": 2020,
+          "genres": [
+            "Horror"
+          ],
+          "keywords": [],
+          "curator": {
+            "genre_fit": 0,
+            "tone_fit": 0,
+            "theme_fit": 0,
+            "total_fit": 0,
+            "tier": "moderate_match"
+          },
+          "served": true,
+          "rank": 2,
+          "score_final": 0.8,
+          "why": null
+        }
+      ]
+    }
+  ]
+}
