@@ -351,9 +351,8 @@ async def run(cfg: RunConfig, engine=None, llm_client=None) -> dict[str, Any]:
                 logger.info("result: %s", message.result[:800])
 
     ctx = tools_mod._require_ctx()
-    report_path = ctx.reports_dir / cfg.run_id / "report.md"
-    if report_path.exists():
-        summary["report"] = str(report_path)
+    if ctx.published_report is not None:
+        summary["report"] = str(ctx.published_report)
 
     return summary
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import hashlib
 from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date
 from pathlib import Path
@@ -22,6 +23,7 @@ from typing import Any
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
 from reelix_eval import store
+from reelix_eval.verification import AcceptancePolicy, VerificationReceipt
 from reelix_eval.judge import JudgeConfig, build_client, judge_queries
 from reelix_eval.judge import runner as judge_runner
 from reelix_eval.replay import evalset as evalset_mod
@@ -63,8 +65,11 @@ class ToolContext:
     #: Replay runs produced this session, keyed by label, so `score_replay` can
     #: pick up what `replay_curator` produced without re-running the LLM.
     replays: dict[str, replay_mod.ReplayRun] = field(default_factory=dict)
+    verification_policy: AcceptancePolicy = field(default_factory=AcceptancePolicy)
+    verifications: dict[str, VerificationReceipt] = field(default_factory=dict)
     #: Findings the agent has recorded, in order, for `write_report`.
     judge_cache: dict[str, Any] = field(default_factory=dict)
+    published_report: Path | None = None
 
     def __post_init__(self) -> None:
         # Carry the authorization into shared judge helpers too. Copy rather
@@ -465,10 +470,12 @@ async def snapshot_evalset(args: dict[str, Any]) -> dict:
 @tool(
     "replay_curator",
     "Re-run the curator stage over a frozen eval set against the CURRENT working "
-    "tree, then compare to the frozen baseline. This is what makes a prompt edit "
-    "verifiable. An unchanged replay reproduces only ~0.80 served overlap and "
+    "tree in a fresh source snapshot, checking actual loaded revision identity. "
+    "An unchanged replay reproduces only ~0.80 served overlap and "
     "tier counts wander by ~0.25, so treat smaller movements as noise.",
-    {"evalset": str, "label": str},
+    {"type":"object", "properties":{"evalset":{"type":"string"},
+     "label":{"type":"string"},"expected_revision":{"type":"string"}},
+     "required":["evalset","label"],"additionalProperties":False},
 )
 async def replay_curator(args: dict[str, Any]) -> dict:
     ctx = _require_ctx()
@@ -481,11 +488,24 @@ async def replay_curator(args: dict[str, Any]) -> dict:
 
     cases = evalset_mod.load(path)
     label = args.get("label") or "working-tree"
-    run = await replay_mod.replay(cases, ctx.llm_client, label=label)
+    if label in ctx.replays:
+        return _err("Replay labels are immutable; choose a new label.")
+    run = await replay_mod.replay(cases, ctx.llm_client, label=label,
+                                  expected_revision=args.get("expected_revision"))
     ctx.replays[label] = run
+    initial = VerificationReceipt(
+        evalset_sha256=run.evalset_sha256,case_ids=tuple(c.query_id for c in cases),
+        failed_case_ids=tuple(c.query_id for c in run.cases if c not in run.ok_cases),
+        candidate=run.revision,execution_completed=run.execution_completed,
+        outputs_valid=len(run.ok_cases)==len(cases) and bool(cases) and not run.issues,
+        issues=tuple(run.issues),policy=ctx.verification_policy,
+    )
+    ctx.verifications[initial.receipt_id] = initial
 
     return _ok(
         {
+            "receipt_id":initial.receipt_id,
+            "receipt":initial.to_dict(),
             "summary": run.summary(),
             "noise_floor": {
                 "served_overlap_unchanged": 0.80,
@@ -508,77 +528,130 @@ async def replay_curator(args: dict[str, Any]) -> dict:
 
 @tool(
     "score_replay",
-    "Judge a replay's served slate and compare it against the frozen baseline "
-    "slate, judged the same way. This is the A/B that tells you whether an edit "
-    "actually improved anything. Report a regression plainly.",
-    {"evalset": str, "label": str},
+    "Judge a complete replay against frozen slates (diagnostic only), or explicit "
+    "baseline/control replay labels. A host receipt distinguishes execution, "
+    "revision, output/evaluation validity and acceptance. No implicit control runs. "
+    "Successful verification requires the preconfigured policy and complete paired "
+    "cases, an attested baseline and independent unchanged controls.",
+    {"type":"object", "properties":{"evalset":{"type":"string"},
+     "label":{"type":"string"},"baseline_label":{"type":"string"},
+     "control_labels":{"type":"array","items":{"type":"string"}}},
+     "required":["evalset","label"],"additionalProperties":False},
 )
 async def score_replay(args: dict[str, Any]) -> dict:
     ctx = _require_ctx()
     label = args.get("label") or "working-tree"
     run = ctx.replays.get(label)
     if run is None:
-        return _err(f"No replay labelled {label!r}. Run replay_curator first.")
-
+        return _err("No replay with that label. Run replay_curator first.")
+    baseline_label = args.get("baseline_label")
+    control_labels = args.get("control_labels", [])
+    if (not isinstance(control_labels, list) or any(not isinstance(x,str) for x in control_labels)
+            or len(set(control_labels)) != len(control_labels)
+            or (baseline_label is not None and not isinstance(baseline_label,str))
+            or label in control_labels or baseline_label in control_labels or baseline_label == label):
+        return _err("Baseline, candidate and control labels must be distinct strings.")
+    if (baseline_label and baseline_label not in ctx.replays) or any(x not in ctx.replays for x in control_labels):
+        return _err("Requested baseline/control replay is unavailable.")
+    baseline = ctx.replays.get(baseline_label) if baseline_label else None
+    controls = [ctx.replays[x] for x in control_labels]
     path = evalset_mod.evalset_path(args.get("evalset") or "default", ctx.evalsets_dir)
-    cases = {c.query_id: c for c in evalset_mod.load(path)}
-
-    baseline_details, replay_details = [], []
-    for case_replay in run.ok_cases:
-        case = cases.get(case_replay.query_id)
-        if not case:
-            continue
-        baseline_details.append(_detail_from_case(case, case.baseline_served_ids))
-        replay_details.append(_detail_from_case(case, case_replay.served_ids))
-
-    if not baseline_details:
-        return _err("No successfully replayed cases to score.")
-
-    client = build_client()
-    base_j, new_j = await asyncio.gather(
-        judge_queries(client, baseline_details, ctx.judge_cfg),
-        judge_queries(client, replay_details, ctx.judge_cfg),
+    cases = evalset_mod.load(path)
+    ids = tuple(c.query_id for c in cases)
+    digest = replay_mod.cases_digest(cases)
+    runs = [run] + ([baseline] if baseline else []) + controls
+    issues, failed = [], set()
+    if not ids or len(ids) != len(set(ids)):
+        issues.append("empty_or_duplicate_evalset")
+    for r in runs:
+        actual = [c.query_id for c in r.cases]
+        if r.evalset_sha256 != digest or len(actual) != len(ids) or set(actual) != set(ids):
+            issues.append("replay_evalset_mismatch")
+            failed.update(ids)
+        failed.update(c.query_id for c in r.cases if c not in r.ok_cases)
+        issues.extend(r.issues)
+    complete = not failed and not issues
+    summaries, judgements, axes = [], [], []
+    evaluation_valid = False
+    evaluated_ids, evaluation_failures = set(), set()
+    if complete:
+        def details_for(r):
+            by_id = {c.query_id:c for c in r.cases}
+            return [_detail_from_case(c, by_id[c.query_id].served_ids, by_id[c.query_id]) for c in cases]
+        groups = [details_for(baseline) if baseline else
+                  [_detail_from_case(c,c.baseline_served_ids) for c in cases],
+                  details_for(run)] + [details_for(r) for r in controls]
+        # Empty slates can be valid curator output, but cannot supply item scores.
+        if any(not d.candidates for group in groups for d in group):
+            issues.append("empty_slate_not_judgeable")
+            evaluation_failures.update(ids)
+        else:
+            try:
+                client = build_client()
+                judgements = await asyncio.gather(*(judge_queries(client,g,ctx.judge_cfg) for g in groups),
+                                                  return_exceptions=True)
+                if any(isinstance(j,BaseException) for j in judgements):
+                    raise ValueError('judge_execution_failed')
+                evaluation_valid = all(_valid_judgements(g,j) for g,j in zip(groups,judgements))
+                for qid in ids:
+                    if all(_valid_judgements([d for d in g if d.query_id==qid],
+                                             [x for x in j if x.query_id==qid])
+                           for g,j in zip(groups,judgements)):
+                        evaluated_ids.add(qid)
+                    else:
+                        evaluation_failures.add(qid)
+                if evaluation_valid:
+                    summaries = [judge_runner.summarize(j,ctx.judge_cfg) for j in judgements]
+                    for name in ("avg_relevance","avg_novelty","avg_spec_fidelity",
+                                 "avg_list_coherence","spec_violation_rate_judge"):
+                        values = [s[name] for s in summaries]
+                        unchanged = [values[0]] + values[2:]
+                        axes.append((name,values[0],values[1],max(unchanged)-min(unchanged)))
+                else:
+                    issues.append("invalid_or_incomplete_judge_results")
+            except Exception:
+                evaluation_failures.update(ids)
+                issues.append("judge_execution_failed")  # No private exception content.
+    receipt = VerificationReceipt(
+        evalset_sha256=digest, case_ids=ids, failed_case_ids=tuple(sorted(failed)),
+        candidate=run.revision, baseline=baseline.revision if baseline else None,
+        controls=tuple(r.revision for r in controls),
+        execution_completed=all(r.execution_completed for r in runs),
+        outputs_valid=complete, evaluation_valid=evaluation_valid,
+        axes=tuple(axes), policy=ctx.verification_policy, issues=tuple(sorted(set(issues))),
+        evaluation_sha256=hashlib.sha256(json.dumps([[asdict(j) for j in group] for group in judgements],
+                                       sort_keys=True,allow_nan=False).encode()).hexdigest() if evaluation_valid else "",
+        judge_model=ctx.judge_cfg.model,
+        evaluated_case_ids=tuple(sorted(evaluated_ids)),
+        evaluation_failed_case_ids=tuple(sorted(evaluation_failures)),
     )
-
-    base_s = judge_runner.summarize(base_j, ctx.judge_cfg)
-    new_s = judge_runner.summarize(new_j, ctx.judge_cfg)
-    axes = (
-        "avg_relevance",
-        "avg_novelty",
-        "avg_spec_fidelity",
-        "avg_list_coherence",
-        "spec_violation_rate_judge",
-    )
-    return _ok(
-        {
-            "cases": len(baseline_details),
-            "ab": [
-                {
-                    "axis": a,
-                    "baseline": base_s.get(a),
-                    "replay": new_s.get(a),
-                    "delta": (
-                        None
-                        if base_s.get(a) is None or new_s.get(a) is None
-                        else round(new_s[a] - base_s[a], 4)
-                    ),
-                }
-                for a in axes
-            ],
-            "tier_shift": {
-                "baseline_strong": run.summary().get("baseline_mean_strong_count"),
-                "replay_strong": run.summary().get("mean_strong_count"),
-            },
-            "caution": (
-                "Explanation quality is not comparable here: replayed slates have "
-                "no 'why' text, so only curator-side axes are meaningful. With a "
-                "small eval set, a delta under ~0.3 on a 1-5 axis is within noise."
-            ),
-        }
-    )
+    ctx.verifications[receipt.receipt_id] = receipt
+    return _ok({"receipt_id":receipt.receipt_id, "receipt":receipt.to_dict(),
+                "requested_cases":len(ids),"evaluated_cases":len(evaluated_ids),
+                "evaluation_failed_case_ids":sorted(evaluation_failures),
+                "failed_case_ids":sorted(failed),"summaries":summaries,
+                "caution":"Frozen production slates lack baseline revision attestation. "
+                          "A receipt certifies only its recorded cases/policy, not diagnosis or production effectiveness."})
 
 
-def _detail_from_case(case, served_ids: list[int]) -> store.QueryDetail:
+def _valid_judgements(details, judgements):
+    expected = {d.query_id:d for d in details}
+    if not isinstance(judgements,list) or len(judgements) != len(expected) or {j.query_id for j in judgements} != set(expected):
+        return False
+    def score(v): return type(v) is int and 1 <= v <= 5
+    for j in judgements:
+        if j.status != "ok" or j.error or not score(j.spec_fidelity) or not score(j.list_coherence):
+            return False
+        ids = {c.media_id for c in expected[j.query_id].candidates}
+        if any(type(i.media_id) is not int for i in j.items) or len(j.items) != len(ids) or {i.media_id for i in j.items} != ids:
+            return False
+        if any(i.query_id != j.query_id or not score(i.relevance) or not score(i.novelty)
+               or type(i.spec_violation) is not bool for i in j.items):
+            return False
+    return True
+
+
+def _detail_from_case(case, served_ids: list[int], replay=None) -> store.QueryDetail:
     """Build a judgeable QueryDetail from a frozen case and a chosen slate."""
     by_id = {c.media_id: c for c in case.candidates}
     served = []
@@ -596,8 +669,8 @@ def _detail_from_case(case, served_ids: list[int]) -> store.QueryDetail:
                 release_year=c.release_year,
                 watch_providers=c.watch_providers,
                 llm_context=c.llm_context,
-                total_fit=c.baseline_total_fit,
-                tier=c.baseline_tier,
+                total_fit=replay.fits[mid]["total_fit"] if replay else c.baseline_total_fit,
+                tier=replay.fits[mid]["category"] if replay else c.baseline_tier,
                 is_served=True,
                 final_rank=rank,
             )
@@ -633,12 +706,13 @@ findings: [{
   "proposed_fix": concrete change, as a ```diff block where possible,
   "location":     "path/to/file.py:LINE",
   "query_ids":    ["..."],
-  "verified":     true/false/null  (null when no replay ran)
+  "verified":     true/false/null (must match a host receipt; null if not attempted),
+  "verification_id": receipt ID returned by score_replay, when attempted
 }]
 health: [{"metric","group","baseline","current","verdict","baseline_n","current_n"}]
   — carry over what compare_windows returned, including flat metrics.
 sample_sizes: {"judged_queries": N, "queries_read": N, ...}
-verification: {"evalset","cases","cases_failed","rows":[{"name","baseline","current"}],"note"}
+verification: {"receipt_id": "..."} or null. Raw agent comparison summaries are not execution evidence.
 blind_spots: ["anything you could not reach this run"]
 
 Rank findings most-significant first. Label weak evidence low-confidence rather
@@ -657,97 +731,50 @@ async def write_report(args: dict[str, Any]) -> dict:
     from reelix_eval import report as report_mod
 
     ctx = _require_ctx()
-
-    def _load(key: str, default):
-        raw = args.get(key)
-        if not raw:
-            return default
-        if isinstance(raw, str):
+    try:
+        findings_raw = report_mod.parse_json_field(args.get('findings'), 'findings', list)
+        health_raw = report_mod.parse_json_field(args.get('health', []), 'health', list)
+        sizes = report_mod.parse_json_field(args.get('sample_sizes', {}), 'sample_sizes', dict)
+        spots = report_mod.parse_json_field(args.get('blind_spots', []), 'blind_spots', list)
+        verification = report_mod.parse_json_field(args.get('verification'), 'verification', dict, optional=True)
+        selected = None
+        if verification is not None:
+            if (set(verification) != {'receipt_id'} or not isinstance(verification['receipt_id'], str)
+                    or verification['receipt_id'] not in ctx.verifications):
+                raise report_mod.ReportValidationError('verification: expected a known host receipt_id only')
+            selected = ctx.verifications[verification['receipt_id']]
+        findings = []
+        for i, value in enumerate(findings_raw):
+            parsed = report_mod.finding_from_dict(value, f'findings[{i}]')
+            if parsed.verification_id is not None and 'verified' not in value:
+                receipt = ctx.verifications.get(parsed.verification_id)
+                if receipt is None:
+                    raise report_mod.ReportValidationError(f'findings[{i}].verification_id: unknown execution receipt')
+                parsed.verified = receipt.verified
+            findings.append(parsed)
+        health = []
+        for i, row in enumerate(health_raw):
+            if not isinstance(row, dict):
+                raise report_mod.ReportValidationError(f'health[{i}]: expected object')
             try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return default
-        return raw
-
-    findings_raw = _load("findings", [])
-    health_raw = _load("health", [])
-
-    rep = report_mod.Report(
-        run_id=ctx.run_id,
-        window=args.get("window") or "unspecified",
-        baseline_window=args.get("baseline_window") or None,
-        judge_model=ctx.judge_cfg.model,
-        sample_sizes=_load("sample_sizes", {}),
-        git_sha=report_mod.git_sha(REPO_ROOT),
-        health=[
-            report_mod.HealthRow(
-                metric=h.get("metric", "?"),
-                group=h.get("group", ""),
-                baseline=h.get("baseline"),
-                current=h.get("current"),
-                verdict=h.get("verdict", ""),
-                baseline_n=h.get("baseline_n", 0),
-                current_n=h.get("current_n", 0),
-            )
-            for h in health_raw
-        ],
-        findings=[
-            report_mod.Finding(
-                title=f.get("title", "Untitled"),
-                symptom=f.get("symptom", ""),
-                evidence=f.get("evidence", ""),
-                hypothesis=f.get("hypothesis", ""),
-                confidence=f.get("confidence", "low"),
-                proposed_fix=f.get("proposed_fix", ""),
-                location=f.get("location"),
-                query_ids=f.get("query_ids", []),
-                verified=f.get("verified"),
-                verification_note=f.get("verification_note"),
-            )
-            for f in findings_raw
-        ],
-        verification=_load("verification", None),
-        extra_blind_spots=_load("blind_spots", []),
-        applied_branch=ctx.judge_cache.get("_branch"),
-    )
-
-    path = report_mod.write(rep, ctx.reports_dir)
-
-    # Surface incomplete findings so the agent can correct them in this run.
-    # Left silent, a finding with everything crammed into `evidence` renders as
-    # a series of empty headings and nobody notices until they read the file.
-    incomplete = [
-        {
-            "title": f.title[:60],
-            "missing": [
-                name
-                for name, value in (
-                    ("symptom", f.symptom),
-                    ("hypothesis", f.hypothesis),
-                    ("proposed_fix", f.proposed_fix),
-                    ("location", f.location),
-                )
-                if not (value or "").strip()
-            ],
-        }
-        for f in rep.findings
-    ]
-    incomplete = [i for i in incomplete if i["missing"]]
-
-    result: dict[str, Any] = {"report": str(path), "findings": len(rep.findings)}
-    if incomplete:
-        result["WARNING"] = (
-            "These findings have empty fields that will render as empty sections. "
-            "Call write_report again with them filled in."
+                health.append(report_mod.HealthRow(**row))
+            except TypeError:
+                raise report_mod.ReportValidationError(f'health[{i}]: invalid fields') from None
+        rep = report_mod.Report(
+            run_id=ctx.run_id, window=args.get('window') or 'unspecified',
+            baseline_window=args.get('baseline_window') or None,
+            judge_model=ctx.judge_cfg.model, sample_sizes=sizes,
+            git_sha=report_mod.git_sha(REPO_ROOT), health=health, findings=findings,
+            verification=selected, verification_receipts=dict(ctx.verifications),
+            extra_blind_spots=spots, applied_branch=ctx.judge_cache.get('_branch'),
         )
-        result["incomplete"] = incomplete
-    if not rep.health:
-        result.setdefault("WARNING", "")
-        result["health_missing"] = (
-            "No health rows were passed, so the report says 'No metrics available' "
-            "even though compare_windows returned data. Pass them."
-        )
-    return _ok(result)
+        path = report_mod.write(rep, ctx.reports_dir)
+    except report_mod.ReportValidationError as exc:
+        return _err(str(exc))
+    except OSError:
+        return _err('report: publication failed; no successful artifact pair was published')
+    ctx.published_report = path
+    return _ok({'report': str(path), 'findings': len(rep.findings), 'schema_version': 2})
 
 
 # ---------------------------------------------------------------------------
