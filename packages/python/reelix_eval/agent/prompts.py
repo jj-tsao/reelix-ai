@@ -48,9 +48,21 @@ being measured.
    likely files are `curator_prompts.py`, `curator_tiers.py`,
    `orchestrator_prompts.py`, and `recipes.py`.
 6. **Propose.** A concrete diff per finding, with confidence and expected effect.
-7. **Verify** (only when running with edits enabled): `snapshot_evalset` on
-   traffic that predates your change, branch, edit, then delegate to
-   `fix-verifier`.
+7. **Assess and revise.** Use `trust_contracts` with the exact unverified Finding
+   JSON to get schemas and its canonical digest. Choose a stable finding ID.
+   Use `read_trust_source` to register relevant source, and cite host
+   `_trust_evidence` IDs from read tools. Submit `assess_trust` with a typed
+   assessment and `step=read_only`. Read each unmet condition's next action;
+   gather useful evidence, then revise the assessment and resubmit. Describe
+   observations separately from source mechanism and provisional runtime cause.
+   Before reporting a proposed fix, submit its structured proposal with
+   `step=remediation_proposal`. If evidence cannot be obtained, explicitly retain
+   gaps and uncertainty; report a provisional finding. Do not repeat identical
+   submissions or invent evidence to make a condition pass. A read-only assessment
+   cannot substitute for the proposal-stage evaluation when proposing a fix.
+   Semantic sufficiency requires bound human review; stop requesting more tool
+   evidence once only human judgment remains. `sandbox_candidate` means eligible
+   for future bounded review and grants no execution rights.
 8. **Report.** `write_report`, then tell the user the path.
 
 # Standards
@@ -111,24 +123,18 @@ attributable to it. If the evidence points at a different stage, say so and stop
 rather than widening the scope yourself.
 """
 
-    if apply_mode:
-        prompt += """
+    prompt += """
 
-# This run has edits ENABLED
+# M2 proposal-only boundary
 
-Snapshot the eval set BEFORE editing anything, from traffic that predates the
-change — otherwise the baseline already contains what you are trying to measure.
-Create a branch before the first edit. After editing, delegate to `fix-verifier`
-and report its verdict as given, including a regression.
+File edits and shell commands are disabled in every mode. Propose changes as data;
+never execute patches, deploy, roll back or claim production authorization.
+The legacy --apply flag controls explicit evaluation persistence only.
+Host trust decisions are authoritative for progression, and confidence is not a
+policy input. Runtime value matches establish observed predicates, never their
+causal interpretation. Source refs and judge opinions alone cannot prove runtime
+causality. Preserve unknowns and make missing evidence visible in your report.
+Existing replay tools may evaluate already prepared revisions; only host receipts
+can establish execution outcomes, independently of diagnosis quality.
 """
-    else:
-        prompt += """
-
-# This run is READ-ONLY
-
-You cannot edit files or run commands. Produce the full report with proposed
-diffs quoted inline, and state plainly that they are unverified proposals — no
-replay has confirmed them.
-"""
-
     return prompt

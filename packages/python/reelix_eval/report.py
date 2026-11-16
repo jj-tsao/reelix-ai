@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from reelix_eval.verification import VerificationReceipt
+from reelix_eval.trust import PolicyDecision
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,8 @@ class Report:
     verification_receipts: dict[str, VerificationReceipt] = field(default_factory=dict)
     extra_blind_spots: list[str] = field(default_factory=list)
     git_sha: str = "unknown"
+    trust_decisions: list[PolicyDecision] = field(default_factory=list)
+    proposal_verification: dict[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
         if (not isinstance(self.run_id, str) or self.run_id in ('', '.', '..')
@@ -184,6 +187,13 @@ class Report:
             raise ReportValidationError('run_id: expected a single directory name')
         if not isinstance(self.window, str) or not self.window.strip():
             raise ReportValidationError('window: required text')
+        if not isinstance(self.trust_decisions, list) or any(not isinstance(d, PolicyDecision) or d.execution_authorized for d in self.trust_decisions):
+            raise ReportValidationError('trust_decisions: expected host decisions without execution authority')
+        proposal_ids = {d.evaluation.proposal_sha256 for d in self.trust_decisions if d.evaluation.proposal_sha256}
+        if (not isinstance(self.proposal_verification, dict)
+                or any(key not in proposal_ids or value not in ('not_attempted', 'failed', 'inconclusive', 'criteria_not_satisfied', 'improved')
+                       for key, value in self.proposal_verification.items())):
+            raise ReportValidationError('proposal_verification: expected host outcomes for evaluated proposals')
         if not isinstance(self.findings, list):
             raise ReportValidationError('findings: expected list')
         if self.verification is not None and not isinstance(self.verification, VerificationReceipt):
@@ -317,6 +327,14 @@ class Report:
                         f"Revision matched: {v.revision_matched}; outputs valid: {v.outputs_valid}; evaluation valid: {v.evaluation_valid}.", '',
                         '```json', json.dumps(v.to_dict(), indent=2), '```', '']
 
+        if self.trust_decisions:
+            out += ['## Independent operational trust', '',
+                    'Sandbox eligibility grants no execution authority. Unknown semantic claims remain provisional.', '']
+            for decision in self.trust_decisions:
+                out += [f'**{decision.outcome}** (policy `{decision.evaluation.policy_revision}`)', '',
+                        f'Plan-bound verification: {self.proposal_verification.get(decision.evaluation.proposal_sha256, "not attempted")}', '',
+                        '```json', json.dumps(asdict(decision), indent=2), '```', '']
+
         # -- Blind spots ---------------------------------------------------
         out += ["## Known blind spots", ""]
         for b in STANDING_BLIND_SPOTS + self.extra_blind_spots:
@@ -329,6 +347,8 @@ class Report:
         self.validate()
         return {
             "schema_version": 2,
+            "trust_decisions": [asdict(d) for d in self.trust_decisions],
+            "proposal_verification": dict(self.proposal_verification),
             "run_id": self.run_id,
             "window": self.window,
             "baseline_window": self.baseline_window,

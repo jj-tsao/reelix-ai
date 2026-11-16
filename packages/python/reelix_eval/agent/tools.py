@@ -23,6 +23,8 @@ from typing import Any
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
 from reelix_eval import store
+from reelix_eval import trust
+from pydantic import ValidationError
 from reelix_eval.verification import AcceptancePolicy, VerificationReceipt
 from reelix_eval.judge import JudgeConfig, build_client, judge_queries
 from reelix_eval.judge import runner as judge_runner
@@ -70,6 +72,10 @@ class ToolContext:
     #: Findings the agent has recorded, in order, for `write_report`.
     judge_cache: dict[str, Any] = field(default_factory=dict)
     published_report: Path | None = None
+    trust_context: trust.TrustedContext = field(default_factory=trust.TrustedContext)
+    trust_policy: trust.Policy = field(default_factory=trust.Policy)
+    trust_submissions: dict[str, tuple] = field(default_factory=dict)
+    trust_history: list[trust.PolicyDecision] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Carry the authorization into shared judge helpers too. Copy rather
@@ -716,7 +722,7 @@ verification: {"receipt_id": "..."} or null. Raw agent comparison summaries are 
 blind_spots: ["anything you could not reach this run"]
 
 Rank findings most-significant first. Label weak evidence low-confidence rather
-than dropping or inflating it. If nothing is wrong, pass an empty findings list.""",
+than dropping or inflating it. If nothing is wrong, pass an empty findings list. Each proposed fix must first be submitted through assess_trust with a structured proposal; unmet obligations remain provisional and appear in the report.""",
     {
         "window": str,
         "baseline_window": str,
@@ -731,6 +737,8 @@ async def write_report(args: dict[str, Any]) -> dict:
     from reelix_eval import report as report_mod
 
     ctx = _require_ctx()
+    if set(args) - {'window', 'baseline_window', 'health', 'findings', 'verification', 'blind_spots', 'sample_sizes'}:
+        return _err('report: unknown fields; trust decisions are supplied by the host only')
     try:
         findings_raw = report_mod.parse_json_field(args.get('findings'), 'findings', list)
         health_raw = report_mod.parse_json_field(args.get('health', []), 'health', list)
@@ -752,6 +760,26 @@ async def write_report(args: dict[str, Any]) -> dict:
                     raise report_mod.ReportValidationError(f'findings[{i}].verification_id: unknown execution receipt')
                 parsed.verified = receipt.verified
             findings.append(parsed)
+        _refresh_trust(ctx)
+        decisions = []
+        proposal_verification = {}
+        for f in findings:
+            # Receipt decoration is orthogonal to the investigation identity.
+            identity = asdict(replace(f, verified=None, verification_id=None))
+            key = trust.digest(identity)
+            submission = ctx.trust_submissions.get(key)
+            if submission is None:
+                if f.proposed_fix.strip():
+                    raise report_mod.ReportValidationError('trust: assess each proposed fix before publication')
+                continue
+            a, p, step = submission
+            if f.proposed_fix.strip() and (p is None or step == 'read_only'):
+                raise report_mod.ReportValidationError('trust: proposed fixes require a proposal-stage submission')
+            decisions.append(trust.evaluate(a, p, step, ctx.trust_context, ctx.trust_policy))
+            if p is not None:
+                proposal_verification[trust.digest(p)] = (
+                    trust.verify_outcome(p, f.verification_id, ctx.trust_context)
+                    if f.verification_id is not None else 'not_attempted')
         health = []
         for i, row in enumerate(health_raw):
             if not isinstance(row, dict):
@@ -766,7 +794,7 @@ async def write_report(args: dict[str, Any]) -> dict:
             judge_model=ctx.judge_cfg.model, sample_sizes=sizes,
             git_sha=report_mod.git_sha(REPO_ROOT), health=health, findings=findings,
             verification=selected, verification_receipts=dict(ctx.verifications),
-            extra_blind_spots=spots, applied_branch=ctx.judge_cache.get('_branch'),
+            trust_decisions=decisions, proposal_verification=proposal_verification, extra_blind_spots=spots, applied_branch=ctx.judge_cache.get('_branch'),
         )
         path = report_mod.write(rep, ctx.reports_dir)
     except report_mod.ReportValidationError as exc:
@@ -775,6 +803,129 @@ async def write_report(args: dict[str, Any]) -> dict:
         return _err('report: publication failed; no successful artifact pair was published')
     ctx.published_report = path
     return _ok({'report': str(path), 'findings': len(rep.findings), 'schema_version': 2})
+
+
+# ---------------------------------------------------------------------------
+# Independent operational trust: agent supplies inputs, host supplies decisions.
+# ---------------------------------------------------------------------------
+
+def _refresh_trust(ctx):
+    from reelix_eval.replay.isolated import SOURCE_ROOT, source_manifest, manifest_digest
+    ctx.trust_context.current_revision = manifest_digest(source_manifest(SOURCE_ROOT))
+    ctx.trust_context.receipts = dict(ctx.verifications)
+
+
+@tool("read_trust_source", "Read a permitted curator source file as immutable host evidence. "
+      "Returns source identity and current replay manifest revision; source existence is not causal proof.",
+      {"target": str})
+async def read_trust_source(args):
+    ctx = _require_ctx()
+    if not ctx.trust_context.read_access:
+        return _err('trust: evidence access is not authorized')
+    target = args.get('target')
+    if target not in {t for _, t in ctx.trust_policy.targets}:
+        return _err('target: outside permitted curator source scope')
+    path = (REPO_ROOT / target).resolve()
+    if not path.is_relative_to(REPO_ROOT.resolve()):
+        return _err('target: source resolves outside repository')
+    try:
+        _refresh_trust(ctx)
+        record = ctx.trust_context.evidence.record('source', target + '@' + ctx.trust_context.current_revision,
+                                                   {'text': path.read_text(), 'target': target})
+    except (OSError, ValueError):
+        return _err('source: could not establish revision identity')
+    return _ok({'evidence': asdict(record), 'revision': ctx.trust_context.current_revision})
+
+
+@tool("assess_trust", "Submit or revise an investigation assessment and optional curator proposal. "
+      "Returns independent conditions and next evidence steps. Never executes a patch. "
+      "Use read_only first, then remediation_proposal or sandbox_candidate. JSON schemas are returned by trust_contracts.",
+      {"finding": str, "assessment": str, "proposal": str, "step": str})
+async def assess_trust(args):
+    from reelix_eval import report as report_mod
+    ctx = _require_ctx()
+    try:
+        # Reject agent-supplied policy, statuses, approvals and receipt payloads.
+        if set(args) - {'finding', 'assessment', 'proposal', 'step'}:
+            return _err('trust: unknown input fields')
+        finding = report_mod.finding_from_dict(report_mod.parse_json_field(args.get('finding'), 'finding', dict))
+        if finding.verification_id is not None or finding.verified is not None:
+            return _err('trust.finding: use an unverified finding; execution receipts are separate')
+        assessment_raw = report_mod.parse_json_field(args.get('assessment'), 'assessment', dict)
+        a = trust.InvestigationAssessment.model_validate_json(json.dumps(assessment_raw, allow_nan=False))
+        raw = report_mod.parse_json_field(args.get('proposal'), 'proposal', dict, optional=True)
+        p = trust.RemediationProposal.model_validate_json(json.dumps(raw, allow_nan=False)) if raw else None
+        finding_hash = trust.digest(asdict(finding))
+        if finding_hash != a.finding_sha256:
+            return _err('trust.finding: assessment digest does not match the validated finding')
+        existing = ctx.trust_context.findings.get(a.finding_id)
+        if existing is not None and existing != finding_hash:
+            return _err('trust.finding: ID already bound to different finding content; use a new ID')
+        step = args.get('step', 'read_only')
+        if step not in ('read_only', 'remediation_proposal', 'sandbox_candidate', 'production_execution'):
+            return _err('trust.step: unsupported next step')
+        _refresh_trust(ctx)
+        ctx.trust_context.findings[a.finding_id] = finding_hash
+        decision = trust.evaluate(a, p, step, ctx.trust_context, ctx.trust_policy)
+    except (report_mod.ReportValidationError, ValidationError, ValueError, TypeError):
+        return _err('trust: invalid input; use trust_contracts for schemas and field requirements')
+    ctx.trust_submissions[finding_hash] = (a, p, step)
+    ctx.trust_history.append(decision)
+    return _ok({'decision': asdict(decision), 'resolved_evidence': [_evidence_identity(ctx.trust_context.evidence.resolve(r))
+                for r in dict.fromkeys(e for c in decision.evaluation.conditions for e in c.evidence_refs)
+                if ctx.trust_context.evidence.resolve(r)]})
+
+
+@tool("trust_contracts", "Get assessment/proposal JSON schemas, canonical finding digest and host policy. "
+      "Finding is a normal unverified Finding JSON object; use its returned digest in the assessment.", {"finding": str})
+async def trust_contracts(args):
+    from reelix_eval import report as report_mod
+    try:
+        f = report_mod.finding_from_dict(report_mod.parse_json_field(args.get('finding'), 'finding', dict))
+    except report_mod.ReportValidationError:
+        return _err('finding: invalid Finding input')
+    ctx = _require_ctx()
+    return _ok({'finding_sha256': trust.digest(asdict(f)),
+                'assessment_schema': trust.InvestigationAssessment.model_json_schema(),
+                'proposal_schema': trust.RemediationProposal.model_json_schema(),
+                'policy': asdict(ctx.trust_policy), 'policy_revision': ctx.trust_policy.revision,
+                'execution_authorized': False})
+
+
+def _evidence_identity(record):
+    return {'evidence_id': record.evidence_id, 'kind': record.kind, 'provenance': record.provenance,
+            'payload_sha256': trust.digest(record.payload())}
+
+
+def _record_read_tool(sdk_tool, kind):
+    """Capture actual successful tool results, never agent-authored evidence.
+
+    Query detail includes backfilled metadata. Only logged fields enter the runtime
+    registry; the full result remains visible with its original provenance caveat.
+    """
+    original = sdk_tool.handler
+    async def observed(args):
+        if not _require_ctx().trust_context.read_access:
+            return _err('trust: evidence access is not authorized')
+        result = await original(args)
+        if result.get('is_error'):
+            return result
+        payload = json.loads(result['content'][0]['text'])
+        trusted_payload = payload
+        if sdk_tool.name == 'get_query_detail':
+            trusted_payload = {k: payload[k] for k in ('query_id', 'query_text', 'spec', 'endpoint', 'trace', 'tier_stats')}
+            trusted_payload['candidates'] = [{k:c[k] for k in ('media_id','curator','served','rank','score_final')}
+                                             for c in payload['candidates']]
+        ctx = _require_ctx()
+        record = ctx.trust_context.evidence.record(kind, sdk_tool.name + ':' + trust.digest(args), trusted_payload)
+        payload['_trust_evidence'] = _evidence_identity(record)
+        return _ok(payload)
+    sdk_tool.handler = observed
+
+
+for _read_tool in (list_eval_windows, get_metrics, compare_windows, sample_queries, get_query_detail):
+    _record_read_tool(_read_tool, 'runtime')
+_record_read_tool(run_judge, 'judge_opinion')
 
 
 # ---------------------------------------------------------------------------
@@ -792,6 +943,9 @@ ALL_TOOLS = [
     replay_curator,
     score_replay,
     write_report,
+    read_trust_source,
+    assess_trust,
+    trust_contracts,
 ]
 
 #: Fully-qualified names, for `allowed_tools` and per-subagent tool lists.

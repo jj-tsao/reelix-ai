@@ -9,12 +9,12 @@ than eval: it triages metrics, reads real queries, locates the responsible code
 and proposes diffs. The sibling `eval_judge` and `eval_metrics` jobs keep their
 names — those really are just eval.
 
-Read-only by default. `--apply` additionally lets the agent branch and edit
-prompt/config files; pushing is denied unconditionally in every mode.
+M2 is proposal-only. `--apply` permits explicit judge persistence; file edits
+and shell commands remain disabled in every mode.
 
 Usage:
     python -m jobs.investigate --since 7d                    # investigate + report
-    python -m jobs.investigate --since 7d --apply            # + branch, edit, verify
+    python -m jobs.investigate --since 7d --apply            # + explicit judge persistence
     python -m jobs.investigate --query-ids a,b,c             # deep-dive specific queries
     python -m jobs.investigate --focus curator --since 14d   # scope to one stage
     python -m jobs.investigate --replay-only --evalset base  # re-verify a branch
@@ -83,7 +83,7 @@ def main() -> None:
     p.add_argument("--max-turns", type=int, default=60,
                    help="Turn ceiling — the SDK has no wall-clock timeout. Default: 60.")
     p.add_argument("--apply", action="store_true",
-                   help="Allow the agent to branch and edit files. Pushing stays denied.")
+                   help="Allow explicit evaluation persistence. M2 file edits and shell commands remain disabled.")
     p.add_argument("--dry-run", action="store_true",
                    help="Print the plan and capability set; make no LLM calls.")
     p.add_argument("--verbose", "-v", action="store_true")
@@ -119,7 +119,7 @@ def main() -> None:
     logger.info(
         "Window: %s | baseline: %s | focus: %s | mode: %s",
         cfg.since, cfg.baseline or "auto", cfg.focus or "all",
-        "APPLY (may edit)" if cfg.apply_mode else "read-only",
+        "evaluation persistence enabled" if cfg.apply_mode else "read-only",
     )
     logger.info("Agent: %s | judge: %s", cfg.model, cfg.judge_model)
     logger.info("=" * 60)

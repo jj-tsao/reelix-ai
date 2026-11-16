@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_MAX_TURNS = 60
 
-#: Read-only capability set. The agent can look at anything and call every eval
-#: tool, but cannot change the working tree or run a command.
+#: M2 capability set. Evaluation persistence has its own existing gate;
+#: file edits and shell commands are prohibited in every mode.
 READ_ONLY_TOOLS = ["Read", "Grep", "Glob", "Task", *TOOL_NAMES]
 WRITE_TOOLS = ["Edit", "Write", "Bash"]
 
@@ -162,21 +162,11 @@ def check_bash(command: str, apply_mode: bool) -> PermissionResultAllow | Permis
 
 
 def build_guard(apply_mode: bool):
-    """The `can_use_tool` callback."""
+    """M2 never enables file or shell execution, including legacy apply mode."""
 
     async def guard(tool_name: str, tool_input: dict[str, Any], context) -> Any:
-        if tool_name == "Bash":
-            return check_bash(str(tool_input.get("command", "")), apply_mode)
-
-        if tool_name in ("Edit", "Write") and not apply_mode:
-            return _deny("File edits are disabled in read-only mode. Re-run with --apply.")
-
-        if tool_name in ("Edit", "Write"):
-            path = str(tool_input.get("file_path", ""))
-            resolved = Path(path).resolve()
-            if not str(resolved).startswith(str(REPO_ROOT)):
-                return _deny(f"Refusing to edit outside the repo: {path}")
-
+        if tool_name in WRITE_TOOLS:
+            return _deny("M2 is proposal-only; sandbox eligibility never grants file or shell execution.")
         return PermissionResultAllow()
 
     return guard
@@ -219,16 +209,8 @@ def preflight(cfg: RunConfig) -> list[str]:
 
 
 def build_options(cfg: RunConfig) -> ClaudeAgentOptions:
-    # Edit/Write/Bash are deliberately NEVER listed in allowed_tools, in either
-    # mode. Listing a tool there auto-approves it *before* `can_use_tool` is
-    # consulted, so putting them in the allow list under --apply would silently
-    # bypass the entire guard — including the unconditional `git push` denial.
-    # Omitting them makes every call fall through to the callback, which is the
-    # only thing standing between the agent and the remote. The SDK emits
-    # CanUseToolShadowedWarning if this is ever regressed.
-    #
-    # Read-only mode additionally hard-blocks them via disallowed_tools, so the
-    # agent cannot invoke them at all rather than being denied per call.
+    # SDK hard denial plus the callback enforce the proposal-only boundary.
+    # A favorable trust result is data and is never consulted for tool permission.
     return ClaudeAgentOptions(
         model=cfg.model,
         system_prompt=build_prompt(focus=cfg.focus, apply_mode=cfg.apply_mode),
@@ -240,7 +222,7 @@ def build_options(cfg: RunConfig) -> ClaudeAgentOptions:
         mcp_servers={"reelix_eval": build_server()},
         agents=build_agents(),
         allowed_tools=list(READ_ONLY_TOOLS),
-        disallowed_tools=[] if cfg.apply_mode else list(WRITE_TOOLS),
+        disallowed_tools=list(WRITE_TOOLS),
         can_use_tool=build_guard(cfg.apply_mode),
         permission_mode="default",
     )
@@ -255,14 +237,7 @@ def build_task(cfg: RunConfig) -> str:
     if cfg.focus:
         parts.append(f"Scope the investigation to the {cfg.focus} stage.")
     parts.append(f"Sample about {cfg.sample_size} queries where you need examples.")
-    if cfg.apply_mode:
-        parts.append(
-            "Edits are enabled: snapshot an eval set from pre-change traffic, "
-            "create a branch, make the smallest change that tests your top "
-            "hypothesis, then verify it with fix-verifier."
-        )
-    else:
-        parts.append("This run is read-only: propose diffs, do not apply them.")
+    parts.append("M2 is proposal-only: use assess_trust, follow evidence feedback, and submit a complete verification plan. File edits and shell commands are disabled.")
     parts.append(f"Finish by calling write_report. The run id is {cfg.run_id}.")
     return " ".join(parts)
 

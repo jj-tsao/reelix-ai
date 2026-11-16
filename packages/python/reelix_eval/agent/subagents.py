@@ -115,7 +115,7 @@ FIX_VERIFIER = AgentDefinition(
         "Replays a frozen eval set against the working tree and reports the A/B "
         "delta. Use after making an edit, to find out whether it helped."
     ),
-    tools=["Read", "Bash", *REPLAY_TOOL_NAMES],
+    tools=["Read", *REPLAY_TOOL_NAMES],
     prompt="""\
 You verify whether an edit to the Reelix curator actually improved anything, by
 replaying a frozen eval set against the current working tree.
