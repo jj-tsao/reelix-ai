@@ -26,6 +26,19 @@ logging.basicConfig(level=logging.INFO)
 OMDB_URL = "https://www.omdbapi.com/"
 
 
+class OmdbFatalError(Exception):
+    """
+    OMDb failure that will affect every subsequent call in the run
+    (daily quota exhausted, invalid API key). The batch should stop rather
+    than mark the remaining healthy titles as 'error'.
+    """
+
+
+def _is_fatal_omdb_message(message: str) -> bool:
+    msg = message.lower()
+    return "request limit reached" in msg or "invalid api key" in msg
+
+
 # == Download IMDb dataset, filter to known titles, upsert into media_ratings ==
 def sync_imdb_ratings(engine: Engine) -> None:
     """
@@ -120,11 +133,27 @@ def fetch_from_omdb(
     Returns:
       (rt_score, metascore, awards_summary, omdb_status)
     where omdb_status ∈ {"ok", "not_found", "error"}.
+
+    Raises OmdbFatalError when OMDb reports the daily request limit or an
+    invalid API key (HTTP 401/429 or a Response=False body), since every
+    later call in the run would fail the same way.
     """
     params = {"apikey": OMDB_API_KEY, "i": imdb_id}
 
     try:
         resp = httpx.get(OMDB_URL, params=params, timeout=10)
+    except Exception as e:
+        logger.warning("HTTP error for imdb_id=%s: %s", imdb_id, e)
+        return None, None, None, "error"
+
+    # OMDb returns "Request limit reached!" / "Invalid API key!" with HTTP 401,
+    # so inspect the body before raise_for_status() collapses it to a generic error.
+    if resp.status_code == 429 or (
+        resp.status_code in (401, 403) and _is_fatal_omdb_message(resp.text)
+    ):
+        raise OmdbFatalError(f"OMDb HTTP {resp.status_code}: {resp.text[:200]}")
+
+    try:
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
@@ -133,6 +162,8 @@ def fetch_from_omdb(
 
     if data.get("Response") != "True":
         err = (data.get("Error") or "").lower()
+        if _is_fatal_omdb_message(err):
+            raise OmdbFatalError(f"OMDb: {data.get('Error')}")
         logger.info("OMDb: no data for %s: %s", imdb_id, data.get("Error"))
 
         if "not found" in err or "incorrect imdb id" in err:
@@ -195,7 +226,8 @@ def select_daily_omdb_candidates(
     Priority:
       0) Recent + never checked (omdb_status IS NULL)
       1) Recent + error (transient failure, retry after 1 day)
-      2) Recent + has RT score (refresh after 7 days)
+      2) Recent + ok but still no RT score (retry after 7 days; rows that
+         already have RT are left to the weekly stale-refresh tier)
       3) Recent + not_found (retry after 14 days)
       99) Everything else (skip — weekly handles it)
     """
@@ -228,9 +260,10 @@ def select_daily_omdb_candidates(
                 THEN 1  -- transient failure, retry quickly
 
               WHEN omdb_status = 'ok'
+                AND rt_score IS NULL
                 AND (omdb_last_checked IS NULL
                      OR omdb_last_checked < now() - interval '7 days')
-                THEN 2  -- refresh existing scores
+                THEN 2  -- RT may have been published since last check
 
               WHEN omdb_status = 'not_found'
                 AND (omdb_last_checked IS NULL
@@ -250,6 +283,7 @@ def select_daily_omdb_candidates(
                 AND (omdb_last_checked IS NULL
                      OR omdb_last_checked < now() - interval '1 day'))
             OR (omdb_status = 'ok'
+                AND rt_score IS NULL
                 AND (omdb_last_checked IS NULL
                      OR omdb_last_checked < now() - interval '7 days'))
             OR (omdb_status = 'not_found'
@@ -276,13 +310,16 @@ def select_weekly_omdb_candidates(
     stale_months: int = 6,
     min_votes: int | None = None,
     rt_retry_months: int = 3,
+    error_retry_days: int = 3,
 ) -> Sequence[Mapping]:
     """
     WEEKLY selector: sweep broader catalog with budget-aware prioritization.
 
     Priority tiers (lower = higher priority):
       0) Never checked (omdb_status IS NULL) — highest value, no data at all
-      1) Previously errored (omdb_status = 'error') — transient failure, worth retrying
+      1) Previously errored (omdb_status = 'error') and last attempt older than
+         error_retry_days — transient failure, worth retrying (backoff avoids
+         immediately re-hitting failures on a manual rerun)
       2) ok but no RT score, >rt_retry_months since last check — RT often lags
          the release, so the first check can land before a score exists
       3) Has RT score but stale (omdb_last_checked > stale_months) — keep data fresh
@@ -318,7 +355,9 @@ def select_weekly_omdb_candidates(
                 THEN 0  -- never checked
 
               WHEN omdb_status = 'error'
-                THEN 1  -- transient failure, retry
+                AND (omdb_last_checked IS NULL
+                     OR omdb_last_checked < now() - interval '{error_retry_days} days')
+                THEN 1  -- transient failure, retry after backoff
 
               WHEN omdb_status = 'ok'
                 AND rt_score IS NULL
@@ -341,7 +380,9 @@ def select_weekly_omdb_candidates(
           {vote_filter}
           AND (
                omdb_status IS NULL
-            OR omdb_status = 'error'
+            OR (omdb_status = 'error'
+                AND (omdb_last_checked IS NULL
+                     OR omdb_last_checked < now() - interval '{error_retry_days} days'))
             OR (rt_score IS NOT NULL
                 AND omdb_last_checked < now() - interval '{stale_months} months')
             OR (omdb_status = 'ok'
@@ -413,7 +454,23 @@ def enrich_omdb_rows(
     total_batches = (len(rows) + flush_every - 1) // flush_every
 
     for idx, row in enumerate(rows, start=1):
-        rt_score, metascore, awards, status = fetch_from_omdb(row["imdb_id"])
+        try:
+            rt_score, metascore, awards, status = fetch_from_omdb(row["imdb_id"])
+        except OmdbFatalError as e:
+            # Quota exhausted / bad key: stop without touching the remaining
+            # rows so they stay eligible, and persist what already succeeded.
+            logger.error(
+                "Aborting OMDb enrichment after %d/%d rows: %s",
+                total_processed,
+                len(rows),
+                e,
+            )
+            if batch_updates:
+                with engine.begin() as conn:
+                    conn.execute(update_sql, batch_updates)
+                total_flushed += len(batch_updates)
+            logger.info("Flushed %d rows before abort.", total_flushed)
+            return
 
         batch_updates.append(
             {
