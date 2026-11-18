@@ -1,0 +1,747 @@
+{
+  "description": "Actual offline HostOrchestrator trace with deterministic executor and synthetic evidence. No model or production calls.",
+  "test": "HostTests.test_actionable_feedback_revision_and_fresh_snapshot",
+  "executor_stages": [
+    "investigation",
+    "revision",
+    "proposal"
+  ],
+  "status": "provisional",
+  "checkpoint_evaluation_ms": [
+    0.1500421203672886,
+    0.11091586202383041,
+    0.13912515714764595
+  ],
+  "elapsed_ms": 11.87291694805026,
+  "events": [
+    {
+      "sequence": 4,
+      "kind": "transition",
+      "payload": {
+        "from": "created",
+        "reason": "host starts bounded reasoning stage",
+        "to": "investigation"
+      }
+    },
+    {
+      "sequence": 9,
+      "kind": "transition",
+      "payload": {
+        "from": "investigation",
+        "reason": "mandatory independent assurance",
+        "to": "assurance"
+      }
+    },
+    {
+      "sequence": 10,
+      "kind": "assurance",
+      "payload": {
+        "evaluation": {
+          "assessment_sha256": "fa20fb075f22f2365b89056f4721e91ece5e878e926c48eac8656903d390bf52",
+          "conditions": [
+            {
+              "condition_id": "evidence.resolves",
+              "evidence_refs": [
+                "missing",
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a",
+                "0d3e1c1c1bce9e7477786ef4e4805901b4c4cac9ab0469b64e9f161a3ec9a78c"
+              ],
+              "method": "deterministic",
+              "next_action": "Fetch missing observations through host tools.",
+              "rationale": "References checked against host observations.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "facts.separated",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Typed observations, mechanism and hypothesis are distinct fields; this checks representation only.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "facts.corroborated",
+              "evidence_refs": [
+                "missing"
+              ],
+              "method": "deterministic",
+              "next_action": "Read query detail and cite exact runtime fields.",
+              "rationale": "Exact runtime fields checked; descriptions remain interpretations.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "alternatives.adequate",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "semantic_requires_review",
+              "next_action": "Investigate an alternative and a disconfirming case; obtain bound human review.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "gaps.explicit",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Reconcile contradictions and record missing evidence and unsupported assumptions.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "mechanism.grounded",
+              "evidence_refs": [
+                "0d3e1c1c1bce9e7477786ef4e4805901b4c4cac9ab0469b64e9f161a3ec9a78c"
+              ],
+              "method": "semantic_requires_review",
+              "next_action": "Have a human review the mechanism against source and observations.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "causality.preconditions",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Runtime predicates checked independently; predicates alone do not establish causality.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "causality.adequate",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Obtain human review of causal precondition relevance and competing explanations.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "finding.bound",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Finding ID and content digest checked against host registration.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "action.scope",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "action.revision",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "action.preconditions",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "action.relevance",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "risk.bounded",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "verification.plan",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "verification.measurable",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "verification.outcomes",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "approval.human",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "mechanism.represented",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Source reference and plausible mechanism represented; semantic adequacy remains unknown until review.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "verification.supported",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Only curator code/prompt changes have the M1.5 verification mechanism.",
+              "status": "not_applicable"
+            }
+          ],
+          "context_sha256": "9bd84a57a0f8efb38d98ba6ae690a1b38521f6577039cf941481e14520e308a2",
+          "evidence_snapshot": "253955c2a9bd5600cd9e26e2b2d6c955834a03bff13c39d77472f7f68e8c493c",
+          "policy_revision": "7b11c656618c46ecd9f17d8008763aae0f767c462245f9494764f559dc63f408",
+          "policy_version": "reelix-m2-host-v1",
+          "proposal_sha256": null,
+          "required_conditions": [
+            "evidence.resolves",
+            "facts.corroborated",
+            "finding.bound",
+            "facts.separated",
+            "mechanism.represented"
+          ],
+          "step": "proposal_readiness"
+        },
+        "execution_authorized": false,
+        "outcome": "request_evidence",
+        "read_only_permitted": true,
+        "requirements": [
+          "evidence.resolves: Fetch missing observations through host tools.",
+          "facts.corroborated: Read query detail and cite exact runtime fields."
+        ]
+      }
+    },
+    {
+      "sequence": 11,
+      "kind": "feedback_delivered",
+      "payload": {
+        "requirements": [
+          {
+            "condition_id": "evidence.resolves",
+            "kind": "evidence",
+            "next_action": "Fetch missing observations through host tools.",
+            "rationale": "References checked against host observations.",
+            "status": "unknown"
+          },
+          {
+            "condition_id": "facts.corroborated",
+            "kind": "evidence",
+            "next_action": "Read query detail and cite exact runtime fields.",
+            "rationale": "Exact runtime fields checked; descriptions remain interpretations.",
+            "status": "unknown"
+          }
+        ],
+        "revision_budget_remaining": 1
+      }
+    },
+    {
+      "sequence": 12,
+      "kind": "transition",
+      "payload": {
+        "from": "assurance",
+        "reason": "host starts bounded reasoning stage",
+        "to": "revision"
+      }
+    },
+    {
+      "sequence": 18,
+      "kind": "transition",
+      "payload": {
+        "from": "revision",
+        "reason": "mandatory independent assurance",
+        "to": "assurance"
+      }
+    },
+    {
+      "sequence": 19,
+      "kind": "assurance",
+      "payload": {
+        "evaluation": {
+          "assessment_sha256": "49c9e4d3292b46c1ce12a35c4fefac51741a8d7beb7bda33339858aa3cd23c1d",
+          "conditions": [
+            {
+              "condition_id": "evidence.resolves",
+              "evidence_refs": [
+                "d27609e30c652eb5e13cad00860b0eb9eeb4318527ca1b738f680b5b6cc21f18",
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a",
+                "0d3e1c1c1bce9e7477786ef4e4805901b4c4cac9ab0469b64e9f161a3ec9a78c"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "References checked against host observations.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "facts.separated",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Typed observations, mechanism and hypothesis are distinct fields; this checks representation only.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "facts.corroborated",
+              "evidence_refs": [
+                "d27609e30c652eb5e13cad00860b0eb9eeb4318527ca1b738f680b5b6cc21f18"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Exact runtime fields checked; descriptions remain interpretations.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "alternatives.adequate",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "semantic_requires_review",
+              "next_action": "Investigate an alternative and a disconfirming case; obtain bound human review.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "gaps.explicit",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Reconcile contradictions and record missing evidence and unsupported assumptions.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "mechanism.grounded",
+              "evidence_refs": [
+                "0d3e1c1c1bce9e7477786ef4e4805901b4c4cac9ab0469b64e9f161a3ec9a78c"
+              ],
+              "method": "semantic_requires_review",
+              "next_action": "Have a human review the mechanism against source and observations.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "causality.preconditions",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Runtime predicates checked independently; predicates alone do not establish causality.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "causality.adequate",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Obtain human review of causal precondition relevance and competing explanations.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "finding.bound",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Finding ID and content digest checked against host registration.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "action.scope",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "action.revision",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "action.preconditions",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "action.relevance",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "risk.bounded",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "verification.plan",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "verification.measurable",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "verification.outcomes",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "approval.human",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "No remediation proposal supplied.",
+              "status": "not_applicable"
+            },
+            {
+              "condition_id": "mechanism.represented",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Source reference and plausible mechanism represented; semantic adequacy remains unknown until review.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "verification.supported",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Only curator code/prompt changes have the M1.5 verification mechanism.",
+              "status": "not_applicable"
+            }
+          ],
+          "context_sha256": "ccc319071a19f05726376a3add717d982ddc9cc1dc174ee1fff510d4d01e7df4",
+          "evidence_snapshot": "fdd982b7fb37ece248bc499f299bd4e8e7c85a57028b679640d22386a1d31ce0",
+          "policy_revision": "7b11c656618c46ecd9f17d8008763aae0f767c462245f9494764f559dc63f408",
+          "policy_version": "reelix-m2-host-v1",
+          "proposal_sha256": null,
+          "required_conditions": [
+            "evidence.resolves",
+            "facts.corroborated",
+            "finding.bound",
+            "facts.separated",
+            "mechanism.represented"
+          ],
+          "step": "proposal_readiness"
+        },
+        "execution_authorized": false,
+        "outcome": "proceed",
+        "read_only_permitted": true,
+        "requirements": []
+      }
+    },
+    {
+      "sequence": 20,
+      "kind": "transition",
+      "payload": {
+        "from": "assurance",
+        "reason": "host starts bounded reasoning stage",
+        "to": "proposal"
+      }
+    },
+    {
+      "sequence": 25,
+      "kind": "transition",
+      "payload": {
+        "from": "proposal",
+        "reason": "mandatory independent assurance",
+        "to": "policy"
+      }
+    },
+    {
+      "sequence": 26,
+      "kind": "assurance",
+      "payload": {
+        "evaluation": {
+          "assessment_sha256": "49c9e4d3292b46c1ce12a35c4fefac51741a8d7beb7bda33339858aa3cd23c1d",
+          "conditions": [
+            {
+              "condition_id": "evidence.resolves",
+              "evidence_refs": [
+                "d27609e30c652eb5e13cad00860b0eb9eeb4318527ca1b738f680b5b6cc21f18",
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a",
+                "0d3e1c1c1bce9e7477786ef4e4805901b4c4cac9ab0469b64e9f161a3ec9a78c"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "References checked against host observations.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "facts.separated",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Typed observations, mechanism and hypothesis are distinct fields; this checks representation only.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "facts.corroborated",
+              "evidence_refs": [
+                "d27609e30c652eb5e13cad00860b0eb9eeb4318527ca1b738f680b5b6cc21f18"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Exact runtime fields checked; descriptions remain interpretations.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "alternatives.adequate",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "semantic_requires_review",
+              "next_action": "Investigate an alternative and a disconfirming case; obtain bound human review.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "gaps.explicit",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Reconcile contradictions and record missing evidence and unsupported assumptions.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "mechanism.grounded",
+              "evidence_refs": [
+                "0d3e1c1c1bce9e7477786ef4e4805901b4c4cac9ab0469b64e9f161a3ec9a78c"
+              ],
+              "method": "semantic_requires_review",
+              "next_action": "Have a human review the mechanism against source and observations.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "causality.preconditions",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Runtime predicates checked independently; predicates alone do not establish causality.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "causality.adequate",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Obtain human review of causal precondition relevance and competing explanations.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "finding.bound",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Finding ID and content digest checked against host registration.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "action.scope",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Action and exact target checked against policy allowlist.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "action.revision",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Base checked against host revision identity.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "action.preconditions",
+              "evidence_refs": [
+                "5f77aaa1d63995617e98d5e5d7b24e73260dc5aac84dd635f14eb4866eb9fa8a"
+              ],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Action predicates require runtime observations.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "action.relevance",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Have a human review that the target and patch address this finding.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "risk.bounded",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Describe affected scope, risks and reversibility; obtain bound human review.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "verification.plan",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Frozen cases, paired revisions and independent unchanged controls required.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "verification.measurable",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Gain must exceed max(0.3, unchanged spread); no regression on any axis.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "verification.outcomes",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Plan schema distinguishes failure, abort and inconclusive outcomes; adequacy remains part of risk review.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "approval.human",
+              "evidence_refs": [],
+              "method": "semantic_requires_review",
+              "next_action": "Obtain human approval bound to these exact inputs.",
+              "rationale": "Structural presence does not establish semantic adequacy.",
+              "status": "unknown"
+            },
+            {
+              "condition_id": "mechanism.represented",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Source reference and plausible mechanism represented; semantic adequacy remains unknown until review.",
+              "status": "satisfied"
+            },
+            {
+              "condition_id": "verification.supported",
+              "evidence_refs": [],
+              "method": "deterministic",
+              "next_action": null,
+              "rationale": "Only curator code/prompt changes have the M1.5 verification mechanism.",
+              "status": "satisfied"
+            }
+          ],
+          "context_sha256": "3124107e7ef7c932551a1f6a9fafed53d76fad0ab85527a2bec86dadbb798ace",
+          "evidence_snapshot": "fdd982b7fb37ece248bc499f299bd4e8e7c85a57028b679640d22386a1d31ce0",
+          "policy_revision": "7b11c656618c46ecd9f17d8008763aae0f767c462245f9494764f559dc63f408",
+          "policy_version": "reelix-m2-host-v1",
+          "proposal_sha256": "997c9c36606bc286735cf2f90200f81dcc4ed7b8aab51bd6ff6b3cdf51e3f75d",
+          "required_conditions": [
+            "evidence.resolves",
+            "facts.separated",
+            "facts.corroborated",
+            "finding.bound",
+            "mechanism.grounded",
+            "alternatives.adequate",
+            "gaps.explicit",
+            "causality.preconditions",
+            "causality.adequate",
+            "action.scope",
+            "action.revision",
+            "action.preconditions",
+            "action.relevance",
+            "risk.bounded",
+            "verification.plan",
+            "verification.measurable",
+            "verification.outcomes"
+          ],
+          "step": "sandbox_candidate"
+        },
+        "execution_authorized": false,
+        "outcome": "request_evidence",
+        "read_only_permitted": true,
+        "requirements": [
+          "mechanism.grounded: Have a human review the mechanism against source and observations.",
+          "alternatives.adequate: Investigate an alternative and a disconfirming case; obtain bound human review.",
+          "gaps.explicit: Reconcile contradictions and record missing evidence and unsupported assumptions.",
+          "causality.adequate: Obtain human review of causal precondition relevance and competing explanations.",
+          "action.relevance: Have a human review that the target and patch address this finding.",
+          "risk.bounded: Describe affected scope, risks and reversibility; obtain bound human review."
+        ]
+      }
+    },
+    {
+      "sequence": 27,
+      "kind": "outcome",
+      "payload": {
+        "execution_authorized": false,
+        "reason": "policy outcome: request_evidence; execution never authorized",
+        "status": "provisional",
+        "verification": "not_attempted"
+      }
+    },
+    {
+      "sequence": 28,
+      "kind": "transition",
+      "payload": {
+        "from": "policy",
+        "reason": "policy outcome: request_evidence; execution never authorized",
+        "to": "publication"
+      }
+    },
+    {
+      "sequence": 30,
+      "kind": "transition",
+      "payload": {
+        "from": "publication",
+        "reason": "host published immutable report",
+        "to": "finished"
+      }
+    }
+  ]
+}

@@ -817,3 +817,12 @@ def _backfill_from_qdrant(candidates: list[CandidateDetail]) -> None:
             c.title = p.get("title") or c.title
 
     logger.debug("Backfilled %d/%d candidates from Qdrant", len(by_id), len(candidates))
+
+def incident_query_ids(engine, start: date, end: date) -> list[str]:
+    """Read-only authorization scope, independent of diagnostic sample selection."""
+    with engine.connect() as conn:
+        return [str(row[0]) for row in conn.execute(text(
+            "SELECT DISTINCT query_id FROM request_traces "
+            "WHERE created_at >= :start AND created_at < :end AND query_id IS NOT NULL"
+        ), {"start": datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc),
+            "end": datetime.combine(end, datetime.min.time(), tzinfo=timezone.utc)})]

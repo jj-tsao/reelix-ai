@@ -9,12 +9,11 @@ than eval: it triages metrics, reads real queries, locates the responsible code
 and proposes diffs. The sibling `eval_judge` and `eval_metrics` jobs keep their
 names — those really are just eval.
 
-Read-only by default. `--apply` additionally lets the agent branch and edit
-prompt/config files; pushing is denied unconditionally in every mode.
+Host-owned read-only investigation with mandatory independent assurance.
+Legacy --apply is rejected; remediation proposals never grant execution rights.
 
 Usage:
     python -m jobs.investigate --since 7d                    # investigate + report
-    python -m jobs.investigate --since 7d --apply            # + branch, edit, verify
     python -m jobs.investigate --query-ids a,b,c             # deep-dive specific queries
     python -m jobs.investigate --focus curator --since 14d   # scope to one stage
     python -m jobs.investigate --replay-only --evalset base  # re-verify a branch
@@ -44,8 +43,6 @@ def _validate_env(cfg: RunConfig) -> None:
     missing = []
     if not DATABASE_URL:
         missing.append("DATABASE_URL")
-    if not OPENAI_API_KEY:
-        missing.append("OPENAI_API_KEY (needed for curator replay)")
     if missing:
         raise EnvironmentError(f"Missing required env vars: {', '.join(missing)}")
 
@@ -81,13 +78,16 @@ def main() -> None:
     p.add_argument("--model", default="claude-opus-5",
                    help="Model driving the agent itself. Default: claude-opus-5.")
     p.add_argument("--max-turns", type=int, default=60,
-                   help="Turn ceiling — the SDK has no wall-clock timeout. Default: 60.")
+                   help="Maximum reasoning turns per host stage. Default: 60.")
+    p.add_argument("--stage-timeout", type=float, default=300., help="Wall-clock seconds per reasoning stage.")
     p.add_argument("--apply", action="store_true",
-                   help="Allow the agent to branch and edit files. Pushing stays denied.")
+                   help="Unsupported in M2: proposals never authorize patch application.")
     p.add_argument("--dry-run", action="store_true",
                    help="Print the plan and capability set; make no LLM calls.")
     p.add_argument("--verbose", "-v", action="store_true")
     args = p.parse_args()
+    if args.apply or args.replay_only:
+        p.error("M2 is read-only: --apply and --replay-only are unavailable in Investigator.")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -98,6 +98,8 @@ def main() -> None:
 
     cfg = RunConfig(
         since=args.since,
+        query_ids=tuple(q.strip() for q in (args.query_ids or "").split(",") if q.strip()),
+        stage_timeout_seconds=args.stage_timeout,
         baseline=args.baseline,
         focus=args.focus,
         evalset=args.evalset,
@@ -119,7 +121,7 @@ def main() -> None:
     logger.info(
         "Window: %s | baseline: %s | focus: %s | mode: %s",
         cfg.since, cfg.baseline or "auto", cfg.focus or "all",
-        "APPLY (may edit)" if cfg.apply_mode else "read-only",
+        "host-owned read-only",
     )
     logger.info("Agent: %s | judge: %s", cfg.model, cfg.judge_model)
     logger.info("=" * 60)
@@ -140,7 +142,7 @@ def main() -> None:
     if summary.get("report"):
         logger.info("Report: %s", summary["report"])
     else:
-        logger.warning("No report was written — the agent did not call write_report.")
+        logger.warning("Host publication did not complete; inspect case checkpoints.")
 
     if summary.get("is_error"):
         sys.exit(1)

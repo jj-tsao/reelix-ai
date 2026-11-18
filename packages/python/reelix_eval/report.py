@@ -177,6 +177,7 @@ class Report:
     verification_receipts: dict[str, VerificationReceipt] = field(default_factory=dict)
     extra_blind_spots: list[str] = field(default_factory=list)
     git_sha: str = "unknown"
+    investigation_case: dict | None = None
 
     def validate(self) -> None:
         if (not isinstance(self.run_id, str) or self.run_id in ('', '.', '..')
@@ -263,7 +264,10 @@ class Report:
         # -- Findings ----------------------------------------------------
         out += ["## Findings", ""]
         if not self.findings:
-            out += ["Nothing actionable found in this window.", ""]
+            if self.investigation_case and self.investigation_case['status'] != 'completed':
+                out += ['No validated finding established; the investigation is incomplete. Inspect the case outcome and obligations.', '']
+            else:
+                out += ["Nothing actionable found in this window.", ""]
         else:
             for i, f in enumerate(self.findings, 1):
                 out += [f"### {i}. {f.title}", ""]
@@ -323,11 +327,18 @@ class Report:
             out.append(f"- {b}")
         out.append("")
 
+        if self.investigation_case is not None:
+            case = self.investigation_case
+            out += ['## Independent Operational Decision Assurance', '',
+                    f"Case outcome: **{case['status']}**. Verification: not attempted. Execution authorized: false.", '',
+                    'The complete host case, including stage history, agent assertions, independent conditions and unresolved obligations follows.', '',
+                    '```json', json.dumps(case, indent=2, ensure_ascii=False), '```', '']
         return "\n".join(out)
 
     def to_dict(self) -> dict:
         self.validate()
         return {
+            "investigation_case": self.investigation_case,
             "schema_version": 2,
             "run_id": self.run_id,
             "window": self.window,

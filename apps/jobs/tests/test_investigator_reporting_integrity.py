@@ -115,7 +115,7 @@ class ReportRunCompletionTests(unittest.IsolatedAsyncioTestCase):
                 if False: yield None
             with patch.object(mod,'preflight',return_value=[]), \
                  patch.object(mod,'build_options',return_value=object()), \
-                 patch.object(mod,'query',no_messages):
+                 patch('reelix_eval.agent.stages.query',no_messages):
                 result=await mod.run(cfg,engine=object(),llm_client=object())
             self.assertIsNone(result['report'])
             self.assertEqual((old/'report.md').read_text(),'historical artifact')

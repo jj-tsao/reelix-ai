@@ -12,8 +12,7 @@ Layers:
 - `prompts`   the workflow and, more importantly, the evidence standards
 - `run`       options assembly, the safety gate, and the run loop
 
-Read-only by default. Under `--apply` the agent may branch and edit, but
-`git push` is denied unconditionally in every mode.
+Host owns bounded stages, mandatory assurance and publication. No apply mode.
 """
 
 from reelix_eval.agent.run import RunConfig, build_options, check_bash, preflight, run
